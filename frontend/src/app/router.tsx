@@ -4,7 +4,7 @@ import { Navigate, Outlet, type RouteObject, useLocation } from "react-router";
 
 import { EntryRoute } from "../features/entry/EntryRoute";
 import { Home } from "../features/home/Home";
-import { NotFound } from "../features/placeholder/NotFound";
+import { NotFound } from "./NotFound";
 import { TransactionsPage } from "../features/transactions/TransactionsPage";
 import { AccountForm } from "../features/accounts/AccountForm";
 import { AccountPage } from "../features/accounts/AccountPage";
@@ -21,10 +21,10 @@ import { OpeningForm } from "../features/people/OpeningForm";
 import { PeoplePage } from "../features/people/PeoplePage";
 import { PersonForm } from "../features/people/PersonForm";
 import { PersonPage } from "../features/people/PersonPage";
+import { SettingsPage } from "../features/settings/SettingsPage";
 import { RecurringForm, RuleAddress } from "../features/recurring/RecurringForm";
 import { RecurringPage } from "../features/recurring/RecurringPage";
 import { TagsPage } from "../features/tags/TagsPage";
-import { Placeholder } from "../features/placeholder/Placeholder";
 import { Forgot } from "../features/auth/Forgot";
 import { Reset } from "../features/auth/Reset";
 import { SignIn } from "../features/auth/SignIn";
@@ -32,8 +32,6 @@ import { SignUp } from "../features/auth/SignUp";
 import { Layout } from "./Layout";
 import { SessionProvider } from "./session";
 import { ToastProvider } from "./toast";
-
-const PAGES: [path: string, title: string][] = [["/settings", "Settings"]];
 
 /** An old address of the web pages (/login, /signup), kept so bookmarks and mails still work. */
 function MovedTo({ path }: { path: string }) {
@@ -93,7 +91,7 @@ export const routes: RouteObject[] = [
           { path: "/categories/:categoryId", element: <CategoryPage /> },
           { path: "/categories/:categoryId/edit", element: <CategoryForm /> },
           { path: "/accounts/:accountId", element: <AccountPage /> },
-          ...PAGES.map(([path, title]) => ({ path, element: <Placeholder title={title} /> })),
+          { path: "/settings", element: <SettingsPage /> },
           { path: "*", element: <NotFound /> },
         ],
       },
