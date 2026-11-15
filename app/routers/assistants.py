@@ -103,6 +103,7 @@ def consent(authorization_id: str, cookie: CookieSession = Depends(require_cooki
         authorization_id=authorization_id,
         client_name=details.client_name,
         client_uri=details.client_uri,
+        redirect_uri=details.redirect_uri,
         scopes=list(details.scopes),
         redirect_url=details.redirect_url,
     )

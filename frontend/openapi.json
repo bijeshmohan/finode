@@ -3343,6 +3343,17 @@
             ],
             "title": "Client Uri"
           },
+          "redirect_uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Uri"
+          },
           "redirect_url": {
             "anyOf": [
               {
@@ -3366,6 +3377,7 @@
           "authorization_id",
           "client_name",
           "client_uri",
+          "redirect_uri",
           "scopes",
           "redirect_url"
         ],

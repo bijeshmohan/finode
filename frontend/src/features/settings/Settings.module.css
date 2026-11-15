@@ -184,3 +184,144 @@
 .body input[type="file"] {
   font: inherit;
 }
+/* AI assistants (.token-list, .secret, pre.snippet, .badge-write, .row-actions, .copy-row, .notice-card). */
+.tokens {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.75rem 0;
+  list-style: none;
+}
+.tokens li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.tokenLine {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.badge {
+  margin-left: 0.4rem;
+  padding: 0 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+.badgeWrite {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+.small {
+  min-height: 2.25rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.copyRow {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+.secret {
+  display: block;
+  flex: 1;
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.snippet {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  overflow-x: auto;
+  white-space: pre;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0.75rem 0 1rem;
+  padding: 1rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.card h2 {
+  margin: 0;
+  font-size: 1.125rem;
+}
+.notice {
+  margin: 0;
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+.scopes {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.scopes label {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-height: var(--tap);
+  align-items: center;
+  font-weight: 500;
+  cursor: pointer;
+}
+.scopes label:has(input:checked) {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.scopes input {
+  position: absolute;
+  opacity: 0;
+}
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.fieldset legend {
+  margin-bottom: 0.35rem;
+  font-weight: 500;
+}
+.hintLine {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}

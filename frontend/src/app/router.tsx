@@ -21,6 +21,8 @@ import { OpeningForm } from "../features/people/OpeningForm";
 import { PeoplePage } from "../features/people/PeoplePage";
 import { PersonForm } from "../features/people/PersonForm";
 import { PersonPage } from "../features/people/PersonPage";
+import { ConsentPage } from "../features/consent/ConsentPage";
+import { AssistantsPage } from "../features/settings/AssistantsPage";
 import { DataPage } from "../features/settings/DataPage";
 import { SettingsPage } from "../features/settings/SettingsPage";
 import { RecurringForm, RuleAddress } from "../features/recurring/RecurringForm";
@@ -104,6 +106,8 @@ export const routes: RouteObject[] = [
               { path: "/accounts/:accountId", element: <AccountPage /> },
               { path: "/settings", element: <SettingsPage /> },
               { path: "/profile/data", element: <DataPage /> },
+              { path: "/profile/assistants", element: <AssistantsPage /> },
+              { path: "/oauth/consent", element: <ConsentPage /> },
               { path: "*", element: <NotFound /> },
             ],
           },

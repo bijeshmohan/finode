@@ -66,6 +66,7 @@ def test_bearer_cannot_mint_tokens(client: TestClient):
 def test_consent_shows_the_app(client: TestClient, supabase: dict):
     seen = client.get("/api/oauth/consent/auth-1").json()
     assert seen["client_name"] == "Claude" and seen["redirect_url"] is None and seen["scopes"] == ["openid"]
+    assert seen["redirect_uri"] == "https://claude.ai/callback", "where the app sends you after deciding, as the page says"
 
 
 def test_consent_allow_records_the_app_supabase_names(client: TestClient, supabase: dict):

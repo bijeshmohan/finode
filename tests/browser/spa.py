@@ -13,7 +13,8 @@ DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 
 
 def spa_app(dist: Path = DIST) -> ASGIApp:
-    """/api/... goes to the API; any other path is a file of the build, or index.html (the app routes it itself)."""
+    """/api/... and /mcp go to the API (as api.<domain> serves them); any other path is a file of the build, or index.html
+    (the app routes it itself)."""
     index = dist / "index.html"
     if not index.is_file():
         raise RuntimeError("build the app first: npm --prefix frontend run build")
@@ -21,7 +22,7 @@ def spa_app(dist: Path = DIST) -> ASGIApp:
 
     async def serve(scope: Scope, receive: Receive, send: Send) -> None:
         path = scope.get("path", "")
-        if scope["type"] != "http" or path.startswith("/api/"):
+        if scope["type"] != "http" or path.startswith(("/api/", "/mcp")):
             await api(scope, receive, send)
             return
         if path != "/" and (dist / path.lstrip("/")).is_file():
