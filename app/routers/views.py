@@ -94,7 +94,7 @@ from ..services.accounts_view import (
     edit_account_form,
     new_account_form,
 )
-from ..services.budget import BudgetService
+from ..services.budget import BudgetError, BudgetService
 from ..services.categories_view import TABS, categories_page, category_form, category_page
 from ..services.category import CategoryService
 from ..services.coming_up_view import coming_days
@@ -817,7 +817,10 @@ def coming_up_view(service: ComingUp, accounts: Accounts, categories: Categories
     """What is coming up after today, to the end of this month (or `through`), by day: each row's `title` and `sub`
     (where the money comes from and goes), `amount`, `income`, and the `recurring_id` of a rule or the
     `transaction_id` of an entry dated ahead; a day's `total` when every row goes one way and there is more than one."""
-    found = coming_days(service, accounts, categories, through)
+    try:
+        found = coming_days(service, accounts, categories, through)
+    except BudgetError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
     return ComingUpView(
         through=found.data.through,
         count=found.data.count,

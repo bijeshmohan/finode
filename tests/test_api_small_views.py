@@ -175,3 +175,8 @@ def test_strangers_see_none_of_it(client, accounts, fake_today):
         assert view(client, "/api/views/coming-up")["days"] == []
         assert view(client, "/api/views/todo")["count"] == 0
     assert date.fromisoformat(view(client, "/api/views/recurring")["live"][0]["next_date"])
+
+
+def test_coming_up_more_than_a_year_ahead_is_refused(client, accounts):
+    too_far = client.get("/api/views/coming-up", params={"through": "2999-12-31"})
+    assert too_far.status_code == 400 and "366 days ahead" in too_far.json()["detail"]

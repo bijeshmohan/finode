@@ -56,7 +56,7 @@ export type RuleAction = "pause" | "resume" | "skip" | "delete";
 
 export function useRuleAction(recurringId: string) {
   const api = useApi();
-  const refresh = useRefresh();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (action: RuleAction) => {
       const path = { recurring_id: recurringId };
@@ -65,6 +65,12 @@ export function useRuleAction(recurringId: string) {
       if (action === "resume") return data(api.POST("/api/recurring/{recurring_id}/resume", { params: { path } }));
       return data(api.POST("/api/recurring/{recurring_id}/skip", { params: { path } }));
     },
-    onSuccess: refresh,
+    onSuccess: async (_answer, action) => {
+      // A deleted rule's own form is not asked for again: its "not found" would swap the page for the error before it
+      // can go back to the list, however long the other views take to refresh.
+      const gone = (key: readonly unknown[]) =>
+        action === "delete" && key[1] === "recurring-form" && key[2] === recurringId;
+      await queryClient.invalidateQueries({ queryKey: VIEWS, predicate: (query) => !gone(query.queryKey) });
+    },
   });
 }

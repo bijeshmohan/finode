@@ -220,6 +220,35 @@ describe("editing a recurring rule", () => {
     });
   });
 
+  it("goes back after deleting even when another view is slow to refresh", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    let deleted = false;
+    const { router } = renderApp(`/recurring/${RULE}/edit`, {
+      ...SIGNED_IN,
+      ...INR,
+      "/api/views/recurring-form": () =>
+        deleted ? [404, { detail: "recurring transaction not found" }] : [200, editing()],
+      "/api/views/recurring": "never",
+      "/api/views/todo": () =>
+        new Promise((done) => {
+          setTimeout(() => {
+            done([200, { count: 0 }]);
+          }, 150);
+        }),
+      [`/api/recurring/${RULE}`]: () => {
+        deleted = true;
+        return [204, null];
+      },
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    await waitFor(
+      () => {
+        expect(router.state.location.pathname).toBe("/recurring");
+      },
+      { timeout: 2000 },
+    );
+  });
+
   it("the old address of a rule opens its edit page", async () => {
     const { router } = renderApp(`/recurring/${RULE}`, {
       ...SIGNED_IN,
