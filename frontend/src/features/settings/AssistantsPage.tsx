@@ -7,7 +7,7 @@ import { Link } from "react-router";
 import { messageOf } from "../../api/messages";
 import { useToday } from "../../app/session";
 import { useToast } from "../../app/toast";
-import { CopyButton } from "../../components/CopyButton";
+import { CopyButton } from "./CopyButton";
 import { Icon } from "../../components/Icon";
 import { LoadError } from "../../components/LoadError";
 import look from "../../components/Page.module.css";
@@ -217,6 +217,7 @@ function NewToken({ url }: { url: string }) {
               onSuccess: (answer) => {
                 setMade({ name: answer.name, secret: answer.secret });
                 setName("");
+                create.reset();
               },
             },
           );

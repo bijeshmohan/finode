@@ -9,7 +9,7 @@ import { useGrouping } from "../../app/currency";
 import { useToast } from "../../app/toast";
 import { fullDate } from "../../lib/dates";
 import { formatMoney } from "../../lib/money";
-import { type ImportSummary, type RestoreSummary, useEverythingChanged, useImport, useRestore } from "./dataQueries";
+import { type ImportSummary, type RestoreSummary, useImport, useRestore } from "./dataQueries";
 import styles from "./Settings.module.css";
 
 const many = (n: number, one: string, more: string) => `${String(n)} ${n === 1 ? one : more}`;
@@ -123,7 +123,6 @@ interface FlowProps<T extends { errors?: string[] }> {
 function Flow<T extends { errors?: string[] }>({ kind, send, ready, confirm }: FlowProps<T>) {
   const toast = useToast();
   const navigate = useNavigate();
-  const changed = useEverythingChanged();
   const [file, setFile] = useState<File | null>(null);
   const [summary, setSummary] = useState<T | null>(null);
   const [problems, setProblems] = useState<string[] | null>(null);
@@ -136,7 +135,7 @@ function Flow<T extends { errors?: string[] }>({ kind, send, ready, confirm }: F
 
   const run = (dryRun: boolean) => {
     if (!file) {
-      show(null, [isImport ? "Choose a ledger file." : "Choose a backup file."]);
+      show(null, ["Choose a file first."]); // the API's words for no file
       return;
     }
     send.mutate(
@@ -153,7 +152,6 @@ function Flow<T extends { errors?: string[] }>({ kind, send, ready, confirm }: F
             return;
           }
           toast(isImport ? "Import complete" : "Backup restored");
-          void changed();
           void navigate("/", { replace: true });
         },
         onError: (error) => {

@@ -1,8 +1,6 @@
 // Settings (settings.html): your name, the currency and the look, the links to Your data, Tags, People, Recurring and AI
 // assistants, About (feedback, the test notice) and Sign out.
-import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useNavigate } from "react-router";
 
 import { messageOf } from "../../api/messages";
 import { useCurrencies, useProfile } from "../../app/currency";
@@ -12,7 +10,7 @@ import { useToast } from "../../app/toast";
 import look from "../../components/Page.module.css";
 import { TestNotice } from "../../components/TestNotice";
 import { chooseTheme, readTheme, type Theme } from "../../lib/theme";
-import { useSignOut, useUpdateProfile } from "./queries";
+import { useLeaveSignedIn, useSignOut, useUpdateProfile } from "./queries";
 import { SettingLink, SettingRow } from "./SettingRow";
 import styles from "./Settings.module.css";
 
@@ -167,8 +165,7 @@ export function SettingsPage() {
   const profile = useProfile();
   const options = useAuthOptions();
   const signOut = useSignOut();
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
+  const leave = useLeaveSignedIn();
   const p = profile.data;
   const notice = options.data?.test_notice ?? false;
   return (
@@ -217,17 +214,7 @@ export function SettingsPage() {
             className={styles.signout}
             disabled={signOut.isPending}
             onClick={() => {
-              signOut.mutate(undefined, {
-                onSuccess: () => {
-                  // Off the signed-in pages first, and clear once they are gone (the next tick), so nothing there asks
-                  // again for what was cleared and the next person to sign in starts from nothing.
-                  void Promise.resolve(navigate("/sign-in", { replace: true })).then(() => {
-                    setTimeout(() => {
-                      queryClient.clear();
-                    }, 0);
-                  });
-                },
-              });
+              signOut.mutate(undefined, { onSuccess: leave });
             }}
           >
             Sign out

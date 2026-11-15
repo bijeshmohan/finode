@@ -145,6 +145,29 @@ describe("AI assistants", () => {
     expect(screen.queryByText("fn_secret_123")).not.toBeInTheDocument();
   });
 
+  it("the secret is kept nowhere in the app's cache, only on the page", async () => {
+    const created = { ...TOKEN, id: "00000000-0000-4000-8000-000000000604", name: "Cursor", secret: "fn_secret_456" };
+    const { queryClient } = open({ "/api/assistants/tokens": [201, created] });
+    await userEvent.click(await screen.findByRole("button", { name: /^Use a token/ }));
+    await userEvent.type(screen.getByLabelText("Name"), "Cursor");
+    await userEvent.click(screen.getByRole("button", { name: "Create token" }));
+    expect(await screen.findByRole("heading", { name: "Cursor is ready" })).toBeInTheDocument();
+    await waitFor(() => {
+      const held = JSON.stringify([
+        queryClient
+          .getMutationCache()
+          .getAll()
+          .map((m) => m.state),
+        queryClient
+          .getQueryCache()
+          .getAll()
+          .map((q) => q.state.data),
+      ]);
+      expect(held).not.toContain("fn_secret_456");
+    });
+    expect(screen.getAllByText("fn_secret_456").length).toBeGreaterThan(0);
+  });
+
   it("a refused token name shows the server's words", async () => {
     open({ "/api/assistants/tokens": [400, { detail: "a token needs a name!" }] });
     await userEvent.click(await screen.findByRole("button", { name: /^Use a token/ }));
