@@ -17,6 +17,8 @@ from ..dependencies import (
     Categories,
     ComingUp,
     Contacts,
+    ContactSummaries,
+    Obligations,
     Recurring,
     Reports,
     SharedExpenses,
@@ -32,6 +34,7 @@ from ..schemas.views import (
     AccountFormView,
     AccountsView,
     AccountView,
+    ActivityRowRead,
     AppliedFilter,
     BudgetGroupView,
     BudgetMoveView,
@@ -63,8 +66,14 @@ from ..schemas.views import (
     KindRow,
     LineRead,
     MoveLine,
+    OpeningFormView,
+    OpenRowRead,
     ParentOption,
+    PeopleView,
+    PersonEntryView,
     PersonRef,
+    PersonRowRead,
+    PersonView,
     PickGroupRead,
     PickOptionRead,
     PlacedRead,
@@ -75,6 +84,7 @@ from ..schemas.views import (
     RuleRowRead,
     SharePreview,
     SharePreviewAsk,
+    ShowChoice,
     StepRead,
     SubcategoryRead,
     TodoBill,
@@ -84,6 +94,7 @@ from ..schemas.views import (
     UpcomingRead,
 )
 from ..services import budget_view, cards
+from ..services import people_view as people_view_service
 from ..services.account_tree import Node, build_tree, without_contacts
 from ..services.accounts_view import (
     AccountForm,
@@ -915,4 +926,135 @@ def recurring_form_view(
         last_date=rule.last_date if rule else None,
         skipped_date=rule.skipped_date if rule else None,
         last_error=rule.last_error if rule else None,
+    )
+
+
+# ---- People ---------------------------------------------------------------------------------------------------------
+
+
+@router.get("/people", response_model=PeopleView)
+def people_view(contacts: Contacts, accounts: Accounts, show: str = "all"):
+    """The People list (`show`: `all`, `owed`: they owe you, `owe`: you owe them, `archived`): each person's `net` (above
+    zero they owe you) and quiet line (`sub`), what is owed to you and by you in all, and whether anyone is archived."""
+    style = grouping_for(accounts.currency().code)
+    found = people_view_service.people_page(contacts, show, lambda value: money(value, style))
+    return PeopleView(
+        show=found.show,
+        shows=[ShowChoice(key=k, name=n) for k, n in people_view_service.SHOWS.items()],
+        has_archived=found.has_archived,
+        everyone=found.everyone,
+        owed_total=found.owed_total,
+        owe_total=found.owe_total,
+        rows=[PersonRowRead(id=r.person.id, name=r.person.name, sub=r.sub, net=r.person.net) for r in found.rows],
+    )
+
+
+@router.get("/people/{contact_id}", response_model=PersonView)
+def person_view(contact_id: UUID, contacts: Contacts, obligations: Obligations, summaries: ContactSummaries):
+    """A person's page: what they owe you or you owe them, the `open` amounts (`who` says which way only when they are
+    owed both ways; `settled` of `original` when part is paid) and the newest 30 entries done with them (`title`, `sub`,
+    `income`), with how many older ones are not listed."""
+    try:
+        found = people_view_service.person_page(contact_id, contacts, obligations, summaries)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="person not found") from None
+    p = found.person
+    return PersonView(
+        id=p.id,
+        name=p.name,
+        phone=p.phone,
+        email=p.email,
+        notes=p.notes,
+        archived=p.archived,
+        receivable=p.receivable,
+        payable=p.payable,
+        net=p.net,
+        open=[
+            OpenRowRead(
+                transaction_id=r.obligation.source_transaction_id,
+                name=r.name,
+                date=r.obligation.date,
+                who=r.who if found.both_ways else None,
+                settled=r.obligation.settled_amount if r.partly else None,
+                original=r.obligation.original_amount,
+                outstanding=r.obligation.outstanding_amount,
+                receivable=r.obligation.direction == "receivable",
+            )
+            for r in found.open
+        ],
+        activity=[
+            ActivityRowRead(
+                transaction_id=a.item.transaction_id,
+                title=a.title,
+                date=a.item.date,
+                sub=a.detail,
+                amount=a.item.amount,
+                income=a.income,
+            )
+            for a in found.activity
+        ],
+        more_activity=found.more_activity,
+    )
+
+
+@router.get("/people/{contact_id}/entries/{transaction_id}", response_model=PersonEntryView)
+def person_entry_view(contact_id: UUID, transaction_id: UUID, contacts: Contacts, summaries: ContactSummaries):
+    """One entry done with a person, as its sheet shows it: `title`, the `notes` under it, and whether it can be edited
+    (an opening balance) or reversed (everything but an evened-out entry). 404 for an entry that is not theirs."""
+    try:
+        sheet = people_view_service.entry_sheet(contact_id, transaction_id, contacts, summaries)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="entry not found") from None
+    return PersonEntryView(
+        transaction_id=sheet.item.transaction_id,
+        title=sheet.title,
+        date=sheet.item.date,
+        amount=sheet.item.amount,
+        notes=sheet.notes,
+        can_edit=sheet.can_edit,
+        can_reverse=sheet.can_reverse,
+    )
+
+
+@router.get("/opening-form", response_model=OpeningFormView)
+def opening_form_view(
+    contact_id: UUID,
+    contacts: Contacts,
+    transfers: Transfers,
+    obligations: Obligations,
+    transaction_id: UUID | None = None,
+):
+    """Where the opening balance form starts: blank (they owe you, today) or the person's opening balance
+    `transaction_id`, with what was already `paid` back. 404 for a person or entry that is not the caller's, or an entry
+    that is not this person's opening balance."""
+    person = contacts.read(contact_id)
+    if person is None:
+        raise HTTPException(status_code=404, detail="person not found")
+    if transaction_id is None:
+        return OpeningFormView(
+            person_name=person.name,
+            editing=False,
+            direction="receivable",
+            amount=None,
+            date=local_today(),
+            description="",
+            paid=None,
+        )
+    try:
+        found = transfers.read(transaction_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="entry not found") from None
+    if found.purpose != "opening" or found.contact_id != contact_id:
+        raise HTTPException(status_code=404, detail="entry not found")
+    mine = next((o for o in obligations.list(contact_id) if o.id == found.obligation_id), None)
+    if mine is None:
+        raise HTTPException(status_code=404, detail="entry not found")
+    return OpeningFormView(
+        person_name=person.name,
+        editing=True,
+        direction=mine.direction,
+        amount=found.amount,
+        date=found.date,
+        description=found.description or "",
+        paid=mine.settled_amount if mine.settled_amount > 0 else None,
     )

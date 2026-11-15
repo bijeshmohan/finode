@@ -96,6 +96,7 @@ LISTS = {
     ("GET", "/api/views/todo"),
     ("GET", "/api/views/coming-up"),
     ("GET", "/api/views/recurring"),
+    ("GET", "/api/views/people"),
     ("GET", "/api/views/related-entries"),
     ("GET", "/accounts"),
     ("GET", "/accounts/new"),
@@ -170,6 +171,7 @@ REFERENCES = {
     ("PATCH", "/api/profile/"),
     ("POST", "/api/recurring/"),
     ("POST", "/api/recurring/form"),
+    ("GET", "/api/views/opening-form"),
     ("POST", "/api/restore"),
     ("POST", "/api/transactions/"),
     ("POST", "/api/transactions/batch"),
@@ -735,6 +737,9 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
                     ],
                 },
             )
+        refused(
+            "opening form of A's person", "GET", "/api/views/opening-form", params={"contact_id": world.contact_ids[0]}
+        )
         refused("budget A's category", "PUT", f"/api/budget/categories/{a['Groceries']}", json={"amount": "5"})
         refused(
             "API budget move A's",

@@ -800,6 +800,8 @@ export interface paths {
         /**
          * Create Contact
          * @description Add a contact; its two accounts are made with it. Names are unique, capitals aside, and at most 30 characters.
+         *     With `opening` (`direction`, `amount`, `date`, `description`, as `/opening-balance` takes it) what they already owed
+         *     is recorded with them: both or neither.
          */
         post: operations["create_contact_api_contacts__post"];
         delete?: never;
@@ -869,6 +871,28 @@ export interface paths {
          * @description Hide a contact from new entries; its history stays. Refused while anything is owed either way.
          */
         post: operations["archive_contact_api_contacts__contact_id__archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/contacts/{contact_id}/entries/{transaction_id}/reverse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reverse Entry
+         * @description Undo an entry done with the contact for good, the way its kind is undone: a settlement, a shared bill, a shared
+         *     income or a transfer (an opening balance too). Refused while something was paid back against it; an evened-out
+         *     entry goes by itself when one of the two is undone. 404 for an entry that is not this contact's.
+         */
+        post: operations["reverse_entry_api_contacts__contact_id__entries__transaction_id__reverse_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2242,6 +2266,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/views/opening-form": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Opening Form View
+         * @description Where the opening balance form starts: blank (they owe you, today) or the person's opening balance
+         *     `transaction_id`, with what was already `paid` back. 404 for a person or entry that is not the caller's, or an entry
+         *     that is not this person's opening balance.
+         */
+        get: operations["opening_form_view_api_views_opening_form_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views/people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * People View
+         * @description The People list (`show`: `all`, `owed`: they owe you, `owe`: you owe them, `archived`): each person's `net` (above
+         *     zero they owe you) and quiet line (`sub`), what is owed to you and by you in all, and whether anyone is archived.
+         */
+        get: operations["people_view_api_views_people_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views/people/{contact_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Person View
+         * @description A person's page: what they owe you or you owe them, the `open` amounts (`who` says which way only when they are
+         *     owed both ways; `settled` of `original` when part is paid) and the newest 30 entries done with them (`title`, `sub`,
+         *     `income`), with how many older ones are not listed.
+         */
+        get: operations["person_view_api_views_people__contact_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views/people/{contact_id}/entries/{transaction_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Person Entry View
+         * @description One entry done with a person, as its sheet shows it: `title`, the `notes` under it, and whether it can be edited
+         *     (an opening balance) or reversed (everything but an evened-out entry). 404 for an entry that is not theirs.
+         */
+        get: operations["person_entry_view_api_views_people__contact_id__entries__transaction_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/views/recurring": {
         parameters: {
             query?: never;
@@ -2670,6 +2780,27 @@ export interface components {
              * @enum {string}
              */
             purpose: "loan" | "borrowing" | "advance" | "gift" | "expense" | "settlement" | "opening" | "netoff" | "income";
+            /**
+             * Transaction Id
+             * Format: uuid
+             */
+            transaction_id: string;
+        };
+        /** ActivityRowRead */
+        ActivityRowRead: {
+            /** Amount */
+            amount: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Income */
+            income: boolean;
+            /** Sub */
+            sub: string | null;
+            /** Title */
+            title: string;
             /**
              * Transaction Id
              * Format: uuid
@@ -3637,6 +3768,7 @@ export interface components {
             name: string;
             /** Notes */
             notes?: string | null;
+            opening?: components["schemas"]["OpeningBalanceCreate"] | null;
             /** Phone */
             phone?: string | null;
         };
@@ -4433,6 +4565,31 @@ export interface components {
              */
             status: "open" | "partially_settled" | "settled";
         };
+        /** OpenRowRead */
+        OpenRowRead: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Name */
+            name: string;
+            /** Original */
+            original: string;
+            /** Outstanding */
+            outstanding: string;
+            /** Receivable */
+            receivable: boolean;
+            /** Settled */
+            settled: string | null;
+            /**
+             * Transaction Id
+             * Format: uuid
+             */
+            transaction_id: string;
+            /** Who */
+            who: string | null;
+        };
         /**
          * OpeningBalanceCreate
          * @description What a person already owed before finode: they owe you (`receivable`) or you owe them (`payable`). It touches none
@@ -4468,6 +4625,29 @@ export interface components {
             description?: string | null;
             /** Direction */
             direction?: ("receivable" | "payable") | null;
+        };
+        /** OpeningFormView */
+        OpeningFormView: {
+            /** Amount */
+            amount: string | null;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Description */
+            description: string;
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "receivable" | "payable";
+            /** Editing */
+            editing: boolean;
+            /** Paid */
+            paid: string | null;
+            /** Person Name */
+            person_name: string;
         };
         /** OwedRead */
         OwedRead: {
@@ -4588,6 +4768,26 @@ export interface components {
             /** Amount */
             amount: number | string;
         };
+        /** PeopleView */
+        PeopleView: {
+            /** Everyone */
+            everyone: boolean;
+            /** Has Archived */
+            has_archived: boolean;
+            /** Owe Total */
+            owe_total: string;
+            /** Owed Total */
+            owed_total: string;
+            /** Rows */
+            rows: components["schemas"]["PersonRowRead"][];
+            /**
+             * Show
+             * @enum {string}
+             */
+            show: "all" | "owed" | "owe" | "archived";
+            /** Shows */
+            shows: components["schemas"]["ShowChoice"][];
+        };
         /** PersonChip */
         PersonChip: {
             /**
@@ -4598,6 +4798,29 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** PersonEntryView */
+        PersonEntryView: {
+            /** Amount */
+            amount: string;
+            /** Can Edit */
+            can_edit: boolean;
+            /** Can Reverse */
+            can_reverse: boolean;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Notes */
+            notes: string[];
+            /** Title */
+            title: string;
+            /**
+             * Transaction Id
+             * Format: uuid
+             */
+            transaction_id: string;
+        };
         /** PersonRef */
         PersonRef: {
             /**
@@ -4607,6 +4830,20 @@ export interface components {
             id: string;
             /** Name */
             name: string;
+        };
+        /** PersonRowRead */
+        PersonRowRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Net */
+            net: string;
+            /** Sub */
+            sub: string;
         };
         /**
          * PersonShare
@@ -4637,6 +4874,36 @@ export interface components {
             paid?: string | null;
             /** Value */
             value?: string | null;
+        };
+        /** PersonView */
+        PersonView: {
+            /** Activity */
+            activity: components["schemas"]["ActivityRowRead"][];
+            /** Archived */
+            archived: boolean;
+            /** Email */
+            email: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** More Activity */
+            more_activity: number;
+            /** Name */
+            name: string;
+            /** Net */
+            net: string;
+            /** Notes */
+            notes: string | null;
+            /** Open */
+            open: components["schemas"]["OpenRowRead"][];
+            /** Payable */
+            payable: string;
+            /** Phone */
+            phone: string | null;
+            /** Receivable */
+            receivable: string;
         };
         /**
          * PickGroupRead
@@ -5570,6 +5837,13 @@ export interface components {
             transaction_id: string;
             /** Your Income */
             your_income: string;
+        };
+        /** ShowChoice */
+        ShowChoice: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
         };
         /** SignIn */
         SignIn: {
@@ -7702,6 +7976,36 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ContactRead"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reverse_entry_api_contacts__contact_id__entries__transaction_id__reverse_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contact_id: string;
+                transaction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -10234,6 +10538,132 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HomeView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    opening_form_view_api_views_opening_form_get: {
+        parameters: {
+            query: {
+                contact_id: string;
+                transaction_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpeningFormView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    people_view_api_views_people_get: {
+        parameters: {
+            query?: {
+                show?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeopleView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    person_view_api_views_people__contact_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    person_entry_view_api_views_people__contact_id__entries__transaction_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contact_id: string;
+                transaction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonEntryView"];
                 };
             };
             /** @description Validation Error */

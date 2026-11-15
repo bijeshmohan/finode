@@ -164,6 +164,17 @@ def test_a_rule_from_the_recurring_forms_rows(client, books):
     assert client.put(f"/api/recurring/{MISSING}/form", json=body).status_code == 404
 
 
+def test_a_person_with_an_opening_balance_and_reversing_an_entry_of_theirs(client, books):
+    made = client.post("/api/contacts/", json={"name": "Asha", "opening": {"direction": "payable", "amount": "40"}})
+    assert made.status_code == 201 and made.json()["payable"] == "40.00"
+    who = made.json()["id"]
+    opening = client.get(f"/api/contacts/{who}/activity").json()["items"][0]
+    done = client.post(f"/api/contacts/{who}/entries/{opening['transaction_id']}/reverse")
+    assert done.status_code == 204 and client.get(f"/api/contacts/{who}").json()["payable"] == "0.00"
+    assert client.post(f"/api/contacts/{who}/entries/{MISSING}/reverse").status_code == 404
+    assert client.get("/api/reports/trial-balance").json()["balanced"]
+
+
 def test_move_and_copy_budget_money(client, books):
     client.put(f"/api/budget/categories/{books['food']['id']}", json={"amount": "100"})
     moved = client.post(
