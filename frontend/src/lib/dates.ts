@@ -53,3 +53,23 @@ export function dateChip(iso: string, today: string): string {
   if (d.year === parse(today).year) return `${weekday(d)}, ${String(d.day)} ${month(d)}`;
   return `${String(d.day)} ${month(d)} ${String(d.year)}`;
 }
+
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+/** October, from a `YYYY-MM` month. */
+export function monthName(month: string): string {
+  return MONTH_NAMES[Number(month.slice(5, 7)) - 1] ?? "";
+}
