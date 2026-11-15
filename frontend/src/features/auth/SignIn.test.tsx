@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -91,7 +91,9 @@ describe("signing in", () => {
 
   it("an account just made says so", async () => {
     renderApp("/sign-in?created=1", OPTIONS_OFF);
-    expect(await screen.findByRole("status")).toHaveTextContent("Account created. Please sign in.");
+    expect(await within(await screen.findByRole("main")).findByRole("status")).toHaveTextContent(
+      "Account created. Please sign in.",
+    );
   });
 
   it("the old address still works", async () => {

@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -19,7 +19,7 @@ describe("forgotten password", () => {
     renderApp("/forgot", { ...ON, "/api/auth/forgot": [202, null] });
     await userEvent.type(await screen.findByLabelText("Email"), "a@b.co");
     await userEvent.click(screen.getByRole("button", { name: "Send the link" }));
-    expect(await screen.findByRole("status")).toHaveTextContent(
+    expect(await within(await screen.findByRole("main")).findByRole("status")).toHaveTextContent(
       "If there is an account for a@b.co, an email with a link to choose a new password is on its way. The link works " +
         "for an hour. Check your spam folder if it does not arrive.",
     );

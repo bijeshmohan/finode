@@ -73,3 +73,9 @@ const MONTH_NAMES = [
 export function monthName(month: string): string {
   return MONTH_NAMES[Number(month.slice(5, 7)) - 1] ?? "";
 }
+
+/** 5 Jan 2026: the day with its year always, as the import and restore previews write it. */
+export function fullDate(iso: string): string {
+  const d = parse(iso);
+  return `${String(d.day)} ${month(d)} ${String(d.year)}`;
+}
