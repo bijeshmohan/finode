@@ -144,6 +144,7 @@ A contact is a person you lend to, borrow from or share costs with. It is not an
 | `PATCH` | `/transactions/{transaction_id}` | Change a transaction; only the fields sent change (`related_id: null` removes the link; `source`, `external_id` and `source_url` can be set or cleared with null). With `dry_run=true` every check runs but nothing is saved: the answer is the entry as it would read afterwards. |
 | `DELETE` | `/transactions/{transaction_id}` | Delete a transaction for good (finode keeps no history). With `dry_run=true` nothing is deleted: the answer (200) is the entry that would go. |
 | `GET` | `/transactions/{transaction_id}/related` | The entries that are related to this one (refunds, reversals), oldest first. |
+| `POST` | `/transactions/{transaction_id}/category` | Give the entry's payments into accounts outside the budget (a loan, a fund) that no category took a category (`category_id`): the to-do bell's fix. 400 when it has no payment waiting for one. |
 
 ## Entries
 
@@ -242,6 +243,9 @@ Add a view only for a screen that would otherwise need several calls or would ha
 | `GET` | `/views/budget` | The Budgets page for a `month` (this month for anything else): `ready_to_assign` and the `sum` behind it (`money_in_accounts`, `reserved_for_cards`, `available`, `assigned_to_later_months`), `copyable` (what copying last month would assign), `show_intro`, `has_budget_accounts`, `overspent`, `pace` (the current month only), and `rows` biggest budget first: each with `assigned`, `activity`, `available`, how it reads (`of` or none for nothing assigned, `state` `overspent` / `all_spent`, `hint`), its bar (`percent`, `over`) and `unused` (a whole group with nothing in it, tucked away; `unused_count`). |
 | `GET` | `/views/budget/groups/{category_id}` | One group's budget for a `month`: its `glance` (`left`, `spent`, `of`, `percent`, `planned`), `assigned`, the `minimum` it can be given (what its categories add up to), and its categories as `kids`. 404 for a category that is not a group of the caller's. |
 | `GET` | `/views/budget-move` | The categories money can move between in a `month` (`path`, `available`), with the `source` it moves from (404 when not one of them). |
+| `GET` | `/views/todo` | The to-do bell's sheet: `count`, the payments with no category (`uncategorised`), the accounts left out of the budget, the card bills due soon or overdue (`name`: the card's own name, `days_to_due`), the failing rules, and the spending `categories` a payment can be given (`path`: "Food › Dining"). |
+| `GET` | `/views/coming-up` | Coming up (to the end of this month, or `through`) by day: each row's `title`, `sub` (where the money comes from → goes), `amount`, `income`, and the `recurring_id` of a rule or the `transaction_id` of an entry dated ahead. A day's `total` is set only when every row goes one way and there is more than one. |
+| `GET` | `/views/recurring` | The Recurring list (what has fallen due is recorded first): `live` (active, or `error` when the last one could not be recorded) and `stopped` (`paused`, `ended`), each with `title` (the payee, else where the money goes), `amount` (a split: what leaves), `schedule`, `status`, `next_date` and `last_error`. |
 | `GET` | `/views/transactions/{transaction_id}` | One entry as its details sheet shows it: the row, the From and To labels and lines (an amount each, `posted_on` when it differs), note, tags, what it is related to and what is related to it, the person it was made through, its source and the assistant that added or changed it. |
 
 ## Adding a route

@@ -1,7 +1,6 @@
 """The Recurring page and the form that makes, changes, pauses, skips, resumes and deletes a rule."""
 
 from collections.abc import Mapping
-from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import Annotated
@@ -14,9 +13,9 @@ from ...clock import local_today
 from ...dependencies import Accounts, Categories, Recurring
 from ...models.transaction import PostingSide
 from ...schemas.recurring import RecurringCreate, RecurringPostingData, RecurringRead, RecurringUpdate
-from ...services.account_tree import build_tree
 from ...services.entry import infer_kind
 from ...services.entry_form import form_rows
+from ...services.recurring_view import rule_rows, status
 from ...services.schedule import describe
 from ...templating import templates
 from .transactions import category_places, form_context, roots_by_id, split_postings
@@ -27,80 +26,18 @@ router = APIRouter(prefix="/recurring")
 FREQUENCIES = [("daily", "day"), ("weekly", "week"), ("monthly", "month"), ("yearly", "year")]
 
 
-@dataclass
-class RuleRow:
-    rule: RecurringRead
-    from_name: str
-    to_name: str
-    amount: Decimal  # what leaves (a split: its total)
-    schedule: str
-    status: str  # active | paused | ended | error
-
-
-def _status(rule: RecurringRead) -> str:
-    if rule.active:
-        return "error" if rule.last_error else "active"
-    return "ended" if rule.end_date is not None and rule.next_date > rule.end_date else "paused"
-
-
-def _paths(accounts: Accounts, categories: Categories) -> dict[UUID, str]:
-    """A name for every account and every category, by id (a category's path reads "Expenses › Food › Groceries")."""
-    names = {n.account.id: n.path for root in build_tree(accounts.list()) for n in root.walk()}
-    for c in categories.list(include_closed=True):
-        names[c.id] = ("Expenses" if c.kind == "spending" else "Income") + " › " + c.path.replace(":", " › ")
-    return names
-
-
-def _name(paths: dict[UUID, str], account: UUID | None, category: UUID | None) -> str:
-    """What a rule's side is called: the category when the money goes to Expenses or Income, else the account."""
-    if account is None:
-        return "?"
-    path = paths.get(account, "?")
-    if path in ("Expenses", "Income") and category is not None:
-        return paths.get(category, path)
-    return path
-
-
-def _row(rule: RecurringRead, paths: dict[UUID, str]) -> RuleRow:
-    if rule.postings:
-        names = lambda side: ", ".join(  # noqa: E731
-            dict.fromkeys(
-                _name(paths, p.account_id, p.category_id).split(" › ")[-1] for p in rule.postings if p.side == side
-            )
-        )
-        total = sum((p.amount for p in rule.postings if p.side == PostingSide.DEBIT), Decimal(0))
-        return RuleRow(
-            rule=rule,
-            from_name=names(PostingSide.CREDIT),
-            to_name=names(PostingSide.DEBIT),
-            amount=total,
-            schedule=describe(rule.frequency, rule.every),
-            status=_status(rule),
-        )
-    return RuleRow(
-        rule=rule,
-        from_name=_name(paths, rule.from_account_id, rule.category_id),
-        to_name=_name(paths, rule.to_account_id, rule.category_id),
-        amount=rule.amount or Decimal(0),
-        schedule=describe(rule.frequency, rule.every),
-        status=_status(rule),
-    )
-
-
 @router.get("")
 def recurring_page(request: Request, accounts: Accounts, categories: Categories, recurring: Recurring):
-    recurring.catch_up()  # record what has fallen due; it never stops the page from opening
-    paths = _paths(accounts, categories)
-    rows = [_row(r, paths) for r in recurring.list()]
+    found = rule_rows(recurring, accounts, categories)
     return templates.TemplateResponse(
         request,
         "recurring.html",
         {
             "active": "settings",
             "hide_fab": True,
-            "rows": rows,
-            "live": [r for r in rows if r.status in ("active", "error")],
-            "stopped": [r for r in rows if r.status in ("paused", "ended")],
+            "rows": found.rows,
+            "live": found.live,
+            "stopped": found.stopped,
             "currency": accounts.currency().code,
         },
     )
@@ -263,7 +200,7 @@ def edit_recurring_page(
         request,
         "recurring_form.html",
         _form_page(
-            accounts, categories, recurring, rule, status=_status(rule), schedule=describe(rule.frequency, rule.every)
+            accounts, categories, recurring, rule, status=status(rule), schedule=describe(rule.frequency, rule.every)
         ),
     )
 

@@ -171,6 +171,24 @@ def test_include_an_account_in_the_budget(client, books):
     assert client.post(f"/api/budget/accounts/{MISSING}/include").status_code == 404
 
 
+def test_give_a_payment_a_category_from_the_bell(client, books):
+    loan = post_account(client, {"name": "Loan", "parent_id": books["spare"]["parent_id"], "on_budget": False}).json()
+    made = entry(client, books, amount="500", to="spare")
+    paid = client.post(
+        "/api/transactions/",
+        json={"postings": [leg(loan, "debit", "300"), leg(books["bank"], "credit", "300")]},
+    ).json()
+    assert client.get("/api/views/todo").json()["uncategorised"][0]["transaction_id"] == paid["id"]
+    done = client.post(f"/api/transactions/{paid['id']}/category", json={"category_id": books["food"]["id"]})
+    assert done.status_code == 200 and client.get("/api/views/todo").json()["uncategorised"] == []
+    refused = client.post(f"/api/transactions/{made['id']}/category", json={"category_id": books["food"]["id"]})
+    assert refused.status_code == 400
+    assert (
+        client.post(f"/api/transactions/{MISSING}/category", json={"category_id": books["food"]["id"]}).status_code
+        == 404
+    )
+
+
 def test_a_group_budget(client, books, root_accounts):
     dining = post_account(client, {"name": "Dining", "parent_id": root_accounts["Expenses"]}).json()
     cafe = post_account(client, {"name": "Cafe", "parent_id": dining["id"]}).json()

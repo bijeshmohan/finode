@@ -14,11 +14,13 @@ from ..dependencies import (
     Accounts,
     Budget,
     Categories,
+    ComingUp,
     Contacts,
     Recurring,
     Reports,
     SharedExpenses,
     SharedIncomes,
+    Todo,
     Transactions,
     Transfers,
 )
@@ -37,11 +39,15 @@ from ..schemas.views import (
     BudgetView,
     CardNoteRead,
     CategoriesView,
+    CategoryChoice,
     CategoryFormView,
     CategoryParent,
     CategoryRef,
     CategoryRowRead,
     CategoryView,
+    ComingDayRead,
+    ComingRowRead,
+    ComingUpView,
     DayTotal,
     EntryFormView,
     FilterChoice,
@@ -60,12 +66,16 @@ from ..schemas.views import (
     PickGroupRead,
     PickOptionRead,
     PlacedRead,
+    RecurringView,
     RegisterRowRead,
     RowRead,
+    RuleRowRead,
     SharePreview,
     SharePreviewAsk,
     StepRead,
     SubcategoryRead,
+    TodoBill,
+    TodoView,
     TransactionDetails,
     TransactionsView,
     UpcomingRead,
@@ -83,6 +93,7 @@ from ..services.accounts_view import (
 )
 from ..services.budget import BudgetService
 from ..services.categories_view import TABS, categories_page, category_form, category_page
+from ..services.coming_up_view import coming_days
 from ..services.entry_form import EditStart, EntryStart, edit_start, new_start
 from ..services.entry_share import expense_create, expense_start, income_create, income_start
 from ..services.home import home_view
@@ -94,6 +105,7 @@ from ..services.pickers import (
     people_group,
     posting_groups,
 )
+from ..services.recurring_view import RuleRow, rule_rows
 from ..services.transaction_rows import (
     PAGE_SIZE,
     AccountIndex,
@@ -747,3 +759,84 @@ def budget_move_view(budget: Budget, month: str = "", source: UUID | None = None
             for ln in lines
         ],
     )
+
+
+# ---- the to-do bell, Coming up, Recurring --------------------------------------------------------------------------
+
+
+@router.get("/todo", response_model=TodoView)
+def todo_view(todo: Todo, budget: Budget):
+    """The to-do bell's sheet: what needs a decision now (as `/todo/`, a card bill named by the card), and the spending
+    categories a payment with no category can be given (`path` as "Food › Dining")."""
+    found = todo.read()
+    return TodoView(
+        count=found.count,
+        uncategorised=found.uncategorised,
+        left_out_accounts=found.left_out_accounts,
+        card_bills=[
+            TodoBill(
+                account_id=b.account_id,
+                name=b.path.rsplit(":", 1)[-1],
+                bill=b.bill,
+                due_date=b.due_date,
+                days_to_due=b.days_to_due,
+            )
+            for b in found.card_bills
+        ],
+        failing_rules=found.failing_rules,
+        categories=[
+            CategoryChoice(id=c.id, path=" › ".join(budget.category_path(c))) for c in budget.spending_categories()
+        ],
+    )
+
+
+@router.get("/coming-up", response_model=ComingUpView)
+def coming_up_view(service: ComingUp, accounts: Accounts, categories: Categories, through: date | None = None):
+    """What is coming up after today, to the end of this month (or `through`), by day: each row's `title` and `sub`
+    (where the money comes from and goes), `amount`, `income`, and the `recurring_id` of a rule or the
+    `transaction_id` of an entry dated ahead; a day's `total` when every row goes one way and there is more than one."""
+    found = coming_days(service, accounts, categories, through)
+    return ComingUpView(
+        through=found.data.through,
+        count=found.data.count,
+        total=found.data.total,
+        days=[
+            ComingDayRead(
+                date=d.date,
+                total=d.total,
+                rows=[
+                    ComingRowRead(
+                        title=r.title,
+                        sub=r.sub,
+                        amount=r.item.amount,
+                        income=r.item.income,
+                        recurring_id=r.item.recurring_id,
+                        transaction_id=r.item.transaction_id,
+                    )
+                    for r in d.rows
+                ],
+            )
+            for d in found.days
+        ],
+    )
+
+
+def _rule_row(row: RuleRow) -> RuleRowRead:
+    return RuleRowRead(
+        id=row.rule.id,
+        title=row.rule.payee or row.to_name,
+        amount=row.amount,
+        schedule=row.schedule,
+        status=row.status,
+        next_date=row.rule.next_date,
+        last_error=row.rule.last_error,
+    )
+
+
+@router.get("/recurring", response_model=RecurringView)
+def recurring_view(recurring: Recurring, accounts: Accounts, categories: Categories):
+    """The Recurring list (what has fallen due is recorded first): the `live` rules (active, or `error` when the last
+    one could not be recorded) and the `stopped` ones (`paused`, `ended`), each with its `title`, `amount` (a split:
+    what leaves), `schedule` in words, `next_date` and `last_error`."""
+    found = rule_rows(recurring, accounts, categories)
+    return RecurringView(live=[_rule_row(r) for r in found.live], stopped=[_rule_row(r) for r in found.stopped])

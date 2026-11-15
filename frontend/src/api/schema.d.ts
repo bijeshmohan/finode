@@ -1851,6 +1851,27 @@ export interface paths {
         patch: operations["update_transaction_api_transactions__transaction_id__patch"];
         trace?: never;
     };
+    "/api/transactions/{transaction_id}/category": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Label Payment
+         * @description Give an entry's payments into accounts outside the budget (a loan, a fund) that no category took a category: the
+         *     to-do bell's fix. 400 when the entry has no payment waiting for one.
+         */
+        post: operations["label_payment_api_transactions__transaction_id__category_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/transactions/{transaction_id}/related": {
         parameters: {
             query?: never;
@@ -2092,6 +2113,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/views/coming-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Coming Up View
+         * @description What is coming up after today, to the end of this month (or `through`), by day: each row's `title` and `sub`
+         *     (where the money comes from and goes), `amount`, `income`, and the `recurring_id` of a rule or the
+         *     `transaction_id` of an entry dated ahead; a day's `total` when every row goes one way and there is more than one.
+         */
+        get: operations["coming_up_view_api_views_coming_up_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/views/entry-form": {
         parameters: {
             query?: never;
@@ -2158,6 +2201,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/views/recurring": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recurring View
+         * @description The Recurring list (what has fallen due is recorded first): the `live` rules (active, or `error` when the last
+         *     one could not be recorded) and the `stopped` ones (`paused`, `ended`), each with its `title`, `amount` (a split:
+         *     what leaves), `schedule` in words, `next_date` and `last_error`.
+         */
+        get: operations["recurring_view_api_views_recurring_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/views/related-entries": {
         parameters: {
             query?: never;
@@ -2171,6 +2236,27 @@ export interface paths {
          *     without `exclude` (the entry being edited) and the system's opening balances.
          */
         get: operations["related_entries_api_views_related_entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views/todo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Todo View
+         * @description The to-do bell's sheet: what needs a decision now (as `/todo/`, a card bill named by the card), and the spending
+         *     categories a payment with no category can be given (`path` as "Food › Dining").
+         */
+        get: operations["todo_view_api_views_todo_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3091,6 +3177,16 @@ export interface components {
              */
             tab: "expense" | "income";
         };
+        /** CategoryChoice */
+        CategoryChoice: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Path */
+            path: string;
+        };
         /** CategoryCreate */
         CategoryCreate: {
             /** Details */
@@ -3300,6 +3396,33 @@ export interface components {
             /** Root */
             root: string;
         };
+        /** ComingDayRead */
+        ComingDayRead: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Rows */
+            rows: components["schemas"]["ComingRowRead"][];
+            /** Total */
+            total: string | null;
+        };
+        /** ComingRowRead */
+        ComingRowRead: {
+            /** Amount */
+            amount: string;
+            /** Income */
+            income: boolean;
+            /** Recurring Id */
+            recurring_id: string | null;
+            /** Sub */
+            sub: string;
+            /** Title */
+            title: string;
+            /** Transaction Id */
+            transaction_id: string | null;
+        };
         /** ComingUpItem */
         ComingUpItem: {
             /** Amount */
@@ -3355,6 +3478,20 @@ export interface components {
             through: string;
             /** Total */
             total?: string | null;
+        };
+        /** ComingUpView */
+        ComingUpView: {
+            /** Count */
+            count: number;
+            /** Days */
+            days: components["schemas"]["ComingDayRead"][];
+            /**
+             * Through
+             * Format: date
+             */
+            through: string;
+            /** Total */
+            total: string | null;
         };
         /**
          * Confirmation
@@ -4359,6 +4496,14 @@ export interface components {
             /** People */
             people?: components["schemas"]["PersonChip"][];
         };
+        /** PaymentCategory */
+        PaymentCategory: {
+            /**
+             * Category Id
+             * Format: uuid
+             */
+            category_id: string;
+        };
         /**
          * PaymentIn
          * @description What you paid, from which of your accounts.
@@ -4723,6 +4868,13 @@ export interface components {
             /** To Account Id */
             to_account_id?: string | null;
         };
+        /** RecurringView */
+        RecurringView: {
+            /** Live */
+            live: components["schemas"]["RuleRowRead"][];
+            /** Stopped */
+            stopped: components["schemas"]["RuleRowRead"][];
+        };
         /** RegisterEntry */
         RegisterEntry: {
             /**
@@ -4916,6 +5068,32 @@ export interface components {
             related: components["schemas"]["RelatedRef"] | null;
             /** Sub */
             sub: string;
+            /** Title */
+            title: string;
+        };
+        /** RuleRowRead */
+        RuleRowRead: {
+            /** Amount */
+            amount: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Error */
+            last_error: string | null;
+            /**
+             * Next Date
+             * Format: date
+             */
+            next_date: string;
+            /** Schedule */
+            schedule: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused" | "ended" | "error";
             /** Title */
             title: string;
         };
@@ -5342,6 +5520,25 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** TodoBill */
+        TodoBill: {
+            /**
+             * Account Id
+             * Format: uuid
+             */
+            account_id: string;
+            /** Bill */
+            bill: string;
+            /** Days To Due */
+            days_to_due: number;
+            /**
+             * Due Date
+             * Format: date
+             */
+            due_date: string;
+            /** Name */
+            name: string;
+        };
         /**
          * TodoCard
          * @description A card's (or loan's) bill that is due within a few days or overdue, and still not paid.
@@ -5409,6 +5606,21 @@ export interface components {
              * Format: uuid
              */
             recurring_id: string;
+        };
+        /** TodoView */
+        TodoView: {
+            /** Card Bills */
+            card_bills: components["schemas"]["TodoBill"][];
+            /** Categories */
+            categories: components["schemas"]["CategoryChoice"][];
+            /** Count */
+            count: number;
+            /** Failing Rules */
+            failing_rules: components["schemas"]["TodoRule"][];
+            /** Left Out Accounts */
+            left_out_accounts: components["schemas"]["BudgetLeftOut"][];
+            /** Uncategorised */
+            uncategorised: components["schemas"]["BudgetUncategorised"][];
         };
         /** TransactionBatch */
         TransactionBatch: {
@@ -9222,6 +9434,41 @@ export interface operations {
             };
         };
     };
+    label_payment_api_transactions__transaction_id__category_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transaction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentCategory"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     related_transactions_api_transactions__transaction_id__related_get: {
         parameters: {
             query?: never;
@@ -9628,6 +9875,37 @@ export interface operations {
             };
         };
     };
+    coming_up_view_api_views_coming_up_get: {
+        parameters: {
+            query?: {
+                through?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComingUpView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     entry_form_api_views_entry_form_get: {
         parameters: {
             query?: {
@@ -9732,6 +10010,26 @@ export interface operations {
             };
         };
     };
+    recurring_view_api_views_recurring_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringView"];
+                };
+            };
+        };
+    };
     related_entries_api_views_related_entries_get: {
         parameters: {
             query?: {
@@ -9760,6 +10058,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    todo_view_api_views_todo_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoView"];
                 };
             };
         };

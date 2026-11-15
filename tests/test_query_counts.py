@@ -714,3 +714,34 @@ def test_the_budgets_pages_work_out_the_budget_once(client, root_accounts, monke
         computed.clear()
         assert client.get(page, params={"month": "2026-01"}).status_code == 200
         assert len(computed) == 1, f"{page} worked out the budget {len(computed)} times"
+
+
+def test_the_bell_coming_up_and_recurring_views_ask_no_more_than_their_pages(client, root_accounts, count_queries):
+    grow(client, root_accounts, accounts=6, transactions=6)
+    bank = post_account(client, {"name": "Rules bank", "parent_id": root_accounts["Assets"]}).json()
+    rent = category(client, "Rules rent")
+    for day in ("2026-01-01", "2999-01-01"):
+        body = {
+            "from_account_id": bank["id"],
+            "to_account_id": root_accounts["Expenses"],
+            "category_id": rent["id"],
+            "amount": "10",
+            "frequency": "monthly",
+            "start_date": day,
+        }
+        assert client.post("/api/recurring/", json=body).status_code == 201
+    pairs = {
+        "todo": ("/todo/sheet", "/api/views/todo"),
+        "coming up": ("/budget/coming-up", "/api/views/coming-up"),
+        "recurring": ("/recurring", "/api/views/recurring"),
+    }
+
+    def measure():
+        return {k: tuple(count_queries(lambda p=p: client.get(p)) for p in two) for k, two in pairs.items()}
+
+    first = measure()
+    grow(client, root_accounts, accounts=6, transactions=60, start=6)
+    second = measure()
+    for kind, (page, view) in second.items():
+        assert view <= page, f"{kind}: the view asks {view}, the page {page}"
+        assert view <= first[kind][1] + 2, f"{kind}: {first[kind][1]} -> {view} as the books grew"

@@ -8,10 +8,12 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from .account import CardBill
+from .budget import BudgetLeftOut, BudgetUncategorised
 from .day import Day
 from .entry import ExpenseShare, IncomeShare, Share
 from .shared_expense import ExpensePreview
 from .shared_income import IncomePreview
+from .todo import TodoRule
 from .transaction import RelatedRef
 
 Kind = Literal["expense", "income", "transfer"]
@@ -540,3 +542,79 @@ class BudgetMoveView(BaseModel):
     month: str
     source: UUID | None
     lines: list[MoveLine]
+
+
+# ---- the to-do bell, Coming up, Recurring --------------------------------------------------------------------------
+
+
+class TodoBill(BaseModel):
+    account_id: UUID
+    # The card's own name: "Visa" for Liabilities:Credit Cards:Visa.
+    name: str
+    bill: Decimal
+    due_date: Date
+    # Negative once overdue.
+    days_to_due: int
+
+
+class CategoryChoice(BaseModel):
+    id: UUID
+    # "Food › Dining"
+    path: str
+
+
+class TodoView(BaseModel):
+    count: int
+    uncategorised: list[BudgetUncategorised]
+    left_out_accounts: list[BudgetLeftOut]
+    card_bills: list[TodoBill]
+    failing_rules: list[TodoRule]
+    # The spending categories a payment can be given, as the sheet's select lists them.
+    categories: list[CategoryChoice]
+
+
+class PaymentCategory(BaseModel):
+    category_id: UUID
+
+
+class ComingRowRead(BaseModel):
+    title: str
+    sub: str
+    amount: Decimal
+    income: bool
+    # A rule's occurrence (not recorded yet) or an entry dated ahead: one of the two.
+    recurring_id: UUID | None
+    transaction_id: UUID | None
+
+
+class ComingDayRead(BaseModel):
+    date: Date
+    # Only when every row goes one way and there is more than one.
+    total: Decimal | None
+    rows: list[ComingRowRead]
+
+
+class ComingUpView(BaseModel):
+    through: Date
+    count: int
+    total: Decimal | None
+    days: list[ComingDayRead]
+
+
+class RuleRowRead(BaseModel):
+    id: UUID
+    # The payee, else the name of where the money goes.
+    title: str
+    amount: Decimal
+    # "Every month", "Every 2 weeks"
+    schedule: str
+    status: Literal["active", "paused", "ended", "error"]
+    next_date: Date
+    last_error: str | None
+
+
+class RecurringView(BaseModel):
+    # Active rules and those that could not be recorded.
+    live: list[RuleRowRead]
+    # Paused and ended ones.
+    stopped: list[RuleRowRead]
