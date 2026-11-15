@@ -230,8 +230,8 @@ browser tests ported).
   - the switcher (`Chips`), shown only when there is someone (or on Archived);
   - **the head:** `Owed to you` / `You owe` / `Everything is settled`, the figure, and
     `{owed} owed to you · {owe} you owe` or `in total`;
-  - **the rows:** name, the quiet line, and the net in green (owed to you), red-free plain ink for what you owe (the
-    web's `out-amount`), or `–`;
+  - **the rows:** name, the quiet line, and the net: green for what is owed to you, red (`--negative`, the web's
+    `out-amount`) for what you owe, or `–`;
   - **empty:** `Nobody here.`; with nobody at all, `Keep track of money you lend, borrow and share with people.` and
     `Add a person`;
   - the add row `Add person` (`/people/new`), not on Archived.
