@@ -294,7 +294,7 @@ def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(
     group.click()
     page.wait_for_url(re.compile(r"/budget/groups/"))
     expect(category(page, "Delivery")).to_be_visible()
-    page.get_by_role("button", name="Set the budget").click()
+    page.get_by_role("button", name=re.compile("Left to spend")).click()
     box = sheet(page, "Dining").get_by_label("Assigned this month")
     expect(box).to_be_visible()
     box.fill("200")  # below what Delivery and Restaurant add up to
@@ -305,7 +305,7 @@ def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(
     expect(box).to_have_attribute("aria-invalid", "false")
     sheet(page, "Dining").get_by_role("button", name="Save").click()
     expect(sheet(page, "Dining")).to_have_count(0)
-    expect(page.get_by_role("button", name="Set the budget")).to_contain_text("₹700.00")
+    expect(page.get_by_role("button", name=re.compile("Left to spend"))).to_contain_text("₹700.00")
     expect(category(page, "Delivery")).to_be_visible()
     page.locator("main").get_by_role("link", name="Budgets", exact=True).click()
     expect(ready(page)).to_have_text("₹4,300.00")

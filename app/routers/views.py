@@ -658,7 +658,7 @@ def category_form_view(
 
 
 def _budget_money(budget: BudgetService):
-    style = grouping_for(budget.view(None).currency)
+    style = grouping_for(budget.accounts.currency().code)
     return lambda value: money(value, style)
 
 

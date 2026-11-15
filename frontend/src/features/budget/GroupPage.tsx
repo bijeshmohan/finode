@@ -15,7 +15,7 @@ import { Sheet } from "../../components/Sheet";
 import { groupAmount, tidyAmount } from "../../lib/amount";
 import { monthName } from "../../lib/dates";
 import { formatMoney } from "../../lib/money";
-import { less, positive } from "../../lib/split";
+import { less, sameAmount } from "../../lib/split";
 import { messageOf } from "../../api/messages";
 import categoryStyles from "../categories/Categories.module.css";
 import styles from "./Budget.module.css";
@@ -27,7 +27,7 @@ function GroupSheet({ view, monthLabel, onClose }: { view: BudgetGroupView; mont
   const grouping = useGrouping();
   const places = usePlaces();
   const assign = useAssignGroup();
-  const [amount, setAmount] = useState(positive(view.assigned) ? groupAmount(view.assigned, grouping) : "");
+  const [amount, setAmount] = useState(!sameAmount(view.assigned, "0") ? groupAmount(view.assigned, grouping) : "");
   const below = less(amount.trim() ? amount : "0", view.minimum);
   return (
     <Sheet open onClose={onClose} title={view.name} showTitle={false}>
@@ -109,11 +109,11 @@ export function GroupPage() {
         type="button"
         className={styles.tappable}
         title="Set the budget"
-        aria-label="Set the budget"
         onClick={() => {
           setEditing(true);
         }}
       >
+        <span className="sr-only">Left to spend</span>
         {over && <span className={look.muted}>Over budget</span>}
         <span className={over ? `${look.figure} ${styles.over}` : look.figure}>
           <Figure value={g.left} />

@@ -683,3 +683,34 @@ def test_a_budget_groups_view_and_the_move_view_do_not_grow_either(client, root_
     for kind in ("group", "move"):
         assert second[f"{kind} view"] <= first[f"{kind} view"] + 2, (first, second)
         assert second[f"{kind} view"] <= second[f"{kind} page"], (first, second)
+
+
+def test_a_past_month_of_the_budgets_pages_asks_no_more_than_this_month(client, root_accounts, count_queries):
+    grow(client, root_accounts, accounts=6, transactions=6)
+    group = client.get("/api/categories/").json()[0]
+    category(client, "Inside", parent=group["id"])
+    pages = ["/budget", "/api/views/budget", f"/budget/group/{group['id']}", f"/api/views/budget/groups/{group['id']}"]
+    for page in pages:
+        now = count_queries(lambda p=page: client.get(p))
+        past = count_queries(lambda p=page: client.get(p, params={"month": "2026-01"}))
+        assert past <= now, f"{page}: {past} queries for a past month, {now} for this one"
+
+
+def test_the_budgets_pages_work_out_the_budget_once(client, root_accounts, monkeypatch):
+    from app.services.budget import BudgetService
+
+    grow(client, root_accounts, accounts=2, transactions=2)
+    group = client.get("/api/categories/").json()[0]
+    category(client, "Inside", parent=group["id"])
+    computed = []
+    real = BudgetService._compute
+    monkeypatch.setattr(BudgetService, "_compute", lambda self, *a, **k: computed.append(1) or real(self, *a, **k))
+    for page in [
+        "/budget",
+        "/api/views/budget",
+        f"/budget/group/{group['id']}",
+        f"/api/views/budget/groups/{group['id']}",
+    ]:
+        computed.clear()
+        assert client.get(page, params={"month": "2026-01"}).status_code == 200
+        assert len(computed) == 1, f"{page} worked out the budget {len(computed)} times"

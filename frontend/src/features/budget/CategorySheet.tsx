@@ -9,7 +9,7 @@ import { AmountField } from "../../components/AmountField";
 import { Sheet } from "../../components/Sheet";
 import { groupAmount, tidyAmount } from "../../lib/amount";
 import { formatMoney } from "../../lib/money";
-import { positive } from "../../lib/split";
+import { positive, sameAmount } from "../../lib/split";
 import styles from "./Budget.module.css";
 import { type BudgetRow, useAssign } from "./queries";
 
@@ -41,7 +41,7 @@ export function CategorySheet({ row, month, monthName, onClose }: SheetProps) {
   const places = usePlaces();
   const assign = useAssign();
   const id = useId();
-  const [amount, setAmount] = useState(positive(row.assigned) ? groupAmount(row.assigned, grouping) : "");
+  const [amount, setAmount] = useState(!sameAmount(row.assigned, "0") ? groupAmount(row.assigned, grouping) : "");
   return (
     <Sheet open onClose={onClose} title={row.name} showTitle={false}>
       <SheetHead

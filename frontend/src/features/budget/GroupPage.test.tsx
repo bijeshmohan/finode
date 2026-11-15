@@ -35,7 +35,7 @@ describe("a group's budget page", () => {
       [PATH]: [200, group()],
       [`/api/budget/groups/${ids.food}`]: [200, {}],
     });
-    await userEvent.click(await screen.findByRole("button", { name: "Set the budget" }));
+    await userEvent.click(await screen.findByRole("button", { name: /Left to spend/ }));
     const sheet = await screen.findByRole("dialog", { name: "Food" });
     const field = within(sheet).getByLabelText("Assigned this month");
     await userEvent.clear(field);
@@ -53,6 +53,22 @@ describe("a group's budget page", () => {
     });
     const call = fetch.mock.calls.find(([r]) => r.method === "PUT");
     expect(await call?.[0].clone().json()).toEqual({ month: "2026-11-01", total: "700.00" });
+  });
+
+  it("the glance block reads what is left and spent, and opens the group's own budget", async () => {
+    renderApp(`/budget/groups/${ids.food}`, { ...SIGNED_IN, ...INR, [PATH]: [200, group()] });
+    const block = await screen.findByRole("button", { name: /Left to spend.*Spent 0\.00 of 500\.00/ });
+    expect(block).toHaveAttribute("title", "Set the budget");
+  });
+
+  it("a group budget below zero opens as it is", async () => {
+    renderApp(`/budget/groups/${ids.food}`, {
+      ...SIGNED_IN,
+      [PATH]: [200, group({ assigned: "-100.00", minimum: "-100.00" })],
+    });
+    await userEvent.click(await screen.findByRole("button", { name: /Left to spend/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Food" });
+    expect(within(sheet).getByLabelText("Assigned this month")).toHaveValue("-100.00");
   });
 
   it("the old address opens the same page", async () => {
