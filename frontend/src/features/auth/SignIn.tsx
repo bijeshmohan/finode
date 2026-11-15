@@ -10,7 +10,7 @@ import { useApi } from "../../api/context";
 import { AuthScreen } from "./AuthScreen";
 import { FormError, Notice, Stack, SubmitButton, SwitchLine, TextField } from "./fields";
 import { messageOf } from "../../api/messages";
-import { useAuthOptions } from "./options";
+import { useAuthOptions } from "../../app/options";
 import { safeNext } from "../../lib/safeNext";
 import { useSubmitOnce } from "../../api/useSubmitOnce";
 import { forgetPreviousSession } from "./session";

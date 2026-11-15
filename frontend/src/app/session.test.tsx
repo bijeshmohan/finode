@@ -34,8 +34,11 @@ describe("the session", () => {
   });
 
   it("today is the server's day", async () => {
-    renderApp("/settings", SIGNED_IN);
-    expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
-    expect(screen.getByTestId("today")).toHaveTextContent("2026-11-13");
+    // The device's clock says otherwise in tests; the session's 2026-11-13 is what names the day "Today".
+    renderApp("/budget/coming-up", {
+      ...SIGNED_IN,
+      "/api/views/coming-up": [200, { through: "2026-11-13", count: 0, total: null, days: [] }],
+    });
+    expect(await screen.findByText("Nothing is coming up before Today.")).toBeInTheDocument();
   });
 });

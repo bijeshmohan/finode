@@ -14,7 +14,7 @@ import { MIN_PASSWORD_LENGTH, RULES } from "./rules";
 import { WithOptions } from "./options";
 import { useSubmitOnce } from "../../api/useSubmitOnce";
 import { forgetPreviousSession } from "./session";
-import { TestNotice } from "./TestNotice";
+import { TestNotice } from "../../components/TestNotice";
 
 const TICK = "Please read the notice and tick the box to continue.";
 

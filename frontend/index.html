@@ -7,6 +7,13 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>finode</title>
+    <script>
+      // The theme chosen on Settings (src/lib/theme.ts), set before the first paint so the other one never flashes.
+      try {
+        var theme = localStorage.getItem("finode_theme");
+        if (theme === "light" || theme === "dark") document.documentElement.setAttribute("data-theme", theme);
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
