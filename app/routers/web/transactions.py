@@ -595,11 +595,6 @@ def related_picker(
     )
 
 
-def roots_by_id(accounts: Accounts) -> dict[UUID, str]:
-    """Each account's top-level account (Assets, Expenses…), by id."""
-    return {n.account.id: r.account.name for r in build_tree(accounts.list()) for n in r.walk()}
-
-
 @router.get("/new")
 def new_transaction_page(
     request: Request,

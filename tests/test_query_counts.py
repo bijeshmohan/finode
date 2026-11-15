@@ -745,3 +745,32 @@ def test_the_bell_coming_up_and_recurring_views_ask_no_more_than_their_pages(cli
     for kind, (page, view) in second.items():
         assert view <= page, f"{kind}: the view asks {view}, the page {page}"
         assert view <= first[kind][1] + 2, f"{kind}: {first[kind][1]} -> {view} as the books grew"
+
+
+def test_the_recurring_form_view_asks_no_more_than_its_page(client, root_accounts, count_queries):
+    grow(client, root_accounts, accounts=6, transactions=6)
+    bank = post_account(client, {"name": "Form bank", "parent_id": root_accounts["Assets"]}).json()
+    rent = category(client, "Form rent")
+    body = {
+        "from_account_id": bank["id"],
+        "to_account_id": root_accounts["Expenses"],
+        "category_id": rent["id"],
+        "amount": "10",
+        "frequency": "monthly",
+        "start_date": "2999-01-01",
+    }
+    rule = client.post("/api/recurring/", json=body).json()
+    pairs = {
+        "new": ("/recurring/new", "/api/views/recurring-form"),
+        "edit": (f"/recurring/{rule['id']}/edit", f"/api/views/recurring-form?recurring_id={rule['id']}"),
+    }
+
+    def measure():
+        return {k: tuple(count_queries(lambda p=p: client.get(p)) for p in two) for k, two in pairs.items()}
+
+    first = measure()
+    grow(client, root_accounts, accounts=6, transactions=60, start=6)
+    second = measure()
+    for kind, (page, view) in second.items():
+        assert view <= page, f"{kind}: the view asks {view}, the page {page}"
+        assert view <= first[kind][1] + 2, f"{kind}: {first[kind][1]} -> {view} as the books grew"

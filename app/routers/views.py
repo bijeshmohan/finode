@@ -2,6 +2,7 @@
 rows as the web pages (services/transaction_rows.py), so the app works out nothing the server already knows."""
 
 import calendar
+from collections.abc import Iterable
 from datetime import date
 from uuid import UUID
 
@@ -54,6 +55,7 @@ from ..schemas.views import (
     FilterOptions,
     FilterSummary,
     FormRow,
+    FrequencyChoice,
     GlanceBlock,
     GlanceRead,
     HomeView,
@@ -66,6 +68,7 @@ from ..schemas.views import (
     PickGroupRead,
     PickOptionRead,
     PlacedRead,
+    RecurringFormView,
     RecurringView,
     RegisterRowRead,
     RowRead,
@@ -93,6 +96,7 @@ from ..services.accounts_view import (
 )
 from ..services.budget import BudgetService
 from ..services.categories_view import TABS, categories_page, category_form, category_page
+from ..services.category import CategoryService
 from ..services.coming_up_view import coming_days
 from ..services.entry_form import EditStart, EntryStart, edit_start, new_start
 from ..services.entry_share import expense_create, expense_start, income_create, income_start
@@ -105,7 +109,10 @@ from ..services.pickers import (
     people_group,
     posting_groups,
 )
+from ..services.recurring_form import FREQUENCIES, form_start
 from ..services.recurring_view import RuleRow, rule_rows
+from ..services.recurring_view import status as rule_status
+from ..services.schedule import describe
 from ..services.transaction_rows import (
     PAGE_SIZE,
     AccountIndex,
@@ -377,33 +384,48 @@ def entry_form(
         ),
         income_share=income_start(edit.shared_income if edit else None),
         person_page=edit.person_page if edit else None,
-        groups=[
-            PickGroupRead(
-                title=title,
-                options=[PickOptionRead(id=o.id, label=o.label, budget=o.budget, balance=o.balance) for o in options],
-            )
-            for title, options in (
+        groups=_pick_groups(
+            (
                 *posting_groups(tree, {p.account_id for p in used}),
                 *people_group(contacts, edit.keep_people if edit else set()),
                 *category_groups(categories.list(include_closed=True), {p.category_id for p in used if p.category_id}),
             )
-        ],
-        account_parents=[
-            ParentOption(
-                id=n.account.id,
-                name=n.account.name,
-                depth=n.depth,
-                root=root.account.name,
-                opening_balance=root.account.name in OPENING_BALANCE_ROOTS,
-            )
-            for root in without_contacts(tree)
-            if root.account.name in ACCOUNT_ROOTS
-            for n in parent_options([root])
-        ],
-        category_parents=[
-            CategoryParent(id=c.id, name=c.name, kind=c.kind) for c in categories.list() if c.parent_id is None
-        ],
+        ),
+        account_parents=_account_parents(tree),
+        category_parents=_category_parents(categories),
     )
+
+
+def _pick_groups(groups: Iterable[tuple[str, list]]) -> list[PickGroupRead]:
+    """The pickers' groups (accounts by type with balance and budget flag, People, Income and Expenses categories)."""
+    return [
+        PickGroupRead(
+            title=title,
+            options=[PickOptionRead(id=o.id, label=o.label, budget=o.budget, balance=o.balance) for o in options],
+        )
+        for title, options in groups
+    ]
+
+
+def _account_parents(tree: list[Node]) -> list[ParentOption]:
+    """Where a new account can go from the pickers' "＋ New"."""
+    return [
+        ParentOption(
+            id=n.account.id,
+            name=n.account.name,
+            depth=n.depth,
+            root=root.account.name,
+            opening_balance=root.account.name in OPENING_BALANCE_ROOTS,
+        )
+        for root in without_contacts(tree)
+        if root.account.name in ACCOUNT_ROOTS
+        for n in parent_options([root])
+    ]
+
+
+def _category_parents(categories: CategoryService) -> list[CategoryParent]:
+    """Where a new category can go from the pickers' "＋ New"."""
+    return [CategoryParent(id=c.id, name=c.name, kind=c.kind) for c in categories.list() if c.parent_id is None]
 
 
 @router.post("/entry-share-preview", response_model=SharePreview)
@@ -840,3 +862,54 @@ def recurring_view(recurring: Recurring, accounts: Accounts, categories: Categor
     what leaves), `schedule` in words, `next_date` and `last_error`."""
     found = rule_rows(recurring, accounts, categories)
     return RecurringView(live=[_rule_row(r) for r in found.live], stopped=[_rule_row(r) for r in found.stopped])
+
+
+@router.get("/recurring-form", response_model=RecurringFormView)
+def recurring_form_view(
+    accounts: Accounts, categories: Categories, recurring: Recurring, recurring_id: UUID | None = None
+):
+    """Where the recurring form starts: blank (an expense, every month, starting today) or a rule's (`recurring_id`)
+    rows as the Add screen shows them, its schedule and, when editing, where it stands (`status`, `schedule`,
+    `next_date`, `last_date`, `skipped_date`, `last_error`). The pickers offer what the Add screen's do, without
+    People: a rule never records with a person."""
+    rule = None
+    if recurring_id is not None:
+        rule = recurring.read(recurring_id)
+        if rule is None:
+            raise HTTPException(status_code=404, detail="recurring transaction not found")
+    start = form_start(recurring, accounts, rule)
+    tree = build_tree(accounts.list())
+    used = {p.account_id for p in rule.postings if p.account_id} if rule else set()
+    if rule is not None:
+        used |= {a for a in (rule.from_account_id, rule.to_account_id) if a}
+    used_categories = {c for c in ([rule.category_id] + [p.category_id for p in rule.postings]) if c} if rule else set()
+    return RecurringFormView(
+        editing=rule is not None,
+        kind=start.kind if start.kind in ("expense", "income", "transfer") else "other",
+        total=start.total if start.total != "" else None,
+        payee=rule.payee or "" if rule else "",
+        comment=rule.comment or "" if rule else "",
+        tags=rule.tags if rule else [],
+        from_rows=_form_rows(start.from_rows),
+        to_rows=_form_rows(start.to_rows),
+        groups=_pick_groups(
+            (
+                *posting_groups(tree, used),
+                *category_groups(categories.list(include_closed=True), used_categories),
+            )
+        ),
+        account_parents=_account_parents(tree),
+        category_parents=_category_parents(categories),
+        frequency=rule.frequency if rule else "monthly",
+        every=rule.every if rule else 1,
+        start_date=rule.start_date if rule else local_today(),
+        end_date=rule.end_date if rule else None,
+        frequencies=[FrequencyChoice(value=v, name=n) for v, n in FREQUENCIES],
+        status=rule_status(rule) if rule else None,
+        schedule=describe(rule.frequency, rule.every) if rule else None,
+        active=rule.active if rule else None,
+        next_date=rule.next_date if rule else None,
+        last_date=rule.last_date if rule else None,
+        skipped_date=rule.skipped_date if rule else None,
+        last_error=rule.last_error if rule else None,
+    )

@@ -145,6 +145,25 @@ def line(data, name):
     return next(l for l in data["lines"] if l["name"] == name)
 
 
+def test_a_rule_from_the_recurring_forms_rows(client, books):
+    body = {
+        "payee": "Landlord",
+        "rows": [
+            {"choice": books["bank"]["id"], "side": "credit", "amount": "900"},
+            {"choice": books["rent"]["id"], "side": "debit", "amount": "900"},
+        ],
+        "start_date": "2999-01-01",
+    }
+    made = client.post("/api/recurring/form", json=body)
+    assert made.status_code == 201, made.text
+    rule = made.json()
+    assert rule["category_id"] == books["rent"]["id"] and rule["amount"] == "900.00"
+    body["every"] = 2
+    changed = client.put(f"/api/recurring/{rule['id']}/form", json=body)
+    assert changed.status_code == 200 and changed.json()["every"] == 2
+    assert client.put(f"/api/recurring/{MISSING}/form", json=body).status_code == 404
+
+
 def test_move_and_copy_budget_money(client, books):
     client.put(f"/api/budget/categories/{books['food']['id']}", json={"amount": "100"})
     moved = client.post(
