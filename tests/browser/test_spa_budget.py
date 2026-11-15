@@ -277,3 +277,36 @@ def test_the_head_is_the_same_on_accounts_categories_and_budgets(signed_in_spa_p
     assert spots["/accounts"][1] == spots["/budget"][1], (
         f"the label sits under the title where there is no switcher: {spots}"
     )
+
+
+def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(
+    signed_in_spa_page: Page, spa_api: Api, spa_books
+):
+    page = signed_in_spa_page
+    dining = spa_api.post("/accounts/", name="Dining", parent_id=spa_books["roots"]["Expenses"])
+    delivery = spa_api.post("/accounts/", name="Delivery", parent_id=dining["id"])
+    spa_api.post("/accounts/", name="Restaurant", parent_id=dining["id"])
+    spa_api.put(f"/budget/categories/{delivery['id']}", amount="300")
+    page.goto("/budget")
+    expect(category(page, "Delivery")).to_have_count(0)  # inside the group, on its page
+    group = page.locator("main").get_by_role("link", name=re.compile("^Dining"))
+    expect(group).to_contain_text("Delivery")  # the hint names what is inside
+    group.click()
+    page.wait_for_url(re.compile(r"/budget/groups/"))
+    expect(category(page, "Delivery")).to_be_visible()
+    page.get_by_role("button", name="Set the budget").click()
+    box = sheet(page, "Dining").get_by_label("Assigned this month")
+    expect(box).to_be_visible()
+    box.fill("200")  # below what Delivery and Restaurant add up to
+    expect(box).to_have_attribute("aria-invalid", "true")
+    sheet(page, "Dining").get_by_role("button", name="Save").click()
+    expect(sheet(page, "Dining")).to_be_visible()  # refused: still open
+    box.fill("700")
+    expect(box).to_have_attribute("aria-invalid", "false")
+    sheet(page, "Dining").get_by_role("button", name="Save").click()
+    expect(sheet(page, "Dining")).to_have_count(0)
+    expect(page.get_by_role("button", name="Set the budget")).to_contain_text("₹700.00")
+    expect(category(page, "Delivery")).to_be_visible()
+    page.locator("main").get_by_role("link", name="Budgets", exact=True).click()
+    expect(ready(page)).to_have_text("₹4,300.00")
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")

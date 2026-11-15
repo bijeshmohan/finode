@@ -40,3 +40,11 @@
   color: var(--faint);
   opacity: 0.55;
 }
+.input[aria-invalid="true"],
+.input[aria-invalid="true"]:focus {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+  outline-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}

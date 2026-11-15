@@ -47,3 +47,8 @@ export function sameAmount(a: string, b: string): boolean {
 export function positive(amount: string): boolean {
   return read(amount)?.gt(0) ?? false;
 }
+
+/** Whether a typed amount is less than another (an empty one counts as nothing). */
+export function less(amount: string, than: string): boolean {
+  return (read(amount) ?? new Big(0)).lt(read(than) ?? 0);
+}

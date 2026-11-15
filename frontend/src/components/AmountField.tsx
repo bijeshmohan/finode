@@ -18,6 +18,9 @@ interface AmountFieldProps {
   /** The Add screen's big amount: no visible label, centred and large. */
   big?: boolean;
   autoFocus?: boolean;
+  /** Whether what is typed is refused as it stands (a group's budget below its categories): drawn red. Undefined: not
+   * checked here. */
+  invalid?: boolean;
 }
 
 const KEPT = /[\d.-]/;
@@ -64,6 +67,7 @@ export function AmountField({
   groupAsTyped = false,
   big = false,
   autoFocus = false,
+  invalid,
 }: AmountFieldProps) {
   const input = useRef<HTMLInputElement>(null);
   const caret = useRef<number | null>(null);
@@ -92,6 +96,7 @@ export function AmountField({
         // eslint-disable-next-line jsx-a11y-x/no-autofocus
         autoFocus={autoFocus}
         placeholder={places ? `0.${"0".repeat(places)}` : "0"}
+        aria-invalid={invalid}
         value={value}
         onChange={(event) => {
           const raw = event.target.value;
