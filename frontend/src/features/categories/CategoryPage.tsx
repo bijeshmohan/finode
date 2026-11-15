@@ -15,13 +15,13 @@ import { LoadError } from "../../components/LoadError";
 import { type HeroOpen, InfoNote, Menu, MenuNote, menuStyles } from "../../components/Menu";
 import { MonthPill } from "../../components/MonthPill";
 import look from "../../components/Page.module.css";
+import { monthName } from "../../lib/dates";
 import { formatMoney } from "../../lib/money";
 import { positive, sameAmount } from "../../lib/split";
 import { RegisterList } from "../transactions/RegisterList";
 import { TransactionSheet } from "../transactions/TransactionSheet";
 import { useOpenEntry } from "../transactions/useOpenEntry";
 import styles from "./Categories.module.css";
-import { monthName } from "./CategoriesPage";
 import { type CategoryView, useCategory, useCategoryChange } from "./queries";
 
 const SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

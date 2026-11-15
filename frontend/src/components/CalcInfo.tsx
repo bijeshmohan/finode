@@ -1,11 +1,11 @@
 // The "i" beside a headline figure and the panel it opens: the sum behind the figure, with the person's own numbers
 // (partials/calc_info.html). A negative line flips its sign, so every line is a positive number and the column adds up.
-import { useId } from "react";
+import { type ReactNode, useId } from "react";
 
-import { useCurrency, useGrouping } from "../../app/currency";
-import { Icon } from "../../components/Icon";
-import { formatMoney, withCurrency } from "../../lib/money";
-import styles from "./Home.module.css";
+import { useCurrency, useGrouping } from "../app/currency";
+import { Icon } from "./Icon";
+import { formatMoney, withCurrency } from "../lib/money";
+import styles from "./CalcInfo.module.css";
 
 export interface CalcLine {
   label: string;
@@ -33,11 +33,14 @@ export function CalcPanel({
   totalLabel,
   total,
   note,
+  children,
 }: {
   lines: CalcLine[];
   totalLabel: string;
   total: string;
   note: string;
+  /** What follows the note (the Budgets sum: what is coming up this month). */
+  children?: ReactNode;
 }) {
   const code = useCurrency();
   const grouping = useGrouping();
@@ -63,6 +66,7 @@ export function CalcPanel({
         <b>{money(total)}</b>
       </p>
       <p className={styles.calcNote}>{note}</p>
+      {children}
     </section>
   );
 }

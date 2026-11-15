@@ -10,6 +10,7 @@ import { AccountForm } from "../features/accounts/AccountForm";
 import { AccountPage } from "../features/accounts/AccountPage";
 import { AccountsPage } from "../features/accounts/AccountsPage";
 import { GroupForm } from "../features/accounts/GroupForm";
+import { BudgetPage } from "../features/budget/BudgetPage";
 import { CategoriesPage } from "../features/categories/CategoriesPage";
 import { CategoryForm } from "../features/categories/CategoryForm";
 import { CategoryPage } from "../features/categories/CategoryPage";
@@ -23,7 +24,6 @@ import { SessionProvider } from "./session";
 import { ToastProvider } from "./toast";
 
 const PAGES: [path: string, title: string][] = [
-  ["/budget", "Budgets"],
   ["/people", "People"],
   ["/settings", "Settings"],
 ];
@@ -65,6 +65,7 @@ export const routes: RouteObject[] = [
           { path: "/accounts/new", element: <AccountForm /> },
           { path: "/accounts/new-group", element: <GroupForm /> },
           { path: "/accounts/:accountId/edit", element: <AccountForm /> },
+          { path: "/budget", element: <BudgetPage /> },
           { path: "/categories", element: <CategoriesPage /> },
           { path: "/categories/new", element: <CategoryForm /> },
           { path: "/categories/:categoryId", element: <CategoryPage /> },

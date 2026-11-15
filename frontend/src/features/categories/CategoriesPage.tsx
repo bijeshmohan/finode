@@ -10,29 +10,11 @@ import { Icon } from "../../components/Icon";
 import { LoadError } from "../../components/LoadError";
 import { MonthPill } from "../../components/MonthPill";
 import look from "../../components/Page.module.css";
+import { monthName } from "../../lib/dates";
 import { formatMoney } from "../../lib/money";
 import { positive, sameAmount } from "../../lib/split";
 import styles from "./Categories.module.css";
 import { type CategoriesView, useCategories } from "./queries";
-
-export const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
-export function monthName(month: string): string {
-  return MONTH_NAMES[Number(month.slice(5, 7)) - 1] ?? "";
-}
 
 const TABS = [
   { value: "expense", label: "Spending" },
