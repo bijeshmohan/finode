@@ -3747,6 +3747,8 @@ export interface components {
             client_name: string;
             /** Client Uri */
             client_uri: string | null;
+            /** Redirect Uri */
+            redirect_uri: string | null;
             /** Redirect Url */
             redirect_url: string | null;
             /** Scopes */

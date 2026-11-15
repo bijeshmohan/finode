@@ -36,6 +36,8 @@ class ConsentRead(BaseModel):
     authorization_id: str
     client_name: str
     client_uri: str | None
+    # Where the app will send the person once they decide (shown on the screen).
+    redirect_uri: str | None
     scopes: list[str]
     redirect_url: str | None
 

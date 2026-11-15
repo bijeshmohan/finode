@@ -37,7 +37,7 @@ Only for someone signed in to the finode app itself (the session cookie): a bear
 | `POST` | `/assistants/tokens/{token_id}/revoke` | Revoke a token; it stops working at once. |
 | `POST` | `/assistants/apps/{grant_id}/access` | Change what a connected app may do: `scope`. |
 | `POST` | `/assistants/apps/{grant_id}/disconnect` | Take a connected app's access back and ask Supabase to stop issuing it tokens. |
-| `GET` | `/oauth/consent/{authorization_id}` | The app asking to connect, as Supabase describes it (`client_name`, `client_uri`, `scopes`); `redirect_url` is set when you already decided. |
+| `GET` | `/oauth/consent/{authorization_id}` | The app asking to connect, as Supabase describes it (`client_name`, `client_uri`, `redirect_uri`: where it sends you after, `scopes`); `redirect_url` is set when you already decided. |
 | `POST` | `/oauth/consent/{authorization_id}` | `decision` (`allow` or `deny`) and `access` (`read`, `write`, `manage`); answers the `redirect_url` that sends you back to the app. The app recorded is whatever Supabase says the request is for. |
 
 ## Accounts and categories

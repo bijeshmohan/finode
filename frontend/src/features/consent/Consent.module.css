@@ -1,0 +1,66 @@
+/* The consent screen (.card.stack, h2.choose, .access-choice, .access-card of app/static/style.css). */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 1px solid var(--tile-border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.card p {
+  margin: 0;
+}
+.muted {
+  color: var(--muted);
+}
+.choose {
+  margin: 0;
+  font-size: 1rem;
+}
+.choices {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+@media (min-width: 640px) {
+  .choices {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.allow {
+  margin-top: auto;
+  min-height: var(--tap);
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.deny {
+  min-height: var(--tap);
+  padding: 0 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.error {
+  margin: 0;
+  color: var(--negative);
+}
