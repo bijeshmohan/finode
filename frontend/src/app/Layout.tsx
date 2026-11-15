@@ -3,6 +3,7 @@
 import { NavLink, Outlet } from "react-router";
 
 import { Icon, type IconName } from "../components/Icon";
+import { TodoBell } from "../features/todo/TodoBell";
 import styles from "./Layout.module.css";
 import { NewEntryProvider, useNewEntryUrl } from "./newEntry";
 import { Offline } from "./Offline";
@@ -45,6 +46,7 @@ function Frame() {
         <NavLink to="/" className={styles.brand}>
           finode
         </NavLink>
+        <TodoBell place="bar" />
         <NavLink to="/settings" className={styles.avatar} aria-label="Settings">
           <Icon name="gear" />
         </NavLink>
@@ -62,7 +64,8 @@ function Frame() {
           {[HOME, BUDGETS, ACCOUNTS, CATEGORIES, TRANSACTIONS, PEOPLE].map((page) => (
             <PageLink key={page.to} page={page} />
           ))}
-          <PageLink page={{ to: "/settings", label: "Settings", icon: "gear" }} className={styles.sidebarFoot} />
+          <TodoBell place="side" />
+          <PageLink page={{ to: "/settings", label: "Settings", icon: "gear" }} />
         </nav>
       </aside>
 

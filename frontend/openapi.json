@@ -2350,6 +2350,25 @@
         "title": "CategoriesView",
         "type": "object"
       },
+      "CategoryChoice": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "path"
+        ],
+        "title": "CategoryChoice",
+        "type": "object"
+      },
       "CategoryCreate": {
         "properties": {
           "details": {
@@ -2899,6 +2918,96 @@
         "title": "ClosedAccount",
         "type": "object"
       },
+      "ComingDayRead": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ComingRowRead"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "required": [
+          "date",
+          "total",
+          "rows"
+        ],
+        "title": "ComingDayRead",
+        "type": "object"
+      },
+      "ComingRowRead": {
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "income": {
+            "title": "Income",
+            "type": "boolean"
+          },
+          "recurring_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recurring Id"
+          },
+          "sub": {
+            "title": "Sub",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "transaction_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transaction Id"
+          }
+        },
+        "required": [
+          "title",
+          "sub",
+          "amount",
+          "income",
+          "recurring_id",
+          "transaction_id"
+        ],
+        "title": "ComingRowRead",
+        "type": "object"
+      },
       "ComingUpItem": {
         "properties": {
           "amount": {
@@ -3040,6 +3149,46 @@
           "items"
         ],
         "title": "ComingUpRead",
+        "type": "object"
+      },
+      "ComingUpView": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/ComingDayRead"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "through": {
+            "format": "date",
+            "title": "Through",
+            "type": "string"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "required": [
+          "through",
+          "count",
+          "total",
+          "days"
+        ],
+        "title": "ComingUpView",
         "type": "object"
       },
       "Confirmation": {
@@ -4456,6 +4605,24 @@
         "title": "FormRow",
         "type": "object"
       },
+      "FrequencyChoice": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "name"
+        ],
+        "title": "FrequencyChoice",
+        "type": "object"
+      },
       "GlanceBlock": {
         "properties": {
           "left": {
@@ -5719,6 +5886,20 @@
         "title": "PayeeSuggestions",
         "type": "object"
       },
+      "PaymentCategory": {
+        "properties": {
+          "category_id": {
+            "format": "uuid",
+            "title": "Category Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "category_id"
+        ],
+        "title": "PaymentCategory",
+        "type": "object"
+      },
       "PaymentIn": {
         "description": "What you paid, from which of your accounts.",
         "properties": {
@@ -6368,6 +6549,294 @@
         "title": "RecurringCreate",
         "type": "object"
       },
+      "RecurringForm": {
+        "description": "A rule as the recurring form says it, in the Add screen's rows: a category row posts on Expenses or Income with\nit. One account on each side with the same amount is saved as a plain rule, anything else as a split.",
+        "properties": {
+          "comment": {
+            "default": "",
+            "title": "Comment",
+            "type": "string"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "every": {
+            "default": 1,
+            "maximum": 366.0,
+            "minimum": 1.0,
+            "title": "Every",
+            "type": "integer"
+          },
+          "frequency": {
+            "default": "monthly",
+            "enum": [
+              "daily",
+              "weekly",
+              "monthly",
+              "yearly"
+            ],
+            "title": "Frequency",
+            "type": "string"
+          },
+          "payee": {
+            "default": "",
+            "title": "Payee",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/EntryRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "title": "RecurringForm",
+        "type": "object"
+      },
+      "RecurringFormView": {
+        "description": "Where the recurring form starts: the rule's rows as the Add screen shows them (no posting day, no people), its\nschedule, and for a rule being edited where it stands.",
+        "properties": {
+          "account_parents": {
+            "items": {
+              "$ref": "#/components/schemas/ParentOption"
+            },
+            "title": "Account Parents",
+            "type": "array"
+          },
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "category_parents": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryParent"
+            },
+            "title": "Category Parents",
+            "type": "array"
+          },
+          "comment": {
+            "title": "Comment",
+            "type": "string"
+          },
+          "editing": {
+            "title": "Editing",
+            "type": "boolean"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "every": {
+            "title": "Every",
+            "type": "integer"
+          },
+          "frequencies": {
+            "items": {
+              "$ref": "#/components/schemas/FrequencyChoice"
+            },
+            "title": "Frequencies",
+            "type": "array"
+          },
+          "frequency": {
+            "title": "Frequency",
+            "type": "string"
+          },
+          "from_rows": {
+            "items": {
+              "$ref": "#/components/schemas/FormRow"
+            },
+            "title": "From Rows",
+            "type": "array"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/PickGroupRead"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "expense",
+              "income",
+              "transfer",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Date"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "next_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Date"
+          },
+          "payee": {
+            "title": "Payee",
+            "type": "string"
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule"
+          },
+          "skipped_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skipped Date"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "active",
+                  "paused",
+                  "ended",
+                  "error"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "to_rows": {
+            "items": {
+              "$ref": "#/components/schemas/FormRow"
+            },
+            "title": "To Rows",
+            "type": "array"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "required": [
+          "editing",
+          "kind",
+          "total",
+          "payee",
+          "comment",
+          "tags",
+          "from_rows",
+          "to_rows",
+          "groups",
+          "account_parents",
+          "category_parents",
+          "frequency",
+          "every",
+          "start_date",
+          "end_date",
+          "frequencies"
+        ],
+        "title": "RecurringFormView",
+        "type": "object"
+      },
       "RecurringPostingData-Input": {
         "description": "One row of a split rule, like a transaction's posting.",
         "properties": {
@@ -6787,6 +7256,30 @@
         "title": "RecurringUpdate",
         "type": "object"
       },
+      "RecurringView": {
+        "properties": {
+          "live": {
+            "items": {
+              "$ref": "#/components/schemas/RuleRowRead"
+            },
+            "title": "Live",
+            "type": "array"
+          },
+          "stopped": {
+            "items": {
+              "$ref": "#/components/schemas/RuleRowRead"
+            },
+            "title": "Stopped",
+            "type": "array"
+          }
+        },
+        "required": [
+          "live",
+          "stopped"
+        ],
+        "title": "RecurringView",
+        "type": "object"
+      },
       "RegisterEntry": {
         "properties": {
           "accounts": {
@@ -7193,6 +7686,65 @@
           "by_assistant"
         ],
         "title": "RowRead",
+        "type": "object"
+      },
+      "RuleRowRead": {
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "next_date": {
+            "format": "date",
+            "title": "Next Date",
+            "type": "string"
+          },
+          "schedule": {
+            "title": "Schedule",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "paused",
+              "ended",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "amount",
+          "schedule",
+          "status",
+          "next_date",
+          "last_error"
+        ],
+        "title": "RuleRowRead",
         "type": "object"
       },
       "SessionRead": {
@@ -8376,6 +8928,42 @@
         "title": "TagRename",
         "type": "object"
       },
+      "TodoBill": {
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "bill": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Bill",
+            "type": "string"
+          },
+          "days_to_due": {
+            "title": "Days To Due",
+            "type": "integer"
+          },
+          "due_date": {
+            "format": "date",
+            "title": "Due Date",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "name",
+          "bill",
+          "due_date",
+          "days_to_due"
+        ],
+        "title": "TodoBill",
+        "type": "object"
+      },
       "TodoCard": {
         "description": "A card's (or loan's) bill that is due within a few days or overdue, and still not paid.",
         "properties": {
@@ -8480,6 +9068,59 @@
           "error"
         ],
         "title": "TodoRule",
+        "type": "object"
+      },
+      "TodoView": {
+        "properties": {
+          "card_bills": {
+            "items": {
+              "$ref": "#/components/schemas/TodoBill"
+            },
+            "title": "Card Bills",
+            "type": "array"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryChoice"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "failing_rules": {
+            "items": {
+              "$ref": "#/components/schemas/TodoRule"
+            },
+            "title": "Failing Rules",
+            "type": "array"
+          },
+          "left_out_accounts": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetLeftOut"
+            },
+            "title": "Left Out Accounts",
+            "type": "array"
+          },
+          "uncategorised": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetUncategorised"
+            },
+            "title": "Uncategorised",
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "uncategorised",
+          "left_out_accounts",
+          "card_bills",
+          "failing_rules",
+          "categories"
+        ],
+        "title": "TodoView",
         "type": "object"
       },
       "TransactionBatch": {
@@ -13508,6 +14149,53 @@
         ]
       }
     },
+    "/api/recurring/form": {
+      "post": {
+        "description": "Create a rule from the recurring form's rows (the Add screen's: `choice`, `side`, `amount`, `category_id`; no\n`posted_on`). A start date in the past is recorded straight away.",
+        "operationId": "create_recurring_from_form_api_recurring_form_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecurringForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Recurring From Form",
+        "tags": [
+          "recurring"
+        ]
+      }
+    },
     "/api/recurring/{recurring_id}": {
       "delete": {
         "description": "Delete a rule; the transactions it recorded are kept.",
@@ -13649,6 +14337,65 @@
           }
         ],
         "summary": "Update Recurring",
+        "tags": [
+          "recurring"
+        ]
+      }
+    },
+    "/api/recurring/{recurring_id}/form": {
+      "put": {
+        "description": "Replace a rule with what the recurring form's rows say; it continues after the last recorded or skipped day.",
+        "operationId": "update_recurring_from_form_api_recurring__recurring_id__form_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recurring_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Recurring Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecurringForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Recurring From Form",
         "tags": [
           "recurring"
         ]
@@ -15687,6 +16434,65 @@
         ]
       }
     },
+    "/api/transactions/{transaction_id}/category": {
+      "post": {
+        "description": "Give an entry's payments into accounts outside the budget (a loan, a fund) that no category took a category: the\nto-do bell's fix. 400 when the entry has no payment waiting for one.",
+        "operationId": "label_payment_api_transactions__transaction_id__category_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Transaction Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentCategory"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Label Payment",
+        "tags": [
+          "transactions"
+        ]
+      }
+    },
     "/api/transactions/{transaction_id}/related": {
       "get": {
         "description": "The entries that are related to this one (refunds, reversals), oldest first.",
@@ -16430,6 +17236,62 @@
         ]
       }
     },
+    "/api/views/coming-up": {
+      "get": {
+        "description": "What is coming up after today, to the end of this month (or `through`), by day: each row's `title` and `sub`\n(where the money comes from and goes), `amount`, `income`, and the `recurring_id` of a rule or the\n`transaction_id` of an entry dated ahead; a day's `total` when every row goes one way and there is more than one.",
+        "operationId": "coming_up_view_api_views_coming_up_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "through",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Through"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComingUpView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Coming Up View",
+        "tags": [
+          "views"
+        ]
+      }
+    },
     "/api/views/entry-form": {
       "get": {
         "description": "Where the Add screen starts (`transaction_id` to edit; otherwise blank, or opened from an `account` or a\n`category`, as a `repeat`, `related` to an entry, to `pay` a card with `amount`, to `move` money `with` a person, or\nwith `mode=split` to share a bill `with` a person), and what its pickers offer: the accounts by type with their\nbalances and budget flags, the people, the categories, and where a new account or category can go.",
@@ -16714,6 +17576,89 @@
         ]
       }
     },
+    "/api/views/recurring": {
+      "get": {
+        "description": "The Recurring list (what has fallen due is recorded first): the `live` rules (active, or `error` when the last\none could not be recorded) and the `stopped` ones (`paused`, `ended`), each with its `title`, `amount` (a split:\nwhat leaves), `schedule` in words, `next_date` and `last_error`.",
+        "operationId": "recurring_view_api_views_recurring_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Recurring View",
+        "tags": [
+          "views"
+        ]
+      }
+    },
+    "/api/views/recurring-form": {
+      "get": {
+        "description": "Where the recurring form starts: blank (an expense, every month, starting today) or a rule's (`recurring_id`)\nrows as the Add screen shows them, its schedule and, when editing, where it stands (`status`, `schedule`,\n`next_date`, `last_date`, `skipped_date`, `last_error`). The pickers offer what the Add screen's do, without\nPeople: a rule never records with a person.",
+        "operationId": "recurring_form_view_api_views_recurring_form_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "recurring_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Recurring Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringFormView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Recurring Form View",
+        "tags": [
+          "views"
+        ]
+      }
+    },
     "/api/views/related-entries": {
       "get": {
         "description": "Earlier entries a new one can be related to: the newest 30 up to today, narrowed by `q` (payee, note or account),\nwithout `exclude` (the entry being edited) and the system's opening balances.",
@@ -16779,6 +17724,33 @@
           }
         ],
         "summary": "Related Entries",
+        "tags": [
+          "views"
+        ]
+      }
+    },
+    "/api/views/todo": {
+      "get": {
+        "description": "The to-do bell's sheet: what needs a decision now (as `/todo/`, a card bill named by the card), and the spending\ncategories a payment with no category can be given (`path` as \"Food \u203a Dining\").",
+        "operationId": "todo_view_api_views_todo_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodoView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Todo View",
         "tags": [
           "views"
         ]

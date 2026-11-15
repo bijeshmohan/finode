@@ -323,7 +323,7 @@ def test_move_money_picks_in_our_sheet_with_what_each_has_left(signed_in_spa_pag
     expect(picker.get_by_role("button", name=re.compile("Groceries"))).to_contain_text("300.00 left")
     picker.get_by_role("button", name=re.compile("Groceries")).click()
     expect(page.get_by_role("button", name=re.compile("^From"))).to_have_text("Groceries")
-    page.get_by_role("button", name=re.compile("^To")).click()
+    page.get_by_role("button", name=re.compile("^To(?! do)")).click()
     page.get_by_role("dialog", name="To").get_by_role("button", name=re.compile("Rent")).click()
     page.get_by_role("button", name="Move money").click()
     page.wait_for_url(re.compile(r"/budget\?month="))

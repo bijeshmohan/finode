@@ -32,7 +32,7 @@ describe("Move money", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^From/ })).toHaveTextContent("Rent");
     await userEvent.type(screen.getByLabelText("Amount"), "120");
-    await userEvent.click(screen.getByRole("button", { name: /^To/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^To(?! do)/ }));
     const sheet = await screen.findByRole("dialog", { name: "To" });
     expect(within(sheet).getByRole("button", { name: /Food › Dining/ })).toHaveTextContent("120.00 left");
     await userEvent.click(within(sheet).getByRole("button", { name: /Food › Dining/ }));
@@ -67,7 +67,7 @@ describe("Move money", () => {
       "/api/budget/move": [400, { detail: "Rent has only 500.00 available to move!" }],
     });
     await userEvent.type(await screen.findByLabelText("Amount"), "900");
-    await userEvent.click(screen.getByRole("button", { name: /^To/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^To(?! do)/ }));
     await userEvent.click(
       within(await screen.findByRole("dialog", { name: "To" })).getByRole("button", { name: /Dining/ }),
     );
