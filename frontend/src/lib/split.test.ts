@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { allocation, differs, left, positive, sameAmount } from "./split";
+import { allocation, differs, left, less, positive, sameAmount } from "./split";
 
 describe("what is left to allocate on a side", () => {
   it("is the total less the rows that have an amount", () => {
@@ -37,5 +37,13 @@ describe("comparing typed amounts", () => {
     expect(positive("0.00")).toBe(false);
     expect(positive("−5")).toBe(false);
     expect(positive("0.5")).toBe(true);
+  });
+});
+
+describe("less", () => {
+  it("compares typed amounts", () => {
+    expect(less("200", "500.00")).toBe(true);
+    expect(less("500", "500.00")).toBe(false);
+    expect(less("", "1")).toBe(true);
   });
 });
