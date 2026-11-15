@@ -214,3 +214,15 @@ def test_the_bells_open_rule_reaches_the_form(signed_in_spa_page: Page, spa_api:
     page.get_by_role("dialog", name="To do").get_by_role("link", name="Open rule").click()
     page.wait_for_url(f"**/recurring/{rule['id']}/edit")
     expect(page.get_by_role("alert")).to_contain_text("Couldn't record Checking can no longer be posted to.")
+
+
+def test_deleting_a_rule_goes_back_to_the_list(signed_in_spa_page: Page, spa_api: Api, spa_books):
+    page = signed_in_spa_page
+    rule = a_rule(spa_api, spa_books)
+    page.goto(f"/recurring/{rule['id']}/edit")
+    page.once("dialog", lambda dialog: dialog.accept())
+    page.get_by_role("button", name="Delete", exact=True).click()
+    page.wait_for_url(re.compile(r"/recurring$"))
+    expect(page.get_by_text("Recurring transaction deleted. What it recorded is kept.")).to_be_visible()
+    expect(page.get_by_text("Nothing on repeat yet")).to_be_visible()
+    assert spa_api.get("/recurring/") == []
