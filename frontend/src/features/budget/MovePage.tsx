@@ -12,7 +12,7 @@ import { LoadError } from "../../components/LoadError";
 import look from "../../components/Page.module.css";
 import { tidyAmount } from "../../lib/amount";
 import { monthName } from "../../lib/dates";
-import form from "../accounts/Forms.module.css";
+import form from "../../components/Forms.module.css";
 import { Picker } from "../../components/lines/Picker";
 import { type BudgetMoveView, useBudgetMove, useMoveMoney } from "./queries";
 

@@ -7,7 +7,7 @@ import { messageOf } from "../../api/messages";
 import { useToast } from "../../app/toast";
 import { Icon } from "../../components/Icon";
 import look from "../../components/Page.module.css";
-import form from "./Forms.module.css";
+import form from "../../components/Forms.module.css";
 import { useAddGroup } from "./queries";
 
 const HOLDS = [

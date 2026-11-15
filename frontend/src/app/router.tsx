@@ -17,7 +17,9 @@ import { MovePage } from "../features/budget/MovePage";
 import { CategoriesPage } from "../features/categories/CategoriesPage";
 import { CategoryForm } from "../features/categories/CategoryForm";
 import { CategoryPage } from "../features/categories/CategoryPage";
+import { OpeningForm } from "../features/people/OpeningForm";
 import { PeoplePage } from "../features/people/PeoplePage";
+import { PersonForm } from "../features/people/PersonForm";
 import { PersonPage } from "../features/people/PersonPage";
 import { RecurringForm, RuleAddress } from "../features/recurring/RecurringForm";
 import { RecurringPage } from "../features/recurring/RecurringPage";
@@ -75,7 +77,11 @@ export const routes: RouteObject[] = [
           { path: "/budget/coming-up", element: <ComingUpPage /> },
           { path: "/tags", element: <TagsPage /> },
           { path: "/people", element: <PeoplePage /> },
+          { path: "/people/new", element: <PersonForm /> },
           { path: "/people/:contactId", element: <PersonPage /> },
+          { path: "/people/:contactId/edit", element: <PersonForm /> },
+          { path: "/people/:contactId/opening", element: <OpeningForm /> },
+          { path: "/people/:contactId/opening/:transactionId/edit", element: <OpeningForm /> },
           { path: "/recurring", element: <RecurringPage /> },
           { path: "/recurring/new", element: <RecurringForm /> },
           { path: "/recurring/:recurringId/edit", element: <RecurringForm /> },
