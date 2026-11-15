@@ -30,6 +30,11 @@ from ..schemas.views import (
     AccountsView,
     AccountView,
     AppliedFilter,
+    BudgetGroupView,
+    BudgetMoveView,
+    BudgetRowRead,
+    BudgetSum,
+    BudgetView,
     CardNoteRead,
     CategoriesView,
     CategoryFormView,
@@ -43,11 +48,13 @@ from ..schemas.views import (
     FilterOptions,
     FilterSummary,
     FormRow,
+    GlanceBlock,
     GlanceRead,
     HomeView,
     KindChoiceRead,
     KindRow,
     LineRead,
+    MoveLine,
     ParentOption,
     PersonRef,
     PickGroupRead,
@@ -63,7 +70,7 @@ from ..schemas.views import (
     TransactionsView,
     UpcomingRead,
 )
-from ..services import cards
+from ..services import budget_view, cards
 from ..services.account_tree import Node, build_tree, without_contacts
 from ..services.accounts_view import (
     AccountForm,
@@ -74,6 +81,7 @@ from ..services.accounts_view import (
     edit_account_form,
     new_account_form,
 )
+from ..services.budget import BudgetService
 from ..services.categories_view import TABS, categories_page, category_form, category_page
 from ..services.entry_form import EditStart, EntryStart, edit_start, new_start
 from ..services.entry_share import expense_create, expense_start, income_create, income_start
@@ -99,6 +107,7 @@ from ..services.transaction_rows import (
     transaction_details,
 )
 from ..services.validation import validation_message
+from ..templating import grouping_for, money
 from .contact_utils import refused
 
 router = APIRouter(prefix="/views", tags=["views"], dependencies=[Depends(require_authenticated_user)])
@@ -642,4 +651,99 @@ def category_form_view(
         details=current.details if current else None,
         parent_id=form.parent_id,
         groups=[CategoryRef(id=g.id, name=g.name) for g in form.groups],
+    )
+
+
+# ---- Budgets ----------------------------------------------------------------------------------------------------------
+
+
+def _budget_money(budget: BudgetService):
+    style = grouping_for(budget.view(None).currency)
+    return lambda value: money(value, style)
+
+
+def _budget_row(row: budget_view.Row, group: str | None = None) -> BudgetRowRead:
+    line, r = row.node.line, row.reading
+    return BudgetRowRead(
+        category_id=line.category_id,
+        name=line.name,
+        is_group=row.node.is_group,
+        assigned=line.assigned,
+        activity=line.activity,
+        available=line.available,
+        overspent_last_month=line.overspent_last_month,
+        of=r.of,
+        state=r.state,
+        hint=row.hint,
+        percent=r.percent,
+        over=r.over,
+        group_name=group,
+        unused=row.unused,
+    )
+
+
+@router.get("/budget", response_model=BudgetView)
+def budget_page_view(budget: Budget, month: str = ""):
+    """The Budgets page for a month (`YYYY-MM`; this month for anything else): Ready to assign and the sum behind it,
+    what copying last month would assign, and the categories biggest budget first, each with how its row reads (`of`,
+    `state`, `hint`, the bar's `percent`); whole groups with nothing in them are `unused` once anything is in use."""
+    page = budget_view.budget_page(budget, budget_view.parse_month(month), _budget_money(budget))
+    data = page.budget
+    return BudgetView(
+        month=page.month.strftime("%Y-%m"),
+        is_current=page.is_current,
+        pace=page.pace,
+        ready_to_assign=data.ready_to_assign,
+        sum=BudgetSum(
+            money_in_accounts=data.money_in_accounts,
+            reserved_for_cards=data.reserved_for_cards,
+            available=data.available,
+            assigned_to_later_months=data.assigned_to_later_months,
+        ),
+        copyable=data.copyable,
+        show_intro=page.show_intro,
+        has_budget_accounts=bool(data.budget_accounts),
+        overspent=page.overspent,
+        rows=[_budget_row(r) for r in page.rows],
+        unused_count=page.unused_count,
+    )
+
+
+@router.get("/budget/groups/{category_id}", response_model=BudgetGroupView)
+def budget_group_view(category_id: UUID, budget: Budget, month: str = ""):
+    """One group's budget for a month: its glance (what is left, spent out of what there was), its categories, and the
+    least the group itself can be given (`minimum`: what its categories add up to)."""
+    try:
+        found = budget_view.group_page(budget, budget_view.parse_month(month), category_id, _budget_money(budget))
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
+    line, g = found.group.line, found.glance
+    return BudgetGroupView(
+        id=line.category_id,
+        name=line.name,
+        month=found.page.month.strftime("%Y-%m"),
+        is_current=found.page.is_current,
+        pace=found.page.pace,
+        glance=GlanceBlock(left=g.left, spent=g.spent, of=g.of, percent=g.percent, planned=g.planned),
+        assigned=line.assigned,
+        minimum=found.minimum,
+        kids=[_budget_row(k, line.name) for k in found.kids],
+    )
+
+
+@router.get("/budget-move", response_model=BudgetMoveView)
+def budget_move_view(budget: Budget, month: str = "", source: UUID | None = None):
+    """The categories money can move between in a month, each with what it has left; `source` is the one it moves from
+    (404 when it is not one of them)."""
+    when = budget_view.parse_month(month)
+    lines = budget_view.move_lines(budget.view(when))
+    if source is not None and not any(line.category_id == source for line in lines):
+        raise HTTPException(status_code=404, detail="category not found")
+    return BudgetMoveView(
+        month=when.strftime("%Y-%m"),
+        source=source,
+        lines=[
+            MoveLine(category_id=ln.category_id, path=ln.path.replace(":", " › "), available=ln.available)
+            for ln in lines
+        ],
     )

@@ -1965,6 +1965,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/views/budget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Budget Page View
+         * @description The Budgets page for a month (`YYYY-MM`; this month for anything else): Ready to assign and the sum behind it,
+         *     what copying last month would assign, and the categories biggest budget first, each with how its row reads (`of`,
+         *     `state`, `hint`, the bar's `percent`); whole groups with nothing in them are `unused` once anything is in use.
+         */
+        get: operations["budget_page_view_api_views_budget_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views/budget-move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Budget Move View
+         * @description The categories money can move between in a month, each with what it has left; `source` is the one it moves from
+         *     (404 when it is not one of them).
+         */
+        get: operations["budget_move_view_api_views_budget_move_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views/budget/groups/{category_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Budget Group View
+         * @description One group's budget for a month: its glance (what is left, spent out of what there was), its categories, and the
+         *     least the group itself can be given (`minimum`: what its categories add up to).
+         */
+        get: operations["budget_group_view_api_views_budget_groups__category_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/views/categories": {
         parameters: {
             query?: never;
@@ -2704,6 +2768,29 @@ export interface components {
             /** Month */
             month?: string | null;
         };
+        /** BudgetGroupView */
+        BudgetGroupView: {
+            /** Assigned */
+            assigned: string;
+            glance: components["schemas"]["GlanceBlock"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Current */
+            is_current: boolean;
+            /** Kids */
+            kids: components["schemas"]["BudgetRowRead"][];
+            /** Minimum */
+            minimum: string;
+            /** Month */
+            month: string;
+            /** Name */
+            name: string;
+            /** Pace */
+            pace: number | null;
+        };
         /** BudgetLeftOut */
         BudgetLeftOut: {
             /**
@@ -2765,6 +2852,15 @@ export interface components {
              */
             to_category: string;
         };
+        /** BudgetMoveView */
+        BudgetMoveView: {
+            /** Lines */
+            lines: components["schemas"]["MoveLine"][];
+            /** Month */
+            month: string;
+            /** Source */
+            source: string | null;
+        };
         /** BudgetRead */
         BudgetRead: {
             /** Activity */
@@ -2816,6 +2912,58 @@ export interface components {
             uncategorised?: components["schemas"]["BudgetUncategorised"][];
         };
         /**
+         * BudgetRowRead
+         * @description One row of the Budgets page or a group's page (services/budget_view): a category (or a group) with what is left,
+         *     how its second line reads and how far its bar runs.
+         */
+        BudgetRowRead: {
+            /** Activity */
+            activity: string;
+            /** Assigned */
+            assigned: string;
+            /** Available */
+            available: string;
+            /**
+             * Category Id
+             * Format: uuid
+             */
+            category_id: string;
+            /** Group Name */
+            group_name: string | null;
+            /** Hint */
+            hint: string;
+            /** Is Group */
+            is_group: boolean;
+            /** Name */
+            name: string;
+            /** Of */
+            of: string | null;
+            /** Over */
+            over: boolean;
+            /** Overspent Last Month */
+            overspent_last_month: string;
+            /** Percent */
+            percent: number;
+            /** State */
+            state: ("overspent" | "all_spent") | null;
+            /** Unused */
+            unused: boolean;
+        };
+        /**
+         * BudgetSum
+         * @description What Ready to assign is made of (the "i").
+         */
+        BudgetSum: {
+            /** Assigned To Later Months */
+            assigned_to_later_months: string;
+            /** Available */
+            available: string;
+            /** Money In Accounts */
+            money_in_accounts: string;
+            /** Reserved For Cards */
+            reserved_for_cards: string;
+        };
+        /**
          * BudgetUncategorised
          * @description A payment into an account outside the budget (a loan, a fund) that no category took: the money left the budget
          *     and no envelope paid for it, so Ready to assign dropped.
@@ -2837,6 +2985,30 @@ export interface components {
              * Format: uuid
              */
             transaction_id: string;
+        };
+        /** BudgetView */
+        BudgetView: {
+            /** Copyable */
+            copyable: string;
+            /** Has Budget Accounts */
+            has_budget_accounts: boolean;
+            /** Is Current */
+            is_current: boolean;
+            /** Month */
+            month: string;
+            /** Overspent */
+            overspent: string;
+            /** Pace */
+            pace: number | null;
+            /** Ready To Assign */
+            ready_to_assign: string;
+            /** Rows */
+            rows: components["schemas"]["BudgetRowRead"][];
+            /** Show Intro */
+            show_intro: boolean;
+            sum: components["schemas"]["BudgetSum"];
+            /** Unused Count */
+            unused_count: number;
         };
         /**
          * CardBill
@@ -3663,6 +3835,19 @@ export interface components {
             /** Posted On */
             posted_on: string | null;
         };
+        /** GlanceBlock */
+        GlanceBlock: {
+            /** Left */
+            left: string;
+            /** Of */
+            of: string;
+            /** Percent */
+            percent: number;
+            /** Planned */
+            planned: boolean;
+            /** Spent */
+            spent: string;
+        };
         /**
          * GlanceRead
          * @description Home's budget at a glance for the month.
@@ -3981,6 +4166,18 @@ export interface components {
             recurring_rules_moved: number;
             /** Source */
             source: string;
+        };
+        /** MoveLine */
+        MoveLine: {
+            /** Available */
+            available: string;
+            /**
+             * Category Id
+             * Format: uuid
+             */
+            category_id: string;
+            /** Path */
+            path: string;
         };
         /** ObligationRead */
         ObligationRead: {
@@ -9224,6 +9421,102 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    budget_page_view_api_views_budget_get: {
+        parameters: {
+            query?: {
+                month?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    budget_move_view_api_views_budget_move_get: {
+        parameters: {
+            query?: {
+                month?: string;
+                source?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetMoveView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    budget_group_view_api_views_budget_groups__category_id__get: {
+        parameters: {
+            query?: {
+                month?: string;
+            };
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetGroupView"];
                 };
             };
             /** @description Validation Error */

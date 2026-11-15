@@ -32,6 +32,7 @@ from ...schemas.transaction import (
 )
 from ...services import payee_suggestions
 from ...services.account_tree import build_tree, without_contacts
+from ...services.budget_view import parse_month
 from ...services.categories_view import category_tree
 from ...services.entry import infer_kind, postings_of
 from ...services.entry_form import edit_start, new_start
@@ -54,7 +55,6 @@ from ...services.transaction_rows import (
 )
 from ...tags import clean_tag
 from ...templating import templates
-from .budget import parse_month
 from .categories import _month_context
 from .people import expense_entry, income_entry
 from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
