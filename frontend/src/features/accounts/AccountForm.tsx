@@ -13,7 +13,7 @@ import { LoadError } from "../../components/LoadError";
 import { groupAmount, tidyAmount } from "../../lib/amount";
 import { sameAmount } from "../../lib/split";
 import look from "../../components/Page.module.css";
-import form from "./Forms.module.css";
+import form from "../../components/Forms.module.css";
 import {
   type AccountFormView,
   type AccountUpdate,

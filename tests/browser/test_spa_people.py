@@ -177,3 +177,66 @@ def test_the_rows_and_the_head_match_the_other_pages(signed_in_spa_page: Page, s
     balance = page.locator(f"main p.{look}")
     expect(balance).to_have_count(1)
     assert balance.evaluate("e => getComputedStyle(e).fontSize") == size
+
+
+def test_add_a_person_from_the_empty_list(signed_in_spa_page: Page, spa_books):
+    page = signed_in_spa_page
+    page.goto("/people")
+    page.get_by_role("link", name="Add a person").click()
+    page.get_by_label("Name").fill("Alice")
+    page.get_by_role("button", name="Add person").click()
+    page.wait_for_url(re.compile(r"/people/[0-9a-f-]{36}$"))
+    expect(page.locator("main h1")).to_have_text("Alice")
+    expect(page.get_by_text("All settled up")).to_be_visible()
+    expect(page.get_by_text("Person added")).to_be_visible()
+
+
+def test_a_new_person_can_start_with_an_opening_balance(signed_in_spa_page: Page, spa_api: Api, spa_books):
+    page = signed_in_spa_page
+    page.goto("/people/new")
+    page.get_by_label("Name").fill("Alice")
+    page.get_by_role("button", name="Already owes you, or is owed?").click()
+    page.get_by_label("Amount").fill("4000")
+    page.get_by_role("button", name="Add person").click()
+    page.wait_for_url(re.compile(r"/people/[0-9a-f-]{36}$"))
+    expect(page.get_by_text("Alice owes you")).to_be_visible()
+    expect(figure(page)).to_contain_text("4,000.00")
+    expect(page.locator("main")).to_contain_text("Opening balance")
+    page.get_by_label("More actions").click()
+    page.get_by_role("link", name="Add an opening balance").click()
+    page.get_by_text("You owe Alice").click()
+    page.get_by_label("Amount").fill("1000")
+    page.get_by_role("button", name="Add opening balance").click()
+    page.wait_for_url(re.compile(r"/people/[0-9a-f-]{36}$"))
+    expect(figure(page)).to_contain_text("3,000.00")
+    assert float(next(a for a in spa_api.get("/accounts/") if a["name"] == "Checking")["balance"]) == 5000
+
+
+def test_a_bad_opening_amount_leaves_nobody_behind(signed_in_spa_page: Page, spa_api: Api, spa_books):
+    page = signed_in_spa_page
+    page.goto("/people/new")
+    page.get_by_label("Name").fill("Alice")
+    page.get_by_role("button", name="Already owes you, or is owed?").click()
+    page.get_by_label("Since").fill("1800-01-01")  # before the first day finode takes
+    page.get_by_label("Amount").fill("40")
+    page.get_by_role("button", name="Add person").click()
+    expect(page.get_by_role("alert")).to_be_visible()
+    expect(page).to_have_url(re.compile(r"/people/new$"))
+    assert spa_api.get("/contacts/") == []
+
+
+def test_an_opening_balance_can_be_edited_from_its_sheet(signed_in_spa_page: Page, spa_api: Api, spa_books):
+    page = signed_in_spa_page
+    who = alice_of(spa_api)
+    entry = spa_api.post(
+        f"/contacts/{who['id']}/opening-balance", direction="receivable", amount="4000", date="2026-01-01"
+    )
+    page.goto(f"/people/{who['id']}")
+    page.locator("main").get_by_role("button", name=re.compile("^Opening balance")).first.click()
+    page.get_by_role("dialog", name="Opening balance").get_by_role("link", name="Edit").click()
+    page.wait_for_url(f"**/opening/{entry['id']}/edit")
+    expect(page.get_by_label("Amount")).to_have_value("4,000.00")
+    page.get_by_label("Amount").fill("2500")
+    page.get_by_role("button", name="Save changes").click()
+    page.wait_for_url(f"**/people/{who['id']}")
+    expect(figure(page)).to_contain_text("2,500.00")

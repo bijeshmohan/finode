@@ -101,3 +101,49 @@
   font-weight: 600;
   text-decoration: none;
 }
+/* "Already owes you, or is owed?" (.sheet-extra on the web form). */
+.extra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.extra :global(.icon) {
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--faint);
+  transition: transform 0.2s ease;
+}
+.extra[aria-expanded="true"] :global(.icon) {
+  transform: rotate(90deg);
+}
+.owing {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.lead {
+  margin: 0 0 1rem;
+  color: var(--muted);
+}
+/* .warn-note */
+.warn {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 0.9rem;
+}

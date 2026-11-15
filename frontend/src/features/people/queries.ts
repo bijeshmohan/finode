@@ -88,3 +88,75 @@ export function usePersonAction(contactId: string) {
     onSuccess: (outcome) => refresh(outcome === "deleted" ? [...VIEWS, "person", contactId] : undefined),
   });
 }
+
+export type OpeningFormView = components["schemas"]["OpeningFormView"];
+export type PersonCreate = components["schemas"]["ContactCreate"];
+export type PersonUpdate = components["schemas"]["ContactUpdate"];
+export type OpeningCreate = components["schemas"]["OpeningBalanceCreate"];
+export type OpeningUpdate = components["schemas"]["OpeningBalanceUpdate"];
+
+/** A person's details, for the form that edits them. */
+export function usePersonDetails(contactId: string | undefined) {
+  const api = useApi();
+  return useQuery({
+    queryKey: [...VIEWS, "person-details", contactId ?? ""],
+    queryFn: () => data(api.GET("/api/contacts/{contact_id}", { params: { path: { contact_id: contactId ?? "" } } })),
+    enabled: contactId !== undefined,
+    staleTime: 0,
+  });
+}
+
+export function useAddPerson() {
+  const api = useApi();
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (body: PersonCreate) => data(api.POST("/api/contacts/", { body })),
+    onSuccess: () => refresh(),
+  });
+}
+
+export function useUpdatePerson(contactId: string) {
+  const api = useApi();
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (body: PersonUpdate) =>
+      data(api.PATCH("/api/contacts/{contact_id}", { params: { path: { contact_id: contactId } }, body })),
+    onSuccess: () => refresh(),
+  });
+}
+
+export function useOpeningForm(contactId: string, transactionId: string | undefined) {
+  const api = useApi();
+  return useQuery({
+    queryKey: [...VIEWS, "opening-form", contactId, transactionId ?? ""],
+    queryFn: () =>
+      data(
+        api.GET("/api/views/opening-form", {
+          params: { query: { contact_id: contactId, ...(transactionId ? { transaction_id: transactionId } : {}) } },
+        }),
+      ),
+    staleTime: 0,
+  });
+}
+
+export function useAddOpening(contactId: string) {
+  const api = useApi();
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (body: OpeningCreate) =>
+      data(
+        api.POST("/api/contacts/{contact_id}/opening-balance", { params: { path: { contact_id: contactId } }, body }),
+      ),
+    onSuccess: () => refresh(),
+  });
+}
+
+export function useUpdateOpening(transactionId: string) {
+  const api = useApi();
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (body: OpeningUpdate) =>
+      data(api.PATCH("/api/transfers/{transaction_id}", { params: { path: { transaction_id: transactionId } }, body })),
+    onSuccess: () => refresh(),
+  });
+}
