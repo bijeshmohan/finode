@@ -1,10 +1,12 @@
 // A person's page (person.html): what they owe you or you owe them, the short-hands to the Add screen, what is open and
 // what was done with them (each opening its sheet), and the menu. Who owes whom and how each row reads are the
 // server's (services/people_view.py).
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
 import { messageOf } from "../../api/messages";
+import { VIEWS } from "../../api/views";
 import { useGrouping } from "../../app/currency";
 import { useToday } from "../../app/session";
 import { useToast } from "../../app/toast";
@@ -30,6 +32,7 @@ const SAID = {
 function PersonMenu({ view, onError }: { view: PersonView; onError: (message: string | null) => void }) {
   const [open, setOpen] = useState<HeroOpen>(null);
   const act = usePersonAction(view.id);
+  const queryClient = useQueryClient();
   const toast = useToast();
   const navigate = useNavigate();
   const run = (action: PersonAction) => {
@@ -38,7 +41,11 @@ function PersonMenu({ view, onError }: { view: PersonView; onError: (message: st
       onSuccess: (outcome) => {
         toast(SAID[outcome]);
         setOpen(null);
-        if (outcome !== "restored") void navigate("/people");
+        if (outcome === "restored") return;
+        // Gone from the list: the way back does not return to the page, and a person removed for good is not kept to
+        // come back to (it is dropped once the list has opened, so the page never asks for them again).
+        void navigate("/people", { replace: true });
+        if (outcome === "deleted") queryClient.removeQueries({ queryKey: [...VIEWS, "person", view.id] });
       },
       onError: (e) => {
         setOpen(null);
