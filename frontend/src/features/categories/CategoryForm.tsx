@@ -9,8 +9,8 @@ import { Icon } from "../../components/Icon";
 import { LoadError } from "../../components/LoadError";
 import look from "../../components/Page.module.css";
 import form from "../accounts/Forms.module.css";
-import { Picker } from "../entry/Picker";
-import { useAddCategory } from "../entry/queries";
+import { Picker } from "../../components/lines/Picker";
+import { useAddCategory } from "../../components/lines/queries";
 import { type CategoryFormView, type CategoryUpdate, useCategoryChange, useCategoryForm } from "./queries";
 
 const NONE = "None (top level)";

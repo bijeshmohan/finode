@@ -5,7 +5,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { data } from "../../api/client";
 import { useApi } from "../../api/context";
 import type { components } from "../../api/schema";
-import { VIEWS } from "../transactions/queries";
+import { VIEWS } from "../../api/views";
 
 export type HomeView = components["schemas"]["HomeView"];
 

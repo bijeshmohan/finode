@@ -2,7 +2,7 @@
 import { useState } from "react";
 
 import { Sheet } from "../../components/Sheet";
-import pickerStyles from "./Picker.module.css";
+import pickerStyles from "../../components/lines/Picker.module.css";
 import styles from "./ShareEditor.module.css";
 import type { EntryFormView } from "./queries";
 

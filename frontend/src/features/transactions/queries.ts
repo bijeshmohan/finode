@@ -3,6 +3,7 @@ import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClie
 
 import { data } from "../../api/client";
 import { useApi } from "../../api/context";
+import { VIEWS } from "../../api/views";
 import type { components } from "../../api/schema";
 import { useToast } from "../../app/toast";
 
@@ -24,9 +25,6 @@ export interface ListFilters {
 
 /** How many entries a page of the list asks for (a page can hold more: a day is never split). */
 export const PAGE_SIZE = 25;
-
-/** Every view's cached answer starts with this, so a change to the books refreshes them all. */
-export const VIEWS = ["views"] as const;
 
 export function useTransactionsPages(filters: ListFilters) {
   const api = useApi();

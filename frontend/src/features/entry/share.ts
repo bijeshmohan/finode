@@ -2,7 +2,8 @@
 // strings, and what is sent is only what was typed for the people ticked. The server works out every share, what is
 // owed and "you paid whatever the others did not" (services/entry_share.py).
 import { type Grouping, groupAmount } from "../../lib/amount";
-import type { EntryBody, EntryFormView, PickGroup } from "./queries";
+import type { PickGroup } from "../../components/lines/queries";
+import type { EntryBody, EntryFormView } from "./queries";
 
 export type Method = "equal" | "exact" | "percentage" | "shares";
 
