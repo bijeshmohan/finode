@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import { data } from "../../api/client";
 import { useApi } from "../../api/context";
-import styles from "./EntryScreen.module.css";
+import styles from "./Form.module.css";
 
 interface PayeeProps {
   value: string;

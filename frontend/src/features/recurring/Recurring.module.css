@@ -1,0 +1,133 @@
+/* The Recurring list and form, from .rep-row, .rep-label, .end-chip, .end-clear, .rep-hint, .origin, .tx-system and the
+   form's status card (.txn-form + .card.form-narrow) of app/static/style.css. */
+.quiet {
+  color: var(--muted);
+}
+.failing {
+  color: var(--danger);
+}
+.origin {
+  margin: -0.5rem 0 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+.repeat {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: var(--tap);
+  padding: 0 0.7rem;
+  background: var(--surface);
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+}
+.repeat > :global(.icon) {
+  flex: none;
+  width: 1.15rem;
+  height: 1.15rem;
+  color: var(--muted);
+}
+.repeatLabel {
+  flex: 1;
+  font-weight: 500;
+}
+.repeat input {
+  flex: none;
+  width: 4.2rem;
+  min-height: 2.25rem;
+  margin: 0;
+  padding: 0.2rem 0.5rem;
+  text-align: center;
+  border: 0;
+  border-radius: 9px;
+  background: var(--surface-2);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  appearance: textfield;
+}
+.repeat input::-webkit-outer-spin-button,
+.repeat input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+.repeat select {
+  flex: none;
+  width: auto;
+  min-height: 2.25rem;
+  margin: 0;
+  padding: 0.2rem 0.7rem;
+  border: 0;
+  border-radius: 9px;
+  background: var(--surface-2);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+}
+.endChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.endClear {
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.hint {
+  margin: -0.3rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 36rem;
+  margin-top: 1.25rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--tile-border);
+  border-radius: var(--radius);
+}
+.card h2 {
+  margin: 0;
+  font-size: 1.125rem;
+}
+.card p {
+  margin: 0;
+  color: var(--muted);
+}
+.secondary {
+  align-self: flex-start;
+  min-height: var(--tap);
+  padding: 0 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.primary {
+  align-self: flex-start;
+  min-height: var(--tap);
+  padding: 0 1.25rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}

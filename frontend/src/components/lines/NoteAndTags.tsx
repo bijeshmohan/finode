@@ -7,7 +7,7 @@ import { useState } from "react";
 import { data } from "../../api/client";
 import { useApi } from "../../api/context";
 import { Sheet } from "../../components/Sheet";
-import styles from "./EntryScreen.module.css";
+import styles from "./Form.module.css";
 
 /** As the server keeps it (app/tags.py): "Goa trip" is the tag goa-trip. The server checks every tag again. */
 const NAME = /^[a-z0-9](?:[a-z0-9_-]{0,28}[a-z0-9])?$/;

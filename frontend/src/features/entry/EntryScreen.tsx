@@ -18,9 +18,9 @@ import { groupAmount, tidyAmount } from "../../lib/amount";
 import { safeNext } from "../../lib/safeNext";
 import { positive } from "../../lib/split";
 import { useDeleteTransaction } from "../transactions/queries";
-import styles from "./EntryScreen.module.css";
-import { NoteAndTags } from "./NoteAndTags";
-import { PayeeField } from "./PayeeField";
+import styles from "../../components/lines/Form.module.css";
+import { NoteAndTags } from "../../components/lines/NoteAndTags";
+import { PayeeField } from "../../components/lines/PayeeField";
 import { Related } from "./RelatedPicker";
 import {
   carryExpense,

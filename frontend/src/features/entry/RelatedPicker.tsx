@@ -10,7 +10,7 @@ import { Icon } from "../../components/Icon";
 import { Sheet } from "../../components/Sheet";
 import { formatMoney } from "../../lib/money";
 import type { Row } from "../transactions/queries";
-import styles from "./EntryScreen.module.css";
+import styles from "../../components/lines/Form.module.css";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 

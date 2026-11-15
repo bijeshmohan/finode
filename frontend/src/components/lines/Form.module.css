@@ -1,5 +1,5 @@
-/* The Add screen of app/static/style.css: .back, .segmented.kinds, .total-field, .txn-side, .txn-swap, the row picker,
-   .form-actions and .danger-zone. */
+/* The Add screen's form look of app/static/style.css (.back, .form-actions, .danger-zone, the payee and its chips, the
+   meta row, the note and the tags), shared with the recurring form. The rows have their own (Lines.module.css). */
 .back {
   display: inline-flex;
   align-items: center;

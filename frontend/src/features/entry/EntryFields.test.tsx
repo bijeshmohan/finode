@@ -6,7 +6,7 @@ import { type Answers, calledPaths, renderInApp, SIGNED_IN } from "../../test/re
 import { row } from "../transactions/fixtures";
 import { EntryScreen } from "./EntryScreen";
 import { ids, view } from "./fixtures";
-import { cleanTag } from "./NoteAndTags";
+import { cleanTag } from "../../components/lines/NoteAndTags";
 
 const BASE: Answers = {
   ...SIGNED_IN,
