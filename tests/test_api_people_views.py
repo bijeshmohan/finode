@@ -192,7 +192,7 @@ def test_reversing_each_kind(client, bank):
     lent = lend(client, alice, bank, amount="50")
     paid = settle(client, alice, bank, amount="20")
     blocked = client.post(f"/api/contacts/{alice['id']}/entries/{lent['id']}/reverse")
-    assert blocked.status_code in (400, 409) and "settle" in blocked.json()["detail"]
+    assert blocked.status_code == 409 and "settle" in blocked.json()["detail"]
     assert client.post(f"/api/contacts/{alice['id']}/entries/{paid['id']}/reverse").status_code == 204
     assert balanced(client)
     missing = "00000000-0000-4000-8000-0000000000aa"

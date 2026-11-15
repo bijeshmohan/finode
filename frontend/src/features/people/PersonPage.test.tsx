@@ -134,6 +134,21 @@ describe("a person's page", () => {
     expect(await screen.findByText("Person archived. Their history stays.")).toBeInTheDocument();
   });
 
+  it("a person removed for good is not kept to come back to", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { router, queryClient } = open(person(), { [`/api/contacts/${ids.alice}`]: [200, { outcome: "deleted" }] });
+    await menu();
+    await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe("/people");
+    });
+    expect(await screen.findByText("Person removed")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(queryClient.getQueryData(["views", "person", ids.alice])).toBeUndefined();
+    });
+    expect(router.state.historyAction).toBe("REPLACE");
+  });
+
   it("a removal refused shows the server's words", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     open(person(), { [`/api/contacts/${ids.alice}`]: [400, { detail: "Alice still owes you 400.00!" }] });

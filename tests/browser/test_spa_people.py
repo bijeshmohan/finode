@@ -240,3 +240,21 @@ def test_an_opening_balance_can_be_edited_from_its_sheet(signed_in_spa_page: Pag
     page.get_by_role("button", name="Save changes").click()
     page.wait_for_url(f"**/people/{who['id']}")
     expect(figure(page)).to_contain_text("2,500.00")
+
+
+def test_removing_someone_never_dealt_with_deletes_them_and_back_does_not_return(
+    signed_in_spa_page: Page, spa_api: Api, spa_books
+):
+    page = signed_in_spa_page
+    page.goto("/people")
+    who = alice_of(spa_api, "Bob")
+    page.goto(f"/people/{who['id']}")
+    expect(page.locator("main h1")).to_have_text("Bob")
+    page.get_by_label("More actions").click()
+    page.once("dialog", lambda dialog: dialog.accept())
+    page.get_by_role("button", name="Remove").click()
+    page.wait_for_url(re.compile(r"/people$"))
+    expect(page.get_by_text("Person removed")).to_be_visible()
+    assert spa_api.get("/contacts/?include_archived=true") == []
+    page.go_back()
+    expect(page.locator("main h1")).not_to_have_text("Bob")
