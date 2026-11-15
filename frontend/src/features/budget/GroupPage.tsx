@@ -17,7 +17,7 @@ import { monthName } from "../../lib/dates";
 import { formatMoney } from "../../lib/money";
 import { less, sameAmount } from "../../lib/split";
 import { messageOf } from "../../api/messages";
-import categoryStyles from "../categories/Categories.module.css";
+import categoryStyles from "../../components/Rows.module.css";
 import styles from "./Budget.module.css";
 import { BudgetRows } from "./BudgetRows";
 import { CategorySheet, SheetHead } from "./CategorySheet";

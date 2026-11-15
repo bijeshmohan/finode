@@ -17,6 +17,8 @@ import { MovePage } from "../features/budget/MovePage";
 import { CategoriesPage } from "../features/categories/CategoriesPage";
 import { CategoryForm } from "../features/categories/CategoryForm";
 import { CategoryPage } from "../features/categories/CategoryPage";
+import { PeoplePage } from "../features/people/PeoplePage";
+import { PersonPage } from "../features/people/PersonPage";
 import { RecurringForm, RuleAddress } from "../features/recurring/RecurringForm";
 import { RecurringPage } from "../features/recurring/RecurringPage";
 import { TagsPage } from "../features/tags/TagsPage";
@@ -29,10 +31,7 @@ import { Layout } from "./Layout";
 import { SessionProvider } from "./session";
 import { ToastProvider } from "./toast";
 
-const PAGES: [path: string, title: string][] = [
-  ["/people", "People"],
-  ["/settings", "Settings"],
-];
+const PAGES: [path: string, title: string][] = [["/settings", "Settings"]];
 
 /** An old address of the web pages (/login, /signup), kept so bookmarks and mails still work. */
 function MovedTo({ path }: { path: string }) {
@@ -75,6 +74,8 @@ export const routes: RouteObject[] = [
           { path: "/budget/move", element: <MovePage /> },
           { path: "/budget/coming-up", element: <ComingUpPage /> },
           { path: "/tags", element: <TagsPage /> },
+          { path: "/people", element: <PeoplePage /> },
+          { path: "/people/:contactId", element: <PersonPage /> },
           { path: "/recurring", element: <RecurringPage /> },
           { path: "/recurring/new", element: <RecurringForm /> },
           { path: "/recurring/:recurringId/edit", element: <RecurringForm /> },

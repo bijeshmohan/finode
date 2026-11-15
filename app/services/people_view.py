@@ -50,6 +50,13 @@ class PeoplePage:
     # Whether there is anyone not archived.
     everyone: bool
 
+    @property
+    def label(self) -> str:
+        """What the head says: which way more is owed (owed to you wins a tie), or that nothing is."""
+        if not (self.owed_total or self.owe_total):
+            return "Everything is settled"
+        return "Owed to you" if self.owed_total >= self.owe_total else "You owe"
+
 
 def person_sub(p: ContactRead, money: Money) -> str:
     """The quiet line under a person on the list."""
