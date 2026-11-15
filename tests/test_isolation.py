@@ -92,6 +92,9 @@ LISTS = {
     ("GET", "/api/views/category-form"),
     ("GET", "/api/views/budget"),
     ("GET", "/api/views/budget-move"),
+    ("GET", "/api/views/todo"),
+    ("GET", "/api/views/coming-up"),
+    ("GET", "/api/views/recurring"),
     ("GET", "/api/views/related-entries"),
     ("GET", "/accounts"),
     ("GET", "/accounts/new"),
@@ -367,6 +370,7 @@ def body_for(world: World, method: str, path: str) -> dict:
     bodies = {
         ("PATCH", "/api/accounts/{account_id}"): {"json": {"name": "hacked", "details": "hacked"}},
         ("PATCH", "/api/transactions/{transaction_id}"): {"json": {"payee": "hacked"}},
+        ("POST", "/api/transactions/{transaction_id}/category"): {"json": {"category_id": bills}},
         ("PUT", "/api/budget/categories/{category_id}"): {"json": {"amount": "5"}},
         ("PUT", "/api/recurring/{recurring_id}"): {
             "json": {"from_account_id": mine, "to_account_id": bills, "amount": "1", "start_date": "2999-01-01"}

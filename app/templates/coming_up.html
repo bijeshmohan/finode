@@ -13,7 +13,7 @@
 </div>
 {% for day in days %}
 <section class="tx-day">
-  <h3 class="tx-day-head"><span>{{ day.date|friendly_date }}</span>{% if day.total is not none and day.rows|length > 1 %}<span class="tx-day-total">{{ day.total|money }}</span>{% endif %}</h3>
+  <h3 class="tx-day-head"><span>{{ day.date|friendly_date }}</span>{% if day.total is not none %}<span class="tx-day-total">{{ day.total|money }}</span>{% endif %}</h3>
   <ul class="card list">
     {% for r in day.rows %}
     {% set item = r.item %}
