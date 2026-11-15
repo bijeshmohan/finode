@@ -155,13 +155,23 @@ def test_the_people_pages_do_not_ask_per_person_or_per_row(client, root_accounts
         return first
 
     first = add_people(3, 0)
-    pages = ["/people", f"/people/{first}", "/api/contacts/", f"/api/contacts/{first}/summary"]
+    pages = [
+        "/people",
+        f"/people/{first}",
+        "/api/contacts/",
+        f"/api/contacts/{first}/summary",
+        "/api/views/people",
+        f"/api/views/people/{first}",
+    ]
     small = {p: count_queries(lambda p=p: client.get(p)) for p in pages}
     add_people(25, 3)
     large = {p: count_queries(lambda p=p: client.get(p)) for p in pages}
     for page in pages:
         assert large[page] <= small[page] + 1, f"{page} asks more as the people grow: {small[page]} -> {large[page]}"
         assert large[page] <= 25, f"{page} makes {large[page]} queries"
+    # The finode app's views ask no more than the pages they stand for.
+    assert large["/api/views/people"] <= large["/people"], large
+    assert large[f"/api/views/people/{first}"] <= large[f"/people/{first}"], large
 
 
 def test_one_persons_pages_do_not_ask_more_as_their_history_grows(client, root_accounts, count_queries):

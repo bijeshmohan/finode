@@ -3,10 +3,19 @@
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from pydantic import ValidationError
 
 from ..auth import require_authenticated_user
-from ..dependencies import Contacts, ContactSummaries, Obligations, Settlements, Transfers
+from ..dependencies import (
+    Contacts,
+    ContactSummaries,
+    Obligations,
+    Settlements,
+    SharedExpenses,
+    SharedIncomes,
+    Transfers,
+)
 from ..schemas.contact import (
     ActivityPage,
     ActivityPurpose,
@@ -24,6 +33,8 @@ from ..schemas.contact import (
     TransferRead,
 )
 from ..services.account import SystemAccountError
+from ..services.people_view import add_person, reverse
+from ..services.validation import validation_message
 from .contact_utils import IdempotencyKey, refused
 
 router = APIRouter(prefix="/contacts", tags=["contacts"], dependencies=[Depends(require_authenticated_user)])
@@ -45,10 +56,14 @@ def list_contacts(
 
 
 @router.post("/", response_model=ContactRead, status_code=201)
-def create_contact(data: ContactCreate, contacts: Contacts):
-    """Add a contact; its two accounts are made with it. Names are unique, capitals aside, and at most 30 characters."""
+def create_contact(data: ContactCreate, contacts: Contacts, transfers: Transfers):
+    """Add a contact; its two accounts are made with it. Names are unique, capitals aside, and at most 30 characters.
+    With `opening` (`direction`, `amount`, `date`, `description`, as `/opening-balance` takes it) what they already owed
+    is recorded with them: both or neither."""
     try:
-        return contacts.create(data)
+        return add_person(contacts, transfers, data)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=validation_message(e)) from None
     except ValueError as e:
         raise refused(e) from None
 
@@ -208,3 +223,29 @@ def record_opening_balance(
         return transfers.opening_balance(contact_id, data, idempotency_key)
     except ValueError as e:
         raise refused(e) from None
+
+
+@router.post("/{contact_id}/entries/{transaction_id}/reverse", status_code=204, response_class=Response)
+def reverse_entry(
+    contact_id: UUID,
+    transaction_id: UUID,
+    contacts: Contacts,
+    summaries: ContactSummaries,
+    transfers: Transfers,
+    settlements: Settlements,
+    expenses: SharedExpenses,
+    incomes: SharedIncomes,
+):
+    """Undo an entry done with the contact for good, the way its kind is undone: a settlement, a shared bill, a shared
+    income or a transfer (an opening balance too). Refused while something was paid back against it; an evened-out
+    entry goes by itself when one of the two is undone. 404 for an entry that is not this contact's."""
+    if contacts.read(contact_id) is None:
+        raise HTTPException(status_code=404, detail="contact not found!")
+    item = summaries.entry(contact_id, transaction_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="entry not found!")
+    try:
+        reverse(item, settlements, incomes, expenses, transfers)
+    except ValueError as e:
+        raise refused(e) from None
+    return Response(status_code=204)

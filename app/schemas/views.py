@@ -655,3 +655,96 @@ class RecurringFormView(BaseModel):
     last_date: Date | None = None
     skipped_date: Date | None = None
     last_error: str | None = None
+
+
+# ---- People ---------------------------------------------------------------------------------------------------------
+
+
+class ShowChoice(BaseModel):
+    key: str
+    name: str
+
+
+class PersonRowRead(BaseModel):
+    id: UUID
+    name: str
+    # "Nothing yet", "Settled up", "Even · ₹50.00 each way", "Last 2 Nov", "Archived"
+    sub: str
+    # Above zero they owe you.
+    net: Decimal
+
+
+class PeopleView(BaseModel):
+    show: Literal["all", "owed", "owe", "archived"]
+    shows: list[ShowChoice]
+    has_archived: bool
+    # Whether there is anyone not archived.
+    everyone: bool
+    owed_total: Decimal
+    owe_total: Decimal
+    rows: list[PersonRowRead]
+
+
+class OpenRowRead(BaseModel):
+    transaction_id: UUID
+    # "Loan", "Dinner", "Opening balance"
+    name: str
+    date: Date
+    # "they owe you" / "you owe them": only when the person is owed both ways.
+    who: str | None
+    # What was paid back and of what, when part of it was.
+    settled: Decimal | None
+    original: Decimal
+    outstanding: Decimal
+    receivable: bool
+
+
+class ActivityRowRead(BaseModel):
+    transaction_id: UUID
+    # "Loan", "Paid back", "Dinner", "Evened out"
+    title: str
+    date: Date
+    # What follows the day: "their share", "their part", "received for you", or the entry's note.
+    sub: str | None
+    amount: Decimal
+    # Money that came to you (a settlement or a gift from them): green.
+    income: bool
+
+
+class PersonView(BaseModel):
+    id: UUID
+    name: str
+    phone: str | None
+    email: str | None
+    notes: str | None
+    archived: bool
+    receivable: Decimal
+    payable: Decimal
+    net: Decimal
+    open: list[OpenRowRead]
+    activity: list[ActivityRowRead]
+    # How many older entries are not listed.
+    more_activity: int
+
+
+class PersonEntryView(BaseModel):
+    transaction_id: UUID
+    title: str
+    date: Date
+    amount: Decimal
+    # The lines under the title, in order.
+    notes: list[str]
+    # An opening balance can be edited; everything but an evened-out entry can be reversed.
+    can_edit: bool
+    can_reverse: bool
+
+
+class OpeningFormView(BaseModel):
+    person_name: str
+    editing: bool
+    direction: Literal["receivable", "payable"]
+    amount: Decimal | None
+    date: Date
+    description: str
+    # What was already paid back (editing only): the amount can't go below it and the direction can't change.
+    paid: Decimal | None

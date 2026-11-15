@@ -45,6 +45,8 @@ class ContactBase(BaseModel):
 
 class ContactCreate(ContactBase):
     name: str = Field(max_length=MAX_NAME)
+    # What they already owed, recorded with them (both or neither; see people_view.add_person).
+    opening: OpeningBalanceCreate | None = None
 
     @field_validator("name")
     @classmethod
@@ -139,6 +141,9 @@ class OpeningBalanceCreate(BaseModel):
     @classmethod
     def _tidy_description(cls, value: str | None) -> str | None:
         return _tidy(value)
+
+
+ContactCreate.model_rebuild()
 
 
 class OpeningBalanceUpdate(BaseModel):

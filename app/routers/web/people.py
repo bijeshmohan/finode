@@ -6,7 +6,6 @@ The pages are thin: every rule lives in the contact services (`services/contact.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
 from decimal import Decimal
 from typing import Annotated, Any, cast
 from uuid import UUID
@@ -29,11 +28,11 @@ from ...schemas.contact import (
     ContactCreate,
     ContactRead,
     ContactUpdate,
-    ObligationRead,
     OpeningBalanceCreate,
     OpeningBalanceUpdate,
 )
 from ...schemas.entry import EntryForm, ExpenseShare, IncomePart, IncomeShare, PersonShare
+from ...services import people_view as view
 from ...services.account_tree import build_tree, without_contacts
 from ...services.entry_share import expense_create, income_create
 from ...services.pickers import posting_groups
@@ -41,15 +40,6 @@ from ...templating import grouping_for, money, templates
 from .utils import htmx_error, htmx_redirect, parse_amount, validation_message
 
 router = APIRouter(prefix="/people")
-
-SHOWS = {"all": "All", "owed": "Owe you", "owe": "You owe"}
-SOURCE_NAMES = {"loan": "Loan", "borrowing": "Borrowed", "advance": "Advance", "opening": "Opening balance"}
-
-
-@dataclass
-class PersonRow:
-    person: ContactRead
-    sub: str
 
 
 def _person(contacts: Contacts, contact_id: UUID) -> ContactRead:
@@ -76,53 +66,25 @@ def money_accounts(accounts: Accounts) -> list[tuple[str, list]]:
     return [g for g in groups if g[0] in ("Assets", "Liabilities")]
 
 
-def describe_obligation(o: ObligationRead) -> tuple[str, str]:
-    """What an open amount is called, and the quiet line under it."""
-    name = o.description or SOURCE_NAMES.get(o.source_type, "Shared expense")
-    return name, "they owe you" if o.direction == "receivable" else "you owe them"
-
-
 # ---- the list --------------------------------------------------------------------------------------------------
 
 
 @router.get("")
 def people_page(request: Request, contacts: Contacts, show: str = "all"):
-    show = show if show in (*SHOWS, "archived") else "all"
-    everyone = contacts.list(include_archived=True)
-    live = [p for p in everyone if not p.archived]
-    if show == "archived":
-        chosen = [p for p in everyone if p.archived]
-    elif show == "owed":
-        chosen = [p for p in live if p.receivable > 0]
-    elif show == "owe":
-        chosen = [p for p in live if p.payable > 0]
-    else:
-        chosen = live
-    rows = []
-    for p in chosen:
-        if p.archived:
-            sub = "Archived"
-        elif p.last_activity is None:
-            sub = "Nothing yet"
-        elif p.net == 0 and p.receivable == 0 and p.payable == 0:
-            sub = "Settled up"
-        elif p.net == 0:
-            sub = f"Even · {money(p.receivable, grouping_for(request.state.currency))} each way"
-        else:
-            sub = f"Last {p.last_activity.strftime('%d %b').lstrip('0')}"
-        rows.append(PersonRow(p, sub))
+    style = grouping_for(request.state.currency)
+    found = view.people_page(contacts, show, lambda value: money(value, style))
     return templates.TemplateResponse(
         request,
         "people.html",
         {
             "active": "people",
-            "show": show,
-            "shows": SHOWS,
-            "has_archived": any(p.archived for p in everyone),
-            "rows": rows,
-            "owed_total": sum((p.receivable for p in live), Decimal(0)),
-            "owe_total": sum((p.payable for p in live), Decimal(0)),
-            "everyone": bool(live),
+            "show": found.show,
+            "shows": view.SHOWS,
+            "has_archived": found.has_archived,
+            "rows": found.rows,
+            "owed_total": found.owed_total,
+            "owe_total": found.owe_total,
+            "everyone": found.everyone,
             "currency": request.state.currency,
         },
     )
@@ -164,15 +126,10 @@ def create_person(
 ):
     try:
         opening = _opening(opening_direction, opening_amount, opening_since)  # checked before anyone is made
-        made = contacts.create(ContactCreate(name=name, email=email, phone=phone, notes=notes))
+        data = ContactCreate(name=name, email=email, phone=phone, notes=notes, opening=opening)
+        made = view.add_person(contacts, transfers, data)
     except (ValueError, ValidationError) as e:
         return htmx_error(_message(e), "#form-error")
-    if opening is not None:
-        try:
-            transfers.opening_balance(made.id, opening)
-        except (ValueError, ValidationError) as e:
-            contacts.delete(made.id)  # nothing else was done with them: they are removed again, not left half made
-            return htmx_error(_message(e), "#form-error")
     return htmx_redirect(f"/people/{made.id}", flash="person-added")
 
 
@@ -269,22 +226,20 @@ def delete_person(contact_id: UUID, contacts: Contacts):
 def person_page(
     request: Request, contact_id: UUID, contacts: Contacts, obligations: Obligations, summaries: ContactSummaries
 ):
-    person = _person(contacts, contact_id)
-    open_rows = []
-    for o in obligations.list(contact_id, open_only=True):
-        name, who = describe_obligation(o)
-        partly = o.settled_amount > 0
-        open_rows.append((o, name, who, partly))
-    activity = summaries.activity(contact_id, limit=30)
+    try:
+        found = view.person_page(contact_id, contacts, obligations, summaries)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="person not found") from None
     return templates.TemplateResponse(
         request,
         "person.html",
         {
             "active": "people",
-            "person": person,
-            "open_rows": open_rows,
-            "activity": activity.items,
-            "more_activity": activity.total - len(activity.items),
+            "person": found.person,
+            "open_rows": found.open,
+            "both_ways": found.both_ways,
+            "activity": found.activity,
+            "more_activity": found.more_activity,
             "currency": request.state.currency,
         },
     )
@@ -451,11 +406,11 @@ def entry_sheet(
     contacts: Contacts,
     summaries: ContactSummaries,
 ):
-    person = _person(contacts, contact_id)
-    item = summaries.entry(contact_id, transaction_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="entry not found")
-    return templates.TemplateResponse(request, "partials/person_entry_sheet.html", {"person": person, "item": item})
+    try:
+        sheet = view.entry_sheet(contact_id, transaction_id, contacts, summaries)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="entry not found") from None
+    return templates.TemplateResponse(request, "partials/person_entry_sheet.html", {"sheet": sheet})
 
 
 @router.post("/{contact_id}/entry/{transaction_id}/reverse")
@@ -474,17 +429,7 @@ def reverse_entry(
     if item is None:
         raise HTTPException(status_code=404, detail="entry not found")
     try:
-        if item.purpose == "settlement":
-            settlements.reverse(transaction_id)
-        elif item.purpose == "income":
-            incomes.cancel(transaction_id)
-        elif item.purpose == "expense":
-            expense = expenses.of_entry(transaction_id)
-            if expense is None:
-                raise ValueError("shared expense not found!")
-            expenses.cancel(expense.id)
-        else:
-            transfers.reverse(transaction_id)
+        view.reverse(item, settlements, incomes, expenses, transfers)
     except ValueError as e:
         return htmx_error(str(e), "#person-sheet-error")
     return htmx_redirect(f"/people/{contact_id}", flash="entry-reversed")
