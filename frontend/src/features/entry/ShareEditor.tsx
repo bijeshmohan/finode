@@ -5,10 +5,11 @@ import { type ReactNode, useState } from "react";
 import { Link } from "react-router";
 
 import { Icon } from "../../components/Icon";
-import { labelOf } from "./kinds";
+import { labelOf } from "../../components/lines/kinds";
 import { PeopleSheet } from "./PeopleSheet";
-import { Picker } from "./Picker";
-import type { EntryFormView, PickGroup } from "./queries";
+import { Picker } from "../../components/lines/Picker";
+import type { PickGroup } from "../../components/lines/queries";
+import type { EntryFormView } from "./queries";
 import type { ExpensePerson, ExpenseShareState, IncomePerson, IncomeShareState, Method } from "./share";
 import styles from "./ShareEditor.module.css";
 

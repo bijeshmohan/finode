@@ -3,7 +3,7 @@
 // is the whole amount. The server checks that the sides add up.
 import { type Grouping, groupAmount } from "../../lib/amount";
 import { allocation } from "../../lib/split";
-import type { EntryFormView } from "./queries";
+import type { FormRow } from "./queries";
 
 export interface RowState {
   key: string;
@@ -24,7 +24,7 @@ export function blankRow(): RowState {
 }
 
 /** The rows an entry starts with. Several rows keep their own amounts; one row follows the total. */
-export function startRows(rows: EntryFormView["from_rows"], grouping: Grouping): RowState[] {
+export function startRows(rows: FormRow[], grouping: Grouping): RowState[] {
   const several = rows.length > 1;
   const start = rows.map((r) => ({
     ...blankRow(),

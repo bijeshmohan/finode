@@ -13,7 +13,7 @@ import look from "../../components/Page.module.css";
 import { tidyAmount } from "../../lib/amount";
 import { monthName } from "../../lib/dates";
 import form from "../accounts/Forms.module.css";
-import { Picker } from "../entry/Picker";
+import { Picker } from "../../components/lines/Picker";
 import { type BudgetMoveView, useBudgetMove, useMoveMoney } from "./queries";
 
 function Body({ view }: { view: BudgetMoveView }) {

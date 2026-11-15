@@ -5,7 +5,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { data } from "../../api/client";
 import { useApi } from "../../api/context";
 import type { components } from "../../api/schema";
-import { VIEWS } from "../transactions/queries";
+import { VIEWS } from "../../api/views";
 
 export type AccountsView = components["schemas"]["AccountsView"];
 export type AccountView = components["schemas"]["AccountView"];
