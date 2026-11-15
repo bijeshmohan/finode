@@ -12,6 +12,7 @@ from ..clock import local_today
 from ..models.transaction import PostingSide
 from ..tags import clean_names
 from .day import Day
+from .entry import EntryRow
 
 FrequencyName = Literal["daily", "weekly", "monthly", "yearly"]
 
@@ -116,3 +117,17 @@ class RecurringRead(RecurringBase):
     last_error: str | None = None
     created: datetime
     updated: datetime
+
+
+class RecurringForm(BaseModel):
+    """A rule as the recurring form says it, in the Add screen's rows: a category row posts on Expenses or Income with
+    it. One account on each side with the same amount is saved as a plain rule, anything else as a split."""
+
+    payee: str = ""
+    comment: str = ""
+    tags: list[str] = Field(default_factory=list)
+    rows: list[EntryRow]
+    frequency: FrequencyName = "monthly"
+    every: int = Field(default=1, ge=1, le=366)
+    start_date: Day = Field(default_factory=local_today)
+    end_date: Day | None = None

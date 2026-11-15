@@ -1253,6 +1253,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/recurring/form": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Recurring From Form
+         * @description Create a rule from the recurring form's rows (the Add screen's: `choice`, `side`, `amount`, `category_id`; no
+         *     `posted_on`). A start date in the past is recorded straight away.
+         */
+        post: operations["create_recurring_from_form_api_recurring_form_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/recurring/{recurring_id}": {
         parameters: {
             query?: never;
@@ -1276,6 +1297,26 @@ export interface paths {
          * @description Delete a rule; the transactions it recorded are kept.
          */
         delete: operations["delete_recurring_api_recurring__recurring_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recurring/{recurring_id}/form": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Recurring From Form
+         * @description Replace a rule with what the recurring form's rows say; it continues after the last recorded or skipped day.
+         */
+        put: operations["update_recurring_from_form_api_recurring__recurring_id__form_put"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2215,6 +2256,29 @@ export interface paths {
          *     what leaves), `schedule` in words, `next_date` and `last_error`.
          */
         get: operations["recurring_view_api_views_recurring_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/views/recurring-form": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recurring Form View
+         * @description Where the recurring form starts: blank (an expense, every month, starting today) or a rule's (`recurring_id`)
+         *     rows as the Add screen shows them, its schedule and, when editing, where it stands (`status`, `schedule`,
+         *     `next_date`, `last_date`, `skipped_date`, `last_error`). The pickers offer what the Add screen's do, without
+         *     People: a rule never records with a person.
+         */
+        get: operations["recurring_form_view_api_views_recurring_form_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3972,6 +4036,13 @@ export interface components {
             /** Posted On */
             posted_on: string | null;
         };
+        /** FrequencyChoice */
+        FrequencyChoice: {
+            /** Name */
+            name: string;
+            /** Value */
+            value: string;
+        };
         /** GlanceBlock */
         GlanceBlock: {
             /** Left */
@@ -4733,6 +4804,104 @@ export interface components {
             tags?: string[];
             /** To Account Id */
             to_account_id?: string | null;
+        };
+        /**
+         * RecurringForm
+         * @description A rule as the recurring form says it, in the Add screen's rows: a category row posts on Expenses or Income with
+         *     it. One account on each side with the same amount is saved as a plain rule, anything else as a split.
+         */
+        RecurringForm: {
+            /**
+             * Comment
+             * @default
+             */
+            comment: string;
+            /** End Date */
+            end_date?: string | null;
+            /**
+             * Every
+             * @default 1
+             */
+            every: number;
+            /**
+             * Frequency
+             * @default monthly
+             * @enum {string}
+             */
+            frequency: "daily" | "weekly" | "monthly" | "yearly";
+            /**
+             * Payee
+             * @default
+             */
+            payee: string;
+            /** Rows */
+            rows: components["schemas"]["EntryRow"][];
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date?: string;
+            /** Tags */
+            tags?: string[];
+        };
+        /**
+         * RecurringFormView
+         * @description Where the recurring form starts: the rule's rows as the Add screen shows them (no posting day, no people), its
+         *     schedule, and for a rule being edited where it stands.
+         */
+        RecurringFormView: {
+            /** Account Parents */
+            account_parents: components["schemas"]["ParentOption"][];
+            /** Active */
+            active?: boolean | null;
+            /** Category Parents */
+            category_parents: components["schemas"]["CategoryParent"][];
+            /** Comment */
+            comment: string;
+            /** Editing */
+            editing: boolean;
+            /** End Date */
+            end_date: string | null;
+            /** Every */
+            every: number;
+            /** Frequencies */
+            frequencies: components["schemas"]["FrequencyChoice"][];
+            /** Frequency */
+            frequency: string;
+            /** From Rows */
+            from_rows: components["schemas"]["FormRow"][];
+            /** Groups */
+            groups: components["schemas"]["PickGroupRead"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "expense" | "income" | "transfer" | "other";
+            /** Last Date */
+            last_date?: string | null;
+            /** Last Error */
+            last_error?: string | null;
+            /** Next Date */
+            next_date?: string | null;
+            /** Payee */
+            payee: string;
+            /** Schedule */
+            schedule?: string | null;
+            /** Skipped Date */
+            skipped_date?: string | null;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /** Status */
+            status?: ("active" | "paused" | "ended" | "error") | null;
+            /** Tags */
+            tags: string[];
+            /** To Rows */
+            to_rows: components["schemas"]["FormRow"][];
+            /** Total */
+            total: string | null;
         };
         /**
          * RecurringPostingData
@@ -8260,6 +8429,39 @@ export interface operations {
             };
         };
     };
+    create_recurring_from_form_api_recurring_form_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecurringForm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_recurring_api_recurring__recurring_id__get: {
         parameters: {
             query?: never;
@@ -8343,6 +8545,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_recurring_from_form_api_recurring__recurring_id__form_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recurring_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecurringForm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringRead"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -10026,6 +10263,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecurringView"];
+                };
+            };
+        };
+    };
+    recurring_form_view_api_views_recurring_form_get: {
+        parameters: {
+            query?: {
+                recurring_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringFormView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

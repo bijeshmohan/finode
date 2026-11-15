@@ -177,6 +177,8 @@ ledger's own, line by line, for scripts and tools.
 | `POST` | `/recurring/{recurring_id}/resume` | Start a paused rule again. What fell due while it was paused is skipped, not recorded late. |
 | `POST` | `/recurring/{recurring_id}/skip` | Leave the next occurrence out (nothing is recorded for it); the rule carries on with the one after. |
 | `DELETE` | `/recurring/{recurring_id}` | Delete a rule; the transactions it recorded are kept. |
+| `POST` | `/recurring/form` | Create a rule from the recurring form's rows, the Add screen's (`choice`: an account or a category; `side`, `amount`, `category_id`; never `posted_on`), with `payee`, `comment`, `tags`, `frequency`, `every`, `start_date` and `end_date`. One account on each side with the same amount is saved as a plain rule, anything else as a split; a start date in the past is recorded straight away. |
+| `PUT` | `/recurring/{recurring_id}/form` | Replace a rule with what the recurring form's rows say, as `POST /recurring/form`; it continues after the last recorded or skipped day. |
 
 ## Budget
 
@@ -246,6 +248,7 @@ Add a view only for a screen that would otherwise need several calls or would ha
 | `GET` | `/views/todo` | The to-do bell's sheet: `count`, the payments with no category (`uncategorised`), the accounts left out of the budget, the card bills due soon or overdue (`name`: the card's own name, `days_to_due`), the failing rules, and the spending `categories` a payment can be given (`path`: "Food › Dining"). |
 | `GET` | `/views/coming-up` | Coming up (to the end of this month, or `through`) by day: each row's `title`, `sub` (where the money comes from → goes), `amount`, `income`, and the `recurring_id` of a rule or the `transaction_id` of an entry dated ahead. A day's `total` is set only when every row goes one way and there is more than one. |
 | `GET` | `/views/recurring` | The Recurring list (what has fallen due is recorded first): `live` (active, or `error` when the last one could not be recorded) and `stopped` (`paused`, `ended`), each with `title` (the payee, else where the money goes), `amount` (a split: what leaves), `schedule`, `status`, `next_date` and `last_error`. |
+| `GET` | `/views/recurring-form` | Where the recurring form starts: blank (an expense, every month, starting today) or a rule's (`recurring_id`) `kind`, `total`, payee, note, tags and `from_rows` / `to_rows` as the Add screen shows them; the pickers' `groups` (no People), `account_parents`, `category_parents`; `frequency`, `every`, `start_date`, `end_date`, the `frequencies`; and for a rule being edited its `status`, `schedule`, `active`, `next_date`, `last_date`, `skipped_date` and `last_error`. 404 for a rule that is not the caller's. |
 | `GET` | `/views/transactions/{transaction_id}` | One entry as its details sheet shows it: the row, the From and To labels and lines (an amount each, `posted_on` when it differs), note, tags, what it is related to and what is related to it, the person it was made through, its source and the assistant that added or changed it. |
 
 ## Adding a route

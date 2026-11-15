@@ -618,3 +618,40 @@ class RecurringView(BaseModel):
     live: list[RuleRowRead]
     # Paused and ended ones.
     stopped: list[RuleRowRead]
+
+
+class FrequencyChoice(BaseModel):
+    # "monthly"
+    value: str
+    # "month": one of them ("Every month", "Every 2 months")
+    name: str
+
+
+class RecurringFormView(BaseModel):
+    """Where the recurring form starts: the rule's rows as the Add screen shows them (no posting day, no people), its
+    schedule, and for a rule being edited where it stands."""
+
+    editing: bool
+    kind: Literal["expense", "income", "transfer", "other"]
+    total: Decimal | None
+    payee: str
+    comment: str
+    tags: list[str]
+    from_rows: list[FormRow]
+    to_rows: list[FormRow]
+    groups: list[PickGroupRead]
+    account_parents: list[ParentOption]
+    category_parents: list[CategoryParent]
+    frequency: str
+    every: int
+    start_date: Date
+    end_date: Date | None
+    frequencies: list[FrequencyChoice]
+    # A rule being edited:
+    status: Literal["active", "paused", "ended", "error"] | None = None
+    schedule: str | None = None
+    active: bool | None = None
+    next_date: Date | None = None
+    last_date: Date | None = None
+    skipped_date: Date | None = None
+    last_error: str | None = None

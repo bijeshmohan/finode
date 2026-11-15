@@ -2,7 +2,6 @@
 
 from collections.abc import Mapping
 from datetime import date
-from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
@@ -11,19 +10,15 @@ from pydantic import ValidationError
 
 from ...clock import local_today
 from ...dependencies import Accounts, Categories, Recurring
-from ...models.transaction import PostingSide
-from ...schemas.recurring import RecurringCreate, RecurringPostingData, RecurringRead, RecurringUpdate
-from ...services.entry import infer_kind
-from ...services.entry_form import form_rows
+from ...schemas.recurring import RecurringCreate, RecurringRead, RecurringUpdate
+from ...services.recurring_form import FREQUENCIES, form_start, rule_fields
 from ...services.recurring_view import rule_rows, status
 from ...services.schedule import describe
 from ...templating import templates
-from .transactions import category_places, form_context, roots_by_id, split_postings
+from .transactions import category_places, form_context, form_entry_rows
 from .utils import htmx_error, htmx_redirect, validation_message
 
 router = APIRouter(prefix="/recurring")
-
-FREQUENCIES = [("daily", "day"), ("weekly", "week"), ("monthly", "month"), ("yearly", "year")]
 
 
 @router.get("")
@@ -47,31 +42,18 @@ def _form_page(
     accounts: Accounts, categories: Categories, recurring: Recurring, rule: RecurringRead | None, **extra
 ) -> dict:
     """The shared transaction rows (total, From and To) filled from the rule: simple and split alike."""
-    total: Decimal | str
-    keep: set[UUID] | tuple[()]
-    if rule is None:
-        total, from_rows, to_rows = "", form_rows([], PostingSide.CREDIT), form_rows([], PostingSide.DEBIT)
-        kind = "expense"
-        keep = ()
-    else:
-        recorded = recurring.as_transaction(rule)
-        keep = {p.target for p in recorded.postings}
-        total = sum((p.amount for p in recorded.postings if p.side == PostingSide.DEBIT), Decimal(0))
-        roots = roots_by_id(accounts)
-        kind = infer_kind(recorded.postings, roots)
-        from_rows = form_rows(recorded.postings, PostingSide.CREDIT, roots=roots)
-        to_rows = form_rows(recorded.postings, PostingSide.DEBIT, roots=roots)
+    start = form_start(recurring, accounts, rule)
     return form_context(
         accounts,
         categories,
         editing=rule is not None,
-        kind=kind,
+        kind=start.kind,
         rule=rule,
         transaction=None,
-        total=total,
-        from_rows=from_rows,
-        to_rows=to_rows,
-        keep=keep,
+        total=start.total,
+        from_rows=start.from_rows,
+        to_rows=start.to_rows,
+        keep=start.keep,
         frequencies=FREQUENCIES,
         today=local_today().isoformat(),
         **extra,
@@ -113,36 +95,17 @@ def _parse(
     started = _parse_date(start, "the start date")
     if started is None:
         raise ValueError("choose a start date!")
-    rows = split_postings(account, side, amount, category, places)
-    if len(rows) < 2:
-        raise ValueError("choose where the money comes from and where it goes!")
-    common = {
-        "payee": payee,
-        "comment": comment,
-        "tags": tags,
-        "frequency": frequency,
-        "every": count,
-        "start_date": started,
-        "end_date": _parse_date(end, "the end date"),
-    }
-    debit = [p for p in rows if p.side == PostingSide.DEBIT]
-    credit = [p for p in rows if p.side == PostingSide.CREDIT]
-    if len(rows) == 2 and len(debit) == 1 and len(credit) == 1 and debit[0].amount == credit[0].amount:
-        # One account on each side is a plain rule.
-        return {
-            "from_account_id": credit[0].account_id,
-            "to_account_id": debit[0].account_id,
-            "amount": credit[0].amount,
-            "category_id": debit[0].category_id or credit[0].category_id,
-            **common,
-        }
-    return {
-        "postings": [
-            RecurringPostingData(account_id=p.target, side=p.side, amount=p.amount, category_id=p.category_id)
-            for p in rows
-        ],
-        **common,
-    }
+    return rule_fields(
+        form_entry_rows(account, side, amount, category),
+        places or {},
+        payee=payee,
+        comment=comment,
+        tags=tags,
+        frequency=frequency,
+        every=count,
+        start_date=started,
+        end_date=_parse_date(end, "the end date"),
+    )
 
 
 @router.post("")

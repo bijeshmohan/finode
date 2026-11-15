@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from uuid import UUID
 
 from ..schemas import AccountRead
 from .account import AccountService
@@ -75,3 +76,8 @@ def without_contacts(roots: list[Node]) -> list[Node]:
         node.children = [c for c in node.children if not c.account.contact_account]
         without_contacts(node.children)
     return roots
+
+
+def roots_by_id(accounts: AccountService) -> dict[UUID, str]:
+    """Each account's top-level account (Assets, Expenses…), by id."""
+    return {n.account.id: r.account.name for r in build_tree(accounts.list()) for n in r.walk()}

@@ -86,6 +86,7 @@ LISTS = {
     ("GET", "/api/views/transaction-filters"),
     ("GET", "/api/views/home"),
     ("GET", "/api/views/entry-form"),
+    ("GET", "/api/views/recurring-form"),
     ("GET", "/api/views/accounts"),
     ("GET", "/api/views/categories"),
     ("GET", "/api/views/account-form"),
@@ -168,6 +169,7 @@ REFERENCES = {
     ("POST", "/api/import"),
     ("PATCH", "/api/profile/"),
     ("POST", "/api/recurring/"),
+    ("POST", "/api/recurring/form"),
     ("POST", "/api/restore"),
     ("POST", "/api/transactions/"),
     ("POST", "/api/transactions/batch"),
@@ -370,6 +372,15 @@ def body_for(world: World, method: str, path: str) -> dict:
     bodies = {
         ("PATCH", "/api/accounts/{account_id}"): {"json": {"name": "hacked", "details": "hacked"}},
         ("PATCH", "/api/transactions/{transaction_id}"): {"json": {"payee": "hacked"}},
+        ("PUT", "/api/recurring/{recurring_id}/form"): {
+            "json": {
+                "start_date": "2999-01-01",
+                "rows": [
+                    {"choice": bills, "side": "debit", "amount": "5"},
+                    {"choice": mine, "side": "credit", "amount": "5"},
+                ],
+            }
+        },
         ("POST", "/api/transactions/{transaction_id}/category"): {"json": {"category_id": bills}},
         ("PUT", "/api/budget/categories/{category_id}"): {"json": {"amount": "5"}},
         ("PUT", "/api/recurring/{recurring_id}"): {
@@ -711,6 +722,19 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
                 "postings": [line({"id": a["Groceries"]}, "debit", "5"), line({"id": mine}, "credit", "5")],
             },
         )
+        for label, choice in (("account", a["HDFC"]), ("category", a["Groceries"])):
+            refused(
+                f"recurring form with A's {label}",
+                "POST",
+                "/api/recurring/form",
+                json={
+                    "start_date": "2999-01-01",
+                    "rows": [
+                        {"choice": choice, "side": "debit", "amount": "5"},
+                        {"choice": mine, "side": "credit", "amount": "5"},
+                    ],
+                },
+            )
         refused("budget A's category", "PUT", f"/api/budget/categories/{a['Groceries']}", json={"amount": "5"})
         refused(
             "API budget move A's",
