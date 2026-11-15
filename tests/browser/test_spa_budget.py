@@ -310,3 +310,39 @@ def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(
     page.locator("main").get_by_role("link", name="Budgets", exact=True).click()
     expect(ready(page)).to_have_text("₹4,300.00")
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+
+
+def test_move_money_picks_in_our_sheet_with_what_each_has_left(signed_in_spa_page: Page, spa_api: Api, spa_books):
+    page = signed_in_spa_page
+    spa_api.put(f"/budget/categories/{spa_books['food']['id']}", amount="300")
+    spa_api.put(f"/budget/categories/{spa_books['rent']['id']}", amount="50")
+    page.goto("/budget/move")
+    page.get_by_label("Amount").fill("120")
+    page.get_by_role("button", name=re.compile("^From")).click()
+    picker = page.get_by_role("dialog", name="From")
+    expect(picker.get_by_role("button", name=re.compile("Groceries"))).to_contain_text("300.00 left")
+    picker.get_by_role("button", name=re.compile("Groceries")).click()
+    expect(page.get_by_role("button", name=re.compile("^From"))).to_have_text("Groceries")
+    page.get_by_role("button", name=re.compile("^To")).click()
+    page.get_by_role("dialog", name="To").get_by_role("button", name=re.compile("Rent")).click()
+    page.get_by_role("button", name="Move money").click()
+    page.wait_for_url(re.compile(r"/budget\?month="))
+    expect(category(page, "Rent")).to_contain_text("170.00")
+    expect(category(page, "Groceries")).to_contain_text("180.00")
+
+
+def test_move_money_without_both_categories_says_so(signed_in_spa_page: Page, spa_books):
+    page = signed_in_spa_page
+    page.goto("/budget/move")
+    page.get_by_label("Amount").fill("10")
+    page.get_by_role("button", name="Move money").click()
+    expect(page.get_by_role("alert")).to_contain_text("Choose the category")
+
+
+def test_moving_from_a_category_sheet_starts_from_it(signed_in_spa_page: Page, spa_books):
+    page = signed_in_spa_page
+    page.goto("/budget")
+    category(page, "Rent").click()
+    sheet(page, "Rent").get_by_role("link", name="Move money").click()
+    page.wait_for_url(re.compile(r"/budget/move\?"))
+    expect(page.get_by_role("button", name=re.compile("^From"))).to_have_text("Rent")

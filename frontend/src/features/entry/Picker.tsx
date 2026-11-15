@@ -20,6 +20,8 @@ interface PickerProps {
   otherSide?: string | null;
   /** When the row may name nothing, the label of that first choice ("No category"). */
   clearable?: string;
+  /** A word after each option's figure ("120.00 left", on Move money). */
+  suffix?: string;
   /** Offer to make a new one ("＋ New account"): what is made, and what to do when it is pressed. */
   onNew?: { noun: "account" | "category"; open: () => void };
 }
@@ -33,6 +35,7 @@ export function Picker({
   onClose,
   otherSide = null,
   clearable,
+  suffix,
   onNew,
 }: PickerProps) {
   const grouping = useGrouping();
@@ -98,7 +101,10 @@ export function Picker({
                   {wanted && <small className={styles.under}>{group.title}</small>}
                 </span>
                 {option.balance !== null && (
-                  <span className={styles.balance}>{formatMoney(option.balance, grouping)}</span>
+                  <span className={styles.balance}>
+                    {formatMoney(option.balance, grouping)}
+                    {suffix ? ` ${suffix}` : ""}
+                  </span>
                 )}
               </button>
             ))}

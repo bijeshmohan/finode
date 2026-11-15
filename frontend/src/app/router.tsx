@@ -12,6 +12,7 @@ import { AccountsPage } from "../features/accounts/AccountsPage";
 import { GroupForm } from "../features/accounts/GroupForm";
 import { BudgetPage } from "../features/budget/BudgetPage";
 import { GroupPage, OldGroupAddress } from "../features/budget/GroupPage";
+import { MovePage } from "../features/budget/MovePage";
 import { CategoriesPage } from "../features/categories/CategoriesPage";
 import { CategoryForm } from "../features/categories/CategoryForm";
 import { CategoryPage } from "../features/categories/CategoryPage";
@@ -67,6 +68,7 @@ export const routes: RouteObject[] = [
           { path: "/accounts/new-group", element: <GroupForm /> },
           { path: "/accounts/:accountId/edit", element: <AccountForm /> },
           { path: "/budget", element: <BudgetPage /> },
+          { path: "/budget/move", element: <MovePage /> },
           { path: "/budget/groups/:categoryId", element: <GroupPage /> },
           { path: "/budget/group/:categoryId", element: <OldGroupAddress /> },
           { path: "/categories", element: <CategoriesPage /> },
