@@ -17,7 +17,7 @@
 </div>
 
 <div class="ready zero budget-hero ready-hero cat-hero">
-  <div class="hero-top"><div class="calc-row"><span class="muted">{% if owed_total or owe_total %}{{ "Owed to you" if owed_total >= owe_total else "You owe" }}{% else %}Everything is settled{% endif %}</span></div></div>
+  <div class="hero-top"><div class="calc-row"><span class="muted">{{ label }}</span></div></div>
   {% if owed_total or owe_total %}
   <span class="figure">{{ figure((owed_total - owe_total)|abs, currency) }}</span>
   <span class="glance-note hero-note"><span>{% if owed_total and owe_total %}{{ owed_total|money }} owed to you · {{ owe_total|money }} you owe{% else %}in total{% endif %}</span></span>

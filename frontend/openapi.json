@@ -946,6 +946,54 @@
         "title": "ActivityRead",
         "type": "object"
       },
+      "ActivityRowRead": {
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "income": {
+            "title": "Income",
+            "type": "boolean"
+          },
+          "sub": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "transaction_id": {
+            "format": "uuid",
+            "title": "Transaction Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transaction_id",
+          "title",
+          "date",
+          "sub",
+          "amount",
+          "income"
+        ],
+        "title": "ActivityRowRead",
+        "type": "object"
+      },
       "AllocationIn": {
         "properties": {
           "amount": {
@@ -3369,6 +3417,16 @@
             ],
             "title": "Notes"
           },
+          "opening": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpeningBalanceCreate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "phone": {
             "anyOf": [
               {
@@ -5560,6 +5618,73 @@
         "title": "ObligationRead",
         "type": "object"
       },
+      "OpenRowRead": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "original": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Original",
+            "type": "string"
+          },
+          "outstanding": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Outstanding",
+            "type": "string"
+          },
+          "receivable": {
+            "title": "Receivable",
+            "type": "boolean"
+          },
+          "settled": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settled"
+          },
+          "transaction_id": {
+            "format": "uuid",
+            "title": "Transaction Id",
+            "type": "string"
+          },
+          "who": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Who"
+          }
+        },
+        "required": [
+          "transaction_id",
+          "name",
+          "date",
+          "who",
+          "settled",
+          "original",
+          "outstanding",
+          "receivable"
+        ],
+        "title": "OpenRowRead",
+        "type": "object"
+      },
       "OpeningBalanceCreate": {
         "description": "What a person already owed before finode: they owe you (`receivable`) or you owe them (`payable`). It touches none\nof your accounts or budgets.",
         "properties": {
@@ -5667,6 +5792,70 @@
           }
         },
         "title": "OpeningBalanceUpdate",
+        "type": "object"
+      },
+      "OpeningFormView": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "direction": {
+            "enum": [
+              "receivable",
+              "payable"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "editing": {
+            "title": "Editing",
+            "type": "boolean"
+          },
+          "paid": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid"
+          },
+          "person_name": {
+            "title": "Person Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "person_name",
+          "editing",
+          "direction",
+          "amount",
+          "date",
+          "description",
+          "paid"
+        ],
+        "title": "OpeningFormView",
         "type": "object"
       },
       "OwedRead": {
@@ -5928,6 +6117,74 @@
         "title": "PaymentIn",
         "type": "object"
       },
+      "PeopleView": {
+        "properties": {
+          "difference": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Difference",
+            "type": "string"
+          },
+          "everyone": {
+            "title": "Everyone",
+            "type": "boolean"
+          },
+          "has_archived": {
+            "title": "Has Archived",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "owe_total": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Owe Total",
+            "type": "string"
+          },
+          "owed_total": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Owed Total",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/PersonRowRead"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "show": {
+            "enum": [
+              "all",
+              "owed",
+              "owe",
+              "archived"
+            ],
+            "title": "Show",
+            "type": "string"
+          },
+          "shows": {
+            "items": {
+              "$ref": "#/components/schemas/ShowChoice"
+            },
+            "title": "Shows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "show",
+          "shows",
+          "has_archived",
+          "everyone",
+          "owed_total",
+          "owe_total",
+          "difference",
+          "label",
+          "rows"
+        ],
+        "title": "PeopleView",
+        "type": "object"
+      },
       "PersonChip": {
         "properties": {
           "id": {
@@ -5947,6 +6204,55 @@
         "title": "PersonChip",
         "type": "object"
       },
+      "PersonEntryView": {
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "can_edit": {
+            "title": "Can Edit",
+            "type": "boolean"
+          },
+          "can_reverse": {
+            "title": "Can Reverse",
+            "type": "boolean"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "transaction_id": {
+            "format": "uuid",
+            "title": "Transaction Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transaction_id",
+          "title",
+          "date",
+          "amount",
+          "notes",
+          "can_edit",
+          "can_reverse"
+        ],
+        "title": "PersonEntryView",
+        "type": "object"
+      },
       "PersonRef": {
         "properties": {
           "id": {
@@ -5964,6 +6270,36 @@
           "name"
         ],
         "title": "PersonRef",
+        "type": "object"
+      },
+      "PersonRowRead": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "net": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Net",
+            "type": "string"
+          },
+          "sub": {
+            "title": "Sub",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "sub",
+          "net"
+        ],
+        "title": "PersonRowRead",
         "type": "object"
       },
       "PersonShare-Input": {
@@ -6048,6 +6384,105 @@
           "contact_id"
         ],
         "title": "PersonShare",
+        "type": "object"
+      },
+      "PersonView": {
+        "properties": {
+          "activity": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityRowRead"
+            },
+            "title": "Activity",
+            "type": "array"
+          },
+          "archived": {
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "more_activity": {
+            "title": "More Activity",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "net": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Net",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "open": {
+            "items": {
+              "$ref": "#/components/schemas/OpenRowRead"
+            },
+            "title": "Open",
+            "type": "array"
+          },
+          "payable": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Payable",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "receivable": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Receivable",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "phone",
+          "email",
+          "notes",
+          "archived",
+          "receivable",
+          "payable",
+          "net",
+          "open",
+          "activity",
+          "more_activity"
+        ],
+        "title": "PersonView",
         "type": "object"
       },
       "PickGroupRead": {
@@ -8693,6 +9128,24 @@
           "transaction_id"
         ],
         "title": "SharedIncomeRead",
+        "type": "object"
+      },
+      "ShowChoice": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "title": "ShowChoice",
         "type": "object"
       },
       "SignIn": {
@@ -12628,7 +13081,7 @@
         ]
       },
       "post": {
-        "description": "Add a contact; its two accounts are made with it. Names are unique, capitals aside, and at most 30 characters.",
+        "description": "Add a contact; its two accounts are made with it. Names are unique, capitals aside, and at most 30 characters.\nWith `opening` (`direction`, `amount`, `date`, `description`, as `/opening-balance` takes it) what they already owed\nis recorded with them: both or neither.",
         "operationId": "create_contact_api_contacts__post",
         "requestBody": {
           "content": {
@@ -12968,6 +13421,58 @@
           }
         ],
         "summary": "Archive Contact",
+        "tags": [
+          "contacts"
+        ]
+      }
+    },
+    "/api/contacts/{contact_id}/entries/{transaction_id}/reverse": {
+      "post": {
+        "description": "Undo an entry done with the contact for good, the way its kind is undone: a settlement, a shared bill, a shared\nincome or a transfer (an opening balance too). Refused while something was paid back against it; an evened-out\nentry goes by itself when one of the two is undone. 404 for an entry that is not this contact's.",
+        "operationId": "reverse_entry_api_contacts__contact_id__entries__transaction_id__reverse_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Transaction Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reverse Entry",
         "tags": [
           "contacts"
         ]
@@ -17571,6 +18076,229 @@
           }
         ],
         "summary": "Home",
+        "tags": [
+          "views"
+        ]
+      }
+    },
+    "/api/views/opening-form": {
+      "get": {
+        "description": "Where the opening balance form starts: blank (they owe you, today) or the person's opening balance\n`transaction_id`, with what was already `paid` back. 404 for a person or entry that is not the caller's, or an entry\nthat is not this person's opening balance.",
+        "operationId": "opening_form_view_api_views_opening_form_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "contact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "transaction_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Transaction Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpeningFormView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Opening Form View",
+        "tags": [
+          "views"
+        ]
+      }
+    },
+    "/api/views/people": {
+      "get": {
+        "description": "The People list (`show`: `all`, `owed`: they owe you, `owe`: you owe them, `archived`): each person's `net` (above\nzero they owe you) and quiet line (`sub`), what is owed to you and by you in all, and whether anyone is archived.",
+        "operationId": "people_view_api_views_people_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "show",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "title": "Show",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeopleView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "People View",
+        "tags": [
+          "views"
+        ]
+      }
+    },
+    "/api/views/people/{contact_id}": {
+      "get": {
+        "description": "A person's page: what they owe you or you owe them, the `open` amounts (`who` says which way only when they are\nowed both ways; `settled` of `original` when part is paid) and the newest 30 entries done with them (`title`, `sub`,\n`income`), with how many older ones are not listed.",
+        "operationId": "person_view_api_views_people__contact_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Person View",
+        "tags": [
+          "views"
+        ]
+      }
+    },
+    "/api/views/people/{contact_id}/entries/{transaction_id}": {
+      "get": {
+        "description": "One entry done with a person, as its sheet shows it: `title`, the `notes` under it, and whether it can be edited\n(an opening balance) or reversed (everything but an evened-out entry). 404 for an entry that is not theirs.",
+        "operationId": "person_entry_view_api_views_people__contact_id__entries__transaction_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contact_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Transaction Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonEntryView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Person Entry View",
         "tags": [
           "views"
         ]

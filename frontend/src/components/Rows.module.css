@@ -1,5 +1,6 @@
-/* The Categories page and a category's page (.cat-bar, .cat-chips, .crow*, .tile .top, .sub-tile, .acct-nav in
-   style.css). The page head, hero and title are components/Page.module.css. */
+/* The named rows with a figure at the right in one tile (.crow* and .tile of style.css), the switcher bar above them
+   (.cat-bar) and the way back with a month pill beside it (.acct-nav): Categories, a category's page, Budgets' group
+   page and People. The page head, hero and title are Page.module.css. */
 .catBar {
   display: flex;
   flex-wrap: wrap;

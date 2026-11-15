@@ -682,6 +682,10 @@ class PeopleView(BaseModel):
     everyone: bool
     owed_total: Decimal
     owe_total: Decimal
+    # The two apart, unsigned: the head's figure.
+    difference: Decimal
+    # What the head says: "Owed to you", "You owe" or "Everything is settled".
+    label: str
     rows: list[PersonRowRead]
 
 

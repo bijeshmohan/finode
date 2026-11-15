@@ -21,7 +21,7 @@ import { positive, sameAmount } from "../../lib/split";
 import { RegisterList } from "../transactions/RegisterList";
 import { TransactionSheet } from "../transactions/TransactionSheet";
 import { useOpenEntry } from "../transactions/useOpenEntry";
-import styles from "./Categories.module.css";
+import styles from "../../components/Rows.module.css";
 import { type CategoryView, useCategory, useCategoryChange } from "./queries";
 
 const SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

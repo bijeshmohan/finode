@@ -4770,10 +4770,14 @@ export interface components {
         };
         /** PeopleView */
         PeopleView: {
+            /** Difference */
+            difference: string;
             /** Everyone */
             everyone: boolean;
             /** Has Archived */
             has_archived: boolean;
+            /** Label */
+            label: string;
             /** Owe Total */
             owe_total: string;
             /** Owed Total */

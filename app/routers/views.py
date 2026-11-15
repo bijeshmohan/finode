@@ -945,6 +945,8 @@ def people_view(contacts: Contacts, accounts: Accounts, show: str = "all"):
         everyone=found.everyone,
         owed_total=found.owed_total,
         owe_total=found.owe_total,
+        difference=abs(found.owed_total - found.owe_total),
+        label=found.label,
         rows=[PersonRowRead(id=r.person.id, name=r.person.name, sub=r.sub, net=r.person.net) for r in found.rows],
     )
 

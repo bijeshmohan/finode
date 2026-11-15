@@ -85,6 +85,7 @@ def people_page(request: Request, contacts: Contacts, show: str = "all"):
             "owed_total": found.owed_total,
             "owe_total": found.owe_total,
             "everyone": found.everyone,
+            "label": found.label,
             "currency": request.state.currency,
         },
     )

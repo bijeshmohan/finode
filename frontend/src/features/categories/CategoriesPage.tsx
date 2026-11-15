@@ -13,7 +13,7 @@ import look from "../../components/Page.module.css";
 import { monthName } from "../../lib/dates";
 import { formatMoney } from "../../lib/money";
 import { positive, sameAmount } from "../../lib/split";
-import styles from "./Categories.module.css";
+import styles from "../../components/Rows.module.css";
 import { type CategoriesView, useCategories } from "./queries";
 
 const TABS = [

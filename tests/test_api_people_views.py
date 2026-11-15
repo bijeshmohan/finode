@@ -49,6 +49,7 @@ def balanced(client) -> bool:
 def test_the_list_and_its_switcher(client, bank):
     seen = view(client, "/api/views/people")
     assert (seen["everyone"], seen["rows"], seen["has_archived"]) == (False, [], False)
+    assert seen["label"] == "Everything is settled"
     alice, bob, cara = person(client), person(client, "Bob"), person(client, "Cara")
     lend(client, alice, bank)
     borrow(client, bob, bank)
@@ -57,9 +58,12 @@ def test_the_list_and_its_switcher(client, bank):
     rows = {r["name"]: r for r in seen["rows"]}
     assert (rows["Alice"]["net"], rows["Bob"]["net"], rows["Cara"]["net"]) == ("500.00", "-200.00", "0.00")
     assert rows["Cara"]["sub"] == "Nothing yet" and rows["Alice"]["sub"].startswith("Last ")
-    assert (seen["owed_total"], seen["owe_total"]) == ("500.00", "200.00")
+    assert (seen["owed_total"], seen["owe_total"], seen["difference"]) == ("500.00", "200.00", "300.00")
+    assert seen["label"] == "Owed to you"
     assert [r["name"] for r in view(client, "/api/views/people", show="owed")["rows"]] == ["Alice"]
     assert [r["name"] for r in view(client, "/api/views/people", show="owe")["rows"]] == ["Bob"]
+    borrow(client, bob, bank, amount="400")
+    assert view(client, "/api/views/people")["label"] == "You owe", "you owe more than is owed to you"
     assert view(client, "/api/views/people", show="nonsense")["show"] == "all"
     assert client.post(f"/api/contacts/{cara['id']}/archive").status_code == 200
     seen = view(client, "/api/views/people")
