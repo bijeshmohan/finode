@@ -18,9 +18,9 @@ from pydantic import ValidationError
 from ...clock import local_today
 from ...dependencies import Categories, Reports
 from ...schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
+from ...services.budget_view import parse_month, shift
 from ...services.categories_view import KIND_TABS, TABS, CategoryForm, categories_page, category_form, category_page
 from ...templating import templates
-from .budget import parse_month, shift
 from .utils import htmx_error, htmx_redirect, htmx_trigger, validation_message
 
 router = APIRouter(prefix="/categories")

@@ -454,3 +454,89 @@ class CategoryFormView(BaseModel):
     details: str | None
     parent_id: UUID | None
     groups: list[CategoryRef]
+
+
+class BudgetRowRead(BaseModel):
+    """One row of the Budgets page or a group's page (services/budget_view): a category (or a group) with what is left,
+    how its second line reads and how far its bar runs."""
+
+    category_id: UUID
+    name: str
+    is_group: bool
+    assigned: Decimal
+    activity: Decimal
+    available: Decimal
+    overspent_last_month: Decimal
+    # "of 25,000.00"; none when nothing is assigned, spent or left ("nothing assigned").
+    of: Decimal | None
+    state: Literal["overspent", "all_spent"] | None
+    # The biggest inside a group ("Fuel · Taxi · +2"), or what needs a look ("500.00 overspent last month").
+    hint: str
+    # How far the bar runs (100 when over).
+    percent: int
+    over: bool
+    # The group a subcategory is in (the sheet's second line).
+    group_name: str | None
+    # A whole group with nothing in it, tucked away behind "Show" once anything is in use.
+    unused: bool
+
+
+class BudgetSum(BaseModel):
+    """What Ready to assign is made of (the "i")."""
+
+    money_in_accounts: Decimal
+    reserved_for_cards: Decimal
+    available: Decimal
+    assigned_to_later_months: Decimal
+
+
+class BudgetView(BaseModel):
+    month: str
+    is_current: bool
+    # How far through the month today is (the current month only).
+    pace: int | None
+    ready_to_assign: Decimal
+    sum: BudgetSum
+    # What copying last month's amounts would assign (zero: nothing to copy).
+    copyable: Decimal
+    # A short welcome until the first amount is assigned.
+    show_intro: bool
+    has_budget_accounts: bool
+    # More spent than there was to spend in all the categories together.
+    overspent: Decimal
+    rows: list[BudgetRowRead]
+    unused_count: int
+
+
+class GlanceBlock(BaseModel):
+    left: Decimal
+    spent: Decimal
+    of: Decimal
+    percent: int
+    planned: bool
+
+
+class BudgetGroupView(BaseModel):
+    id: UUID
+    name: str
+    month: str
+    is_current: bool
+    pace: int | None
+    glance: GlanceBlock
+    assigned: Decimal
+    # The least the group can be given: what its subcategories add up to.
+    minimum: Decimal
+    kids: list[BudgetRowRead]
+
+
+class MoveLine(BaseModel):
+    category_id: UUID
+    # "Food › Dining"
+    path: str
+    available: Decimal
+
+
+class BudgetMoveView(BaseModel):
+    month: str
+    source: UUID | None
+    lines: list[MoveLine]

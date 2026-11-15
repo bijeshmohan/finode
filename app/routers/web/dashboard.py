@@ -4,10 +4,10 @@ The numbers come from services/home.py, shared with the finode app (/api/views/h
 from fastapi import APIRouter, Request
 
 from ...dependencies import Accounts, Budget, Categories, Recurring, Reports, Transactions
+from ...services.budget_view import parse_month
 from ...services.home import home_view
 from ...services.transaction_rows import HOME_MORE
 from ...templating import templates
-from .budget import parse_month
 from .categories import _month_context
 from .transactions import _more
 

@@ -90,6 +90,8 @@ LISTS = {
     ("GET", "/api/views/categories"),
     ("GET", "/api/views/account-form"),
     ("GET", "/api/views/category-form"),
+    ("GET", "/api/views/budget"),
+    ("GET", "/api/views/budget-move"),
     ("GET", "/api/views/related-entries"),
     ("GET", "/accounts"),
     ("GET", "/accounts/new"),

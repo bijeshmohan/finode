@@ -1554,6 +1554,71 @@
         "title": "BudgetCopy",
         "type": "object"
       },
+      "BudgetGroupView": {
+        "properties": {
+          "assigned": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Assigned",
+            "type": "string"
+          },
+          "glance": {
+            "$ref": "#/components/schemas/GlanceBlock"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_current": {
+            "title": "Is Current",
+            "type": "boolean"
+          },
+          "kids": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetRowRead"
+            },
+            "title": "Kids",
+            "type": "array"
+          },
+          "minimum": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Minimum",
+            "type": "string"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pace": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pace"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "month",
+          "is_current",
+          "pace",
+          "glance",
+          "assigned",
+          "minimum",
+          "kids"
+        ],
+        "title": "BudgetGroupView",
+        "type": "object"
+      },
       "BudgetLeftOut": {
         "properties": {
           "account_id": {
@@ -1688,6 +1753,40 @@
         "title": "BudgetMove",
         "type": "object"
       },
+      "BudgetMoveView": {
+        "properties": {
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/MoveLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "required": [
+          "month",
+          "source",
+          "lines"
+        ],
+        "title": "BudgetMoveView",
+        "type": "object"
+      },
       "BudgetRead": {
         "properties": {
           "activity": {
@@ -1820,6 +1919,149 @@
         "title": "BudgetRead",
         "type": "object"
       },
+      "BudgetRowRead": {
+        "description": "One row of the Budgets page or a group's page (services/budget_view): a category (or a group) with what is left,\nhow its second line reads and how far its bar runs.",
+        "properties": {
+          "activity": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Activity",
+            "type": "string"
+          },
+          "assigned": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Assigned",
+            "type": "string"
+          },
+          "available": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Available",
+            "type": "string"
+          },
+          "category_id": {
+            "format": "uuid",
+            "title": "Category Id",
+            "type": "string"
+          },
+          "group_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Name"
+          },
+          "hint": {
+            "title": "Hint",
+            "type": "string"
+          },
+          "is_group": {
+            "title": "Is Group",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "of": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Of"
+          },
+          "over": {
+            "title": "Over",
+            "type": "boolean"
+          },
+          "overspent_last_month": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Overspent Last Month",
+            "type": "string"
+          },
+          "percent": {
+            "title": "Percent",
+            "type": "integer"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "overspent",
+                  "all_spent"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "unused": {
+            "title": "Unused",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "category_id",
+          "name",
+          "is_group",
+          "assigned",
+          "activity",
+          "available",
+          "overspent_last_month",
+          "of",
+          "state",
+          "hint",
+          "percent",
+          "over",
+          "group_name",
+          "unused"
+        ],
+        "title": "BudgetRowRead",
+        "type": "object"
+      },
+      "BudgetSum": {
+        "description": "What Ready to assign is made of (the \"i\").",
+        "properties": {
+          "assigned_to_later_months": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Assigned To Later Months",
+            "type": "string"
+          },
+          "available": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Available",
+            "type": "string"
+          },
+          "money_in_accounts": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Money In Accounts",
+            "type": "string"
+          },
+          "reserved_for_cards": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Reserved For Cards",
+            "type": "string"
+          }
+        },
+        "required": [
+          "money_in_accounts",
+          "reserved_for_cards",
+          "available",
+          "assigned_to_later_months"
+        ],
+        "title": "BudgetSum",
+        "type": "object"
+      },
       "BudgetUncategorised": {
         "description": "A payment into an account outside the budget (a loan, a fund) that no category took: the money left the budget\nand no envelope paid for it, so Ready to assign dropped.",
         "properties": {
@@ -1861,6 +2103,81 @@
           "amount"
         ],
         "title": "BudgetUncategorised",
+        "type": "object"
+      },
+      "BudgetView": {
+        "properties": {
+          "copyable": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Copyable",
+            "type": "string"
+          },
+          "has_budget_accounts": {
+            "title": "Has Budget Accounts",
+            "type": "boolean"
+          },
+          "is_current": {
+            "title": "Is Current",
+            "type": "boolean"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "overspent": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Overspent",
+            "type": "string"
+          },
+          "pace": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pace"
+          },
+          "ready_to_assign": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Ready To Assign",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetRowRead"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "show_intro": {
+            "title": "Show Intro",
+            "type": "boolean"
+          },
+          "sum": {
+            "$ref": "#/components/schemas/BudgetSum"
+          },
+          "unused_count": {
+            "title": "Unused Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "is_current",
+          "pace",
+          "ready_to_assign",
+          "sum",
+          "copyable",
+          "show_intro",
+          "has_budget_accounts",
+          "overspent",
+          "rows",
+          "unused_count"
+        ],
+        "title": "BudgetView",
         "type": "object"
       },
       "CardBill": {
@@ -4139,6 +4456,42 @@
         "title": "FormRow",
         "type": "object"
       },
+      "GlanceBlock": {
+        "properties": {
+          "left": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Left",
+            "type": "string"
+          },
+          "of": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Of",
+            "type": "string"
+          },
+          "percent": {
+            "title": "Percent",
+            "type": "integer"
+          },
+          "planned": {
+            "title": "Planned",
+            "type": "boolean"
+          },
+          "spent": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Spent",
+            "type": "string"
+          }
+        },
+        "required": [
+          "left",
+          "spent",
+          "of",
+          "percent",
+          "planned"
+        ],
+        "title": "GlanceBlock",
+        "type": "object"
+      },
       "GlanceRead": {
         "description": "Home's budget at a glance for the month.",
         "properties": {
@@ -4919,6 +5272,31 @@
           "recurring_rules_moved"
         ],
         "title": "MergeResult",
+        "type": "object"
+      },
+      "MoveLine": {
+        "properties": {
+          "available": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Available",
+            "type": "string"
+          },
+          "category_id": {
+            "format": "uuid",
+            "title": "Category Id",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "category_id",
+          "path",
+          "available"
+        ],
+        "title": "MoveLine",
         "type": "object"
       },
       "ObligationRead": {
@@ -15672,6 +16050,180 @@
           }
         ],
         "summary": "Account View",
+        "tags": [
+          "views"
+        ]
+      }
+    },
+    "/api/views/budget": {
+      "get": {
+        "description": "The Budgets page for a month (`YYYY-MM`; this month for anything else): Ready to assign and the sum behind it,\nwhat copying last month would assign, and the categories biggest budget first, each with how its row reads (`of`,\n`state`, `hint`, the bar's `percent`); whole groups with nothing in them are `unused` once anything is in use.",
+        "operationId": "budget_page_view_api_views_budget_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Month",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Budget Page View",
+        "tags": [
+          "views"
+        ]
+      }
+    },
+    "/api/views/budget-move": {
+      "get": {
+        "description": "The categories money can move between in a month, each with what it has left; `source` is the one it moves from\n(404 when it is not one of them).",
+        "operationId": "budget_move_view_api_views_budget_move_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Month",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetMoveView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Budget Move View",
+        "tags": [
+          "views"
+        ]
+      }
+    },
+    "/api/views/budget/groups/{category_id}": {
+      "get": {
+        "description": "One group's budget for a month: its glance (what is left, spent out of what there was), its categories, and the\nleast the group itself can be given (`minimum`: what its categories add up to).",
+        "operationId": "budget_group_view_api_views_budget_groups__category_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Category Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Month",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetGroupView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Budget Group View",
         "tags": [
           "views"
         ]

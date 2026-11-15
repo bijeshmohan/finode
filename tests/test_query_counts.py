@@ -23,6 +23,7 @@ PAGES = [
     "/accounts",
     "/api/views/accounts",
     "/budget",
+    "/api/views/budget",
     "/categories",
     "/categories?tab=income",
     "/api/views/categories",
@@ -40,6 +41,7 @@ CEILING = {
     "/accounts": 5,
     "/api/views/accounts": 5,  # the Accounts page's own reads, for the finode app  # + the day of each account's last entry, + the postings of the cards that have bill days (one query each, whatever the number)
     "/budget": 6,  # + the categories
+    "/api/views/budget": 6,  # the Budgets page's own reads, for the finode app
     "/categories": 4,
     "/categories?tab=income": 4,
     "/api/views/categories": 4,  # the Categories page's own reads, for the finode app
@@ -663,3 +665,21 @@ def test_a_categorys_page_and_its_view_do_not_grow_either(client, root_accounts,
         "view": count_queries(lambda: client.get(f"/api/views/categories/{category}")),
     }
     assert second["view"] <= first["view"] + 2 and second["view"] <= second["page"], (first, second)
+
+
+def test_a_budget_groups_view_and_the_move_view_do_not_grow_either(client, root_accounts, count_queries):
+    grow(client, root_accounts, accounts=6, transactions=6)
+    group = client.get("/api/categories/").json()[0]
+    category(client, "Inside", parent=group["id"])
+    pages = {
+        "group page": f"/budget/group/{group['id']}",
+        "group view": f"/api/views/budget/groups/{group['id']}",
+        "move page": "/budget/move",
+        "move view": "/api/views/budget-move",
+    }
+    first = {k: count_queries(lambda p=p: client.get(p)) for k, p in pages.items()}
+    grow(client, root_accounts, accounts=6, transactions=60, start=6)
+    second = {k: count_queries(lambda p=p: client.get(p)) for k, p in pages.items()}
+    for kind in ("group", "move"):
+        assert second[f"{kind} view"] <= first[f"{kind} view"] + 2, (first, second)
+        assert second[f"{kind} view"] <= second[f"{kind} page"], (first, second)
