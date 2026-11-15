@@ -7,7 +7,6 @@ from uuid import UUID
 from fastapi import APIRouter, Form, HTTPException, Request
 
 from ...dependencies import Budget
-from ...schemas.budget import BudgetRead
 from ...services import budget_view as view
 from ...services.budget import BudgetError
 from ...services.budget_view import move_lines, parse_month, shift
@@ -17,14 +16,16 @@ from .utils import htmx_error, htmx_redirect, parse_amount
 router = APIRouter(prefix="/budget")
 
 
-def _money(budget: Budget, data: BudgetRead | None = None):
-    style = grouping_for((data or budget.view(None)).currency)
+def _money(budget: Budget):
+    style = grouping_for(budget.accounts.currency().code)
     return lambda value: money(value, style)
 
 
 def _context(budget: Budget, month: date) -> dict:
-    data = budget.view(month)
-    page = view.budget_page(budget, month, _money(budget, data))
+    return _page_context(budget, view.budget_page(budget, month, _money(budget)))
+
+
+def _page_context(budget: Budget, page: view.BudgetPage) -> dict:
     return {
         "budget": page.budget,
         "category_choices": [(c.id, " › ".join(budget.category_path(c))) for c in budget.spending_categories()],
@@ -55,7 +56,7 @@ def _group_context(budget: Budget, month: date, category_id: UUID) -> dict:
     except LookupError:
         raise HTTPException(status_code=404, detail="category not found") from None
     return {
-        **_context(budget, month),
+        **_page_context(budget, found.page),
         "group": found.group,
         "kids": found.kids,
         "edit_url": f"/budget/group/{category_id}/sheet?month={month:%Y-%m}",

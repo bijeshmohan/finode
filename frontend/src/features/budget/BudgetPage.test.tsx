@@ -80,6 +80,20 @@ describe("the Budgets list", () => {
     expect(screen.getByRole("link", { name: /Food/ })).toHaveTextContent("nothing assigned · Dining · Groceries");
   });
 
+  it("a budget below zero (money moved out) opens as it is, and Save keeps it", async () => {
+    const { fetch } = open(budget({ rows: [row({ assigned: "-100.00" })] }), {
+      [`/api/budget/categories/${ids.rent}`]: [200, {}],
+    });
+    await userEvent.click(await screen.findByRole("button", { name: /Rent/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Rent" });
+    expect(within(sheet).getByLabelText("Assigned this month")).toHaveValue("-100.00");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Save" }));
+    expect(await sent(fetch, `/api/budget/categories/${ids.rent}`, "PUT")).toEqual({
+      month: "2026-11-01",
+      amount: "-100.00",
+    });
+  });
+
   it("assigning sends the amount and closes the sheet", async () => {
     const { fetch } = open(budget(), { [`/api/budget/categories/${ids.rent}`]: [200, {}] });
     await userEvent.click(await screen.findByRole("button", { name: /Rent/ }));
