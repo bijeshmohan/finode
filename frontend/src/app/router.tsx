@@ -21,6 +21,7 @@ import { OpeningForm } from "../features/people/OpeningForm";
 import { PeoplePage } from "../features/people/PeoplePage";
 import { PersonForm } from "../features/people/PersonForm";
 import { PersonPage } from "../features/people/PersonPage";
+import { DataPage } from "../features/settings/DataPage";
 import { SettingsPage } from "../features/settings/SettingsPage";
 import { RecurringForm, RuleAddress } from "../features/recurring/RecurringForm";
 import { RecurringPage } from "../features/recurring/RecurringPage";
@@ -42,57 +43,70 @@ function MovedTo({ path }: { path: string }) {
 function SignedIn() {
   return (
     <SessionProvider>
-      <ToastProvider>
-        <Outlet />
-      </ToastProvider>
+      <Outlet />
     </SessionProvider>
   );
 }
 
+/** Toasts outlive the page that raised them, the sign-in screen included ("Your account was deleted"). */
+function WithToasts() {
+  return (
+    <ToastProvider>
+      <Outlet />
+    </ToastProvider>
+  );
+}
+
 export const routes: RouteObject[] = [
-  { path: "/sign-in", element: <SignIn /> },
-  { path: "/login", element: <MovedTo path="/sign-in" /> },
-  { path: "/sign-up", element: <SignUp /> },
-  { path: "/signup", element: <MovedTo path="/sign-up" /> },
-  { path: "/forgot", element: <Forgot /> },
-  { path: "/reset", element: <Reset /> },
   {
-    element: <SignedIn />,
+    element: <WithToasts />,
     children: [
+      { path: "/sign-in", element: <SignIn /> },
+      { path: "/login", element: <MovedTo path="/sign-in" /> },
+      { path: "/sign-up", element: <SignUp /> },
+      { path: "/signup", element: <MovedTo path="/sign-up" /> },
+      { path: "/forgot", element: <Forgot /> },
+      { path: "/reset", element: <Reset /> },
       {
-        element: <Layout />,
+        element: <SignedIn />,
         children: [
-          { path: "/", element: <Home /> },
-          { path: "/transactions", element: <TransactionsPage /> },
-          { path: "/transactions/new", element: <EntryRoute /> },
-          { path: "/transactions/:transactionId/edit", element: <EntryRoute /> },
-          { path: "/accounts", element: <AccountsPage /> },
-          { path: "/accounts/new", element: <AccountForm /> },
-          { path: "/accounts/new-group", element: <GroupForm /> },
-          { path: "/accounts/:accountId/edit", element: <AccountForm /> },
-          { path: "/budget", element: <BudgetPage /> },
-          { path: "/budget/move", element: <MovePage /> },
-          { path: "/budget/coming-up", element: <ComingUpPage /> },
-          { path: "/tags", element: <TagsPage /> },
-          { path: "/people", element: <PeoplePage /> },
-          { path: "/people/new", element: <PersonForm /> },
-          { path: "/people/:contactId", element: <PersonPage /> },
-          { path: "/people/:contactId/edit", element: <PersonForm /> },
-          { path: "/people/:contactId/opening", element: <OpeningForm /> },
-          { path: "/people/:contactId/opening/:transactionId/edit", element: <OpeningForm /> },
-          { path: "/recurring", element: <RecurringPage /> },
-          { path: "/recurring/new", element: <RecurringForm /> },
-          { path: "/recurring/:recurringId/edit", element: <RecurringForm /> },
-          { path: "/recurring/:recurringId", element: <RuleAddress /> },
-          { path: "/budget/groups/:categoryId", element: <GroupPage /> },
-          { path: "/budget/group/:categoryId", element: <OldGroupAddress /> },
-          { path: "/categories", element: <CategoriesPage /> },
-          { path: "/categories/new", element: <CategoryForm /> },
-          { path: "/categories/:categoryId", element: <CategoryPage /> },
-          { path: "/categories/:categoryId/edit", element: <CategoryForm /> },
-          { path: "/accounts/:accountId", element: <AccountPage /> },
-          { path: "/settings", element: <SettingsPage /> },
-          { path: "*", element: <NotFound /> },
+          {
+            element: <Layout />,
+            children: [
+              { path: "/", element: <Home /> },
+              { path: "/transactions", element: <TransactionsPage /> },
+              { path: "/transactions/new", element: <EntryRoute /> },
+              { path: "/transactions/:transactionId/edit", element: <EntryRoute /> },
+              { path: "/accounts", element: <AccountsPage /> },
+              { path: "/accounts/new", element: <AccountForm /> },
+              { path: "/accounts/new-group", element: <GroupForm /> },
+              { path: "/accounts/:accountId/edit", element: <AccountForm /> },
+              { path: "/budget", element: <BudgetPage /> },
+              { path: "/budget/move", element: <MovePage /> },
+              { path: "/budget/coming-up", element: <ComingUpPage /> },
+              { path: "/tags", element: <TagsPage /> },
+              { path: "/people", element: <PeoplePage /> },
+              { path: "/people/new", element: <PersonForm /> },
+              { path: "/people/:contactId", element: <PersonPage /> },
+              { path: "/people/:contactId/edit", element: <PersonForm /> },
+              { path: "/people/:contactId/opening", element: <OpeningForm /> },
+              { path: "/people/:contactId/opening/:transactionId/edit", element: <OpeningForm /> },
+              { path: "/recurring", element: <RecurringPage /> },
+              { path: "/recurring/new", element: <RecurringForm /> },
+              { path: "/recurring/:recurringId/edit", element: <RecurringForm /> },
+              { path: "/recurring/:recurringId", element: <RuleAddress /> },
+              { path: "/budget/groups/:categoryId", element: <GroupPage /> },
+              { path: "/budget/group/:categoryId", element: <OldGroupAddress /> },
+              { path: "/categories", element: <CategoriesPage /> },
+              { path: "/categories/new", element: <CategoryForm /> },
+              { path: "/categories/:categoryId", element: <CategoryPage /> },
+              { path: "/categories/:categoryId/edit", element: <CategoryForm /> },
+              { path: "/accounts/:accountId", element: <AccountPage /> },
+              { path: "/settings", element: <SettingsPage /> },
+              { path: "/profile/data", element: <DataPage /> },
+              { path: "*", element: <NotFound /> },
+            ],
+          },
         ],
       },
     ],

@@ -170,3 +170,17 @@
   text-align: left;
   cursor: pointer;
 }
+.plainList {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+}
+.plainList li + li {
+  margin-top: 0.2rem;
+}
+.subhead {
+  margin: 0.5rem 0 0;
+  font-size: 1rem;
+}
+.body input[type="file"] {
+  font: inherit;
+}

@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -74,7 +74,9 @@ describe("signing up", () => {
     renderApp("/sign-up", { ...ON, "/api/auth/sign-up": [201, { signed_in: false }] });
     await fill();
     await create();
-    expect(await screen.findByRole("status")).toHaveTextContent("Account created. Please sign in.");
+    expect(await within(await screen.findByRole("main")).findByRole("status")).toHaveTextContent(
+      "Account created. Please sign in.",
+    );
   });
 
   it("signed in goes Home", async () => {
