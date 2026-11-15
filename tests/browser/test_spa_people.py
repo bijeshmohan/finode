@@ -35,6 +35,11 @@ def figure(page: Page):
     return page.get_by_test_id("person-figure")
 
 
+def note(page: Page):
+    """The line under the rows saying what a transfer with a person does."""
+    return page.get_by_test_id("person-note")
+
+
 def test_lend_from_a_persons_page(signed_in_spa_page: Page, spa_api: Api, spa_books):
     page = signed_in_spa_page
     who = alice_of(spa_api)
@@ -46,6 +51,7 @@ def test_lend_from_a_persons_page(signed_in_spa_page: Page, spa_api: Api, spa_bo
     page.get_by_label("Amount", exact=True).fill("500")
     expect(side(page, "To")).to_contain_text("Alice")  # the short-hand filled the person in
     choose(page, "From", "Checking")
+    expect(note(page)).to_have_text("Alice will owe you this. It is not spending, so your budgets stay as they are.")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url(f"**/people/{who['id']}")
     expect(page.get_by_text("Alice owes you")).to_be_visible()
@@ -63,12 +69,51 @@ def test_settle_opens_the_add_screen_with_what_is_owed(signed_in_spa_page: Page,
     page.wait_for_url("**/transactions/new**")
     expect(page.get_by_label("Amount", exact=True)).to_have_value("500.00")
     expect(side(page, "From")).to_contain_text("Alice")  # they pay you back
+    expect(note(page)).to_have_text("Alice pays back in full.")
+    page.get_by_label("Amount", exact=True).fill("200")
+    expect(note(page)).to_have_text("Alice pays back 200.00 of the 500.00 owed to you.")
     page.get_by_label("Amount", exact=True).fill("800")
+    expect(note(page)).to_contain_text("The other 300.00 is borrowed")
     choose(page, "To", "Checking")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url(f"**/people/{who['id']}")
     expect(page.get_by_text("You owe Alice")).to_be_visible()
     expect(figure(page)).to_contain_text("300.00")
+
+
+def test_lending_from_the_add_screen_with_a_transfer(signed_in_spa_page: Page, spa_api: Api, spa_books):
+    page = signed_in_spa_page
+    who = alice_of(spa_api)
+    page.goto("/transactions/new")
+    page.get_by_label("Amount", exact=True).fill("300")
+    page.get_by_role("button", name="Transfer", exact=True).click()
+    expect(note(page)).to_have_count(0)  # nobody on it yet
+    choose(page, "From", "Checking")
+    choose(page, "To", "Alice")
+    expect(note(page)).to_have_text("Alice will owe you this. It is not spending, so your budgets stay as they are.")
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_url(re.compile(r"/transactions$"))
+    assert float(spa_api.get(f"/contacts/{who['id']}")["receivable"]) == 300
+
+
+def test_an_expense_edited_into_a_loan_says_so(signed_in_spa_page: Page, spa_api: Api, spa_books):
+    page = signed_in_spa_page
+    who = alice_of(spa_api)
+    entry = spa_api.post(
+        "/transactions/",
+        payee="Cab",
+        postings=[
+            {"category_id": spa_books["food"]["id"], "side": "debit", "amount": "300"},
+            {"account_id": spa_books["checking"]["id"], "side": "credit", "amount": "300"},
+        ],
+    )
+    page.goto(f"/transactions/{entry['id']}/edit")
+    page.get_by_role("button", name="Transfer", exact=True).click()
+    choose(page, "To", "Alice")
+    expect(note(page)).to_have_text("Alice will owe you this. It is not spending, so your budgets stay as they are.")
+    page.get_by_role("button", name="Save changes").click()
+    page.wait_for_url(lambda url: "/edit" not in url)
+    assert float(spa_api.get(f"/contacts/{who['id']}")["receivable"]) == 300
 
 
 def test_reversing_an_entry_asks_first(signed_in_spa_page: Page, spa_api: Api, spa_books):

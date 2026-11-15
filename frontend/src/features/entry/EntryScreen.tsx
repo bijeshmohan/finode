@@ -14,13 +14,14 @@ import { DateChip } from "../../components/lines/DateChip";
 import type { Kind } from "../../components/lines/kinds";
 import { Lines, linesBody, type LinesState, useLines } from "../../components/lines/Lines";
 import { datesFrom, type RowState, startRows } from "../../components/lines/rows";
-import { groupAmount, tidyAmount } from "../../lib/amount";
+import { type Grouping, groupAmount, tidyAmount } from "../../lib/amount";
 import { safeNext } from "../../lib/safeNext";
-import { positive } from "../../lib/split";
+import { personNote, positive } from "../../lib/split";
 import { useDeleteTransaction } from "../transactions/queries";
 import styles from "../../components/lines/Form.module.css";
 import { NoteAndTags } from "../../components/lines/NoteAndTags";
 import { PayeeField } from "../../components/lines/PayeeField";
+import type { PickGroup } from "../../components/lines/queries";
 import { Related } from "./RelatedPicker";
 import {
   carryExpense,
@@ -99,6 +100,7 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
   const [state, update] = useLines<EntryState>(() => startState(form, grouping));
   const [problem, setProblem] = useState<string | null>(null);
   const groups = form.groups;
+  const note = noteForPeople(state, groups, grouping);
   const editing = transactionId !== undefined;
   const leave = () => void navigate(back ? safeNext(back) : "/transactions", { replace: true });
 
@@ -310,6 +312,11 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
           }}
         />
 
+        {note && (
+          <p className={styles.personNote} data-testid="person-note" aria-live="polite">
+            {note}
+          </p>
+        )}
         {(problem ?? (save.isError ? messageOf(save.error) : null)) && (
           <p className={styles.error} role="alert">
             {problem ?? messageOf(save.error)}
@@ -345,4 +352,29 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
       )}
     </>
   );
+}
+
+/** What a transfer with a person does, said under the form as the web's does (app.js, noteForPeople): for the last row,
+ * From then To, that names a person; nothing when nobody is on the entry. */
+function noteForPeople(state: LinesState, groups: PickGroup[], grouping: Grouping): string {
+  const people = new Map((groups.find((g) => g.title === "People")?.options ?? []).map((o) => [o.id, o]));
+  let note = "";
+  for (const [rows, toThem] of [
+    [state.credit, false],
+    [state.debit, true],
+  ] as const) {
+    for (const row of rows) {
+      const person = row.choice === null ? undefined : people.get(row.choice);
+      if (person) {
+        note = personNote(
+          { name: person.label, owes: person.balance ?? "0" },
+          toThem,
+          row.amount,
+          state.total,
+          grouping,
+        );
+      }
+    }
+  }
+  return note;
 }
