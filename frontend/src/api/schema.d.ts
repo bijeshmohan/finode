@@ -1377,7 +1377,8 @@ export interface paths {
         put?: never;
         /**
          * Resume Recurring
-         * @description Start a paused rule again. What fell due while it was paused is skipped, not recorded late.
+         * @description Start a paused rule again. What fell due while it was paused is skipped, not recorded late. An ended rule cannot
+         *     be resumed until its end date changes (400, saying so).
          */
         post: operations["resume_recurring_api_recurring__recurring_id__resume_post"];
         delete?: never;

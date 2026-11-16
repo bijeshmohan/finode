@@ -87,7 +87,7 @@ def test_skipping_the_last_occurrence_ends_the_rule(client, accounts):
 
 def test_a_paused_rule_cannot_skip(client, accounts):
     created = future_rule(client, accounts)
-    client.post(f"/recurring/{created['id']}/pause")
+    client.post(f"/api/recurring/{created['id']}/pause")
     response = skip(client, created["id"])
     assert response.status_code == 400 and "resume it first" in response.json()["detail"]
 
@@ -99,19 +99,9 @@ def test_an_unknown_rule(client):
 # ---- the page ------------------------------------------------------------------------------------------------------
 
 
-def test_the_edit_page_offers_to_skip_and_says_what_was_skipped(client, accounts):
+def test_skipping_moves_the_next_date_and_the_list_says_it_is_active(client, accounts):
     created = future_rule(client, accounts)
-    page = client.get(f"/recurring/{created['id']}/edit").text
-    assert f'hx-post="/recurring/{created["id"]}/skip"' in page and "Just this once?" in page
-    response = client.post(f"/recurring/{created['id']}/skip")
-    assert response.headers["HX-Redirect"] == "/recurring" and "recurring-skipped" in response.headers["set-cookie"]
-    page = client.get(f"/recurring/{created['id']}/edit").text
-    assert "skipped" in page and "last recorded" not in page
-
-
-def test_the_page_refuses_a_paused_rule_in_place(client, accounts):
-    created = future_rule(client, accounts)
-    client.post(f"/recurring/{created['id']}/pause")
-    bad = client.post(f"/recurring/{created['id']}/skip")
-    assert bad.status_code == 400 and bad.headers["HX-Retarget"] == "#form-error"
-    assert "Just this once?" not in client.get(f"/recurring/{created['id']}/edit").text
+    assert skip(client, created["id"]).status_code == 200
+    moved = client.get(f"/api/recurring/{created['id']}").json()
+    assert moved["next_date"] > created["next_date"], "the next one is skipped"
+    assert [r["status"] for r in client.get("/api/views/recurring").json()["live"]] == ["active"]

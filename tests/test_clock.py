@@ -56,6 +56,6 @@ def test_new_entries_and_the_pages_use_that_day(client, account, expense_account
         },
     )
     assert made.status_code == 201 and made.json()["date"] == "2031-10-16"
-    assert "2031-10-16" in client.get("/transactions/new").text
-    assert "Today" in client.get("/transactions").text
+    assert client.get("/api/views/entry-form").json()["date"] == "2031-10-16", "the Add screen starts on that day"
+    assert client.get("/api/auth/session").json()["today"] == "2031-10-16", "the app's Today"
     assert client.get("/api/budget/").json()["month"] == "2031-10-01"

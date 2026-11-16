@@ -7,7 +7,7 @@ from uuid import UUID
 from app.clock import local_today
 from app.services.transaction_rows import AccountIndex, to_row
 
-from .books import into, leg
+from .books import into, leg, post_account
 from .svc import services
 from .test_api_parity import books  # noqa: F401  (the fixture)
 from .test_isolation import B_USER, signed_in_as
@@ -333,3 +333,50 @@ def test_related_entries(client, books):
     excluded = client.get("/api/views/related-entries", params={"exclude": every[0]["id"]}).json()
     assert every[0]["id"] not in [r["id"] for r in excluded]
     assert "Opening balance" not in [r["title"] for r in every]
+
+
+# Ported from test_web_transaction_form.py (the old Add screen), step 10: what the form view offers and shows.
+
+
+def test_the_form_offers_only_what_can_be_posted_to(client, root_accounts):
+    food = post_account(client, {"name": "food", "parent_id": root_accounts["Expenses"]}).json()
+    dining = post_account(client, {"name": "dining", "parent_id": food["id"]}).json()
+    bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"]}).json()
+    post_account(client, {"name": "hdfc", "parent_id": bank["id"]})
+    options = {o["id"]: o["label"] for g in form_view(client)["groups"] for o in g["options"]}
+    assert food["id"] in options and options[dining["id"]].endswith("dining"), "a category group and its subcategory"
+    assert bank["id"] not in options, "an account group is not posted to"
+    assert not set(root_accounts.values()) & set(options), "nor a root"
+
+
+def test_the_kind_follows_what_the_entry_is(client, root_accounts, account, other_account, expense_account):
+    salary = post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]}).json()
+    card = post_account(client, {"name": "Visa", "parent_id": root_accounts["Liabilities"]}).json()
+    capital = post_account(client, {"name": "Capital", "parent_id": root_accounts["Equity"]}).json()
+    tips = post_account(client, {"name": "Tips", "parent_id": root_accounts["Expenses"]}).json()
+
+    def made(*lines):
+        body = {"postings": [leg(a, side, amount) for a, side, amount in lines]}
+        return client.post("/api/transactions/", json=body).json()["id"]
+
+    expected = {
+        made((expense_account, "debit", "5"), (account, "credit", "5")): "expense",
+        made((expense_account, "debit", "5"), (card, "credit", "5")): "expense",
+        made((account, "debit", "5"), (salary, "credit", "5")): "income",
+        made((card, "debit", "5"), (account, "credit", "5")): "transfer",
+        made((other_account, "debit", "5"), (account, "credit", "5")): "transfer",
+        made((account, "debit", "5"), (capital, "credit", "5")): "other",
+        made((account, "debit", "5"), (expense_account, "credit", "5")): "other",  # a refund
+        made((expense_account, "debit", "6"), (tips, "debit", "4"), (account, "credit", "10")): "expense",
+    }
+    for transaction_id, kind in expected.items():
+        assert form_view(client, transaction_id=transaction_id)["kind"] == kind, kind
+
+
+def test_opening_the_form_from_an_account_or_a_category_picks_the_kind(client, root_accounts, account, expense_account):
+    salary = post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]}).json()
+    capital = post_account(client, {"name": "Capital", "parent_id": root_accounts["Equity"]}).json()
+    assert form_view(client, category=salary["id"])["kind"] == "income"
+    assert form_view(client, account=capital["id"])["kind"] == "other"
+    assert form_view(client, category=expense_account["id"])["kind"] == "expense"
+    assert form_view(client, account=account["id"])["kind"] == "expense"

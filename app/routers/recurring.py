@@ -69,8 +69,12 @@ def pause_recurring(recurring_id: UUID, recurring: Recurring):
 
 @router.post("/{recurring_id}/resume", response_model=RecurringRead)
 def resume_recurring(recurring_id: UUID, recurring: Recurring):
-    """Start a paused rule again. What fell due while it was paused is skipped, not recorded late."""
-    rule = recurring.set_active(recurring_id, True)
+    """Start a paused rule again. What fell due while it was paused is skipped, not recorded late. An ended rule cannot
+    be resumed until its end date changes (400, saying so)."""
+    try:
+        rule = recurring.set_active(recurring_id, True)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
     if rule is None:
         raise HTTPException(status_code=404, detail="recurring transaction not found")
     return rule

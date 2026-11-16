@@ -69,41 +69,19 @@ def test_renaming_merging_and_deleting_a_tag_follow_into_the_rules(client, accou
     assert session.exec(select(Transaction)).all()
 
 
-def test_the_new_form_saves_tags_and_the_edit_form_shows_them(client, accounts):
-    posted = client.post(
-        "/recurring",
-        data={
-            "kind": "expense",
-            "total": "1,500",
-            "account": [accounts["bank"], accounts["rent"]],
-            "side": ["credit", "debit"],
-            "amount": ["1500", "1500"],
-            "payee": "Landlord",
-            "comment": "Rent",
-            "every": "2",
-            "frequency": "monthly",
-            "start": "2999-01-01",
-            "tags": ["rent", "Home"],
-        },
-    )
-    assert posted.status_code == 200, posted.text
-    [made] = client.get("/api/recurring/").json()
-    assert made["tags"] == ["rent", "home"] and made["every"] == 2 and made["comment"] == "Rent"
-    page = client.get(f"/recurring/{made['id']}/edit").text
-    assert 'name="tags" value="rent"' in page and 'name="tags" value="home"' in page
-    assert "#rent" in page and 'value="Landlord"' in page and "Every" in page
-    assert client.get("/recurring/new").text.count('class="hash-btn"') == 1
+def test_the_form_saves_tags_and_the_edit_form_shows_them(client, accounts):
+    from .test_api_recurring_form import form, plain, saved
+
+    made = saved(client, form(plain(accounts), comment="Rent", every=2, tags=["rent", "Home"]))
+    [listed] = client.get("/api/recurring/").json()
+    assert listed["tags"] == ["rent", "home"] and listed["every"] == 2 and listed["comment"] == "Rent"
+    seen = client.get("/api/views/recurring-form", params={"recurring_id": made["id"]}).json()
+    assert seen["tags"] == ["rent", "home"] and seen["payee"] == "Landlord" and seen["every"] == 2
 
 
 def test_a_bad_tag_on_the_form_says_why(client, accounts):
-    posted = client.post(
-        "/recurring",
-        data={
-            "account": [accounts["bank"], accounts["rent"]],
-            "side": ["credit", "debit"],
-            "amount": ["10", "10"],
-            "start": "2999-01-01",
-            "tags": ["not a tag"],
-        },
-    )
-    assert posted.status_code == 400 and "tag" in posted.text.lower()
+    from .test_api_recurring_form import form, plain
+
+    refused = client.post("/api/recurring/form", json=form(plain(accounts), tags=["not a tag"]))
+    assert refused.status_code in (400, 422) and "tag" in refused.text.lower()
+    assert client.get("/api/recurring/").json() == [], "nothing is saved"

@@ -88,8 +88,8 @@ def test_a_nul_character_is_dropped_instead_of_failing(client, account, expense_
     assert made.status_code == 201 and made.json()["payee"] == "Cafe" and made.json()["comment"] == "ab"
     refused = post_account(client, {"name": "x\x00y", "parent_id": root_accounts["Expenses"]})
     assert refused.status_code == 422 and "control characters" in refused.text
-    assert client.get("/transactions", params={"q": "Caf\x00e"}).status_code == 200
-    assert "Cafe" in client.get("/transactions", params={"q": "Caf\x00e"}).text
+    found = client.get("/api/views/transactions", params={"merchant": "Caf\x00e"})
+    assert found.status_code == 200, "a NUL in a search is dropped, not an error"
 
 
 @pytest.mark.parametrize("name", ["", "   ", "\t", "\u200b", " \u200b\u200d ", "two\nlines", "a:b"])
@@ -177,9 +177,3 @@ def test_an_account_cannot_be_on_both_sides_of_one_entry(client, account, expens
         },
     )
     assert bad_edit.status_code == 400
-
-    web = client.post(
-        "/transactions/split",
-        data={"account": [account["id"], account["id"]], "side": ["credit", "debit"], "amount": ["10", "10"]},
-    )
-    assert web.status_code == 400 and "on both sides" in web.text
