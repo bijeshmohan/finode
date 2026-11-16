@@ -19,3 +19,16 @@ def test_signed_in_sees_the_tab_bar(signed_in_spa_page: Page):
 def test_an_unknown_address_is_answered_by_the_app(signed_in_spa_page: Page):
     signed_in_spa_page.goto("/no-such-page")
     expect(signed_in_spa_page.get_by_role("heading", name="Page not found")).to_be_visible()
+
+
+STATUS_BAR = """[...document.querySelectorAll('meta[name="theme-color"]')]
+    .find((m) => !m.media || matchMedia(m.media).matches)?.content ?? null"""
+
+
+def test_the_phones_status_bar_follows_the_device_as_the_web_pages_do(spa_page: Page):
+    """The bar above the page (theme-color) is the page's own colour in light and in dark, as base.html declares."""
+    page = spa_page
+    for scheme, colour in (("light", "#ecf0ec"), ("dark", "#10151f")):
+        page.emulate_media(color_scheme=scheme)
+        page.goto("/sign-in")
+        assert page.evaluate(STATUS_BAR) == colour, scheme
