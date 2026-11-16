@@ -42,7 +42,7 @@ for path in "/accounts/00000000-0000-4000-8000-000000000001" "/oauth/consent?aut
   expect_header "$path" "cache-control: no-cache"
 done
 
-script=$(printf '%s' "$page" | grep -o '/assets/[^"]*\.js' | head -1)
+script=$(printf '%s' "$page" | grep -o '/assets/[^"]*\.js' | head -1 || true)
 [ -n "$script" ] || fail "the page names no script"
 [ "$(status_of "$script")" = 200 ] || fail "$script is not 200"
 head_of "$script" | grep -Eq "^content-type: (application|text)/javascript" || fail "$script is not JavaScript"
@@ -51,10 +51,24 @@ expect_header "$script" "cache-control: public, max-age=31536000, immutable"
 [ "$(status_of /assets/missing-0000.js)" = 404 ] || fail "a missing script is not a 404"
 if curl -s "$BASE/assets/missing-0000.js" | grep -qi "<!doctype html"; then fail "a missing script answers the app's page"; fi
 
-for path in /sw.js /registerSW.js /manifest.webmanifest; do
-  [ "$(status_of "$path")" = 200 ] || fail "$path is not 200"
-  expect_header "$path" "cache-control: no-cache"
-done
+# The service worker and the workbox file it loads are real scripts, never the app's page (an address that is not a
+# file falls back to it): without them an installed app never gets a new version.
+is_script() { # path: 200, JavaScript, not HTML
+  [ "$(status_of "$1")" = 200 ] || fail "$1 is not 200"
+  head_of "$1" | grep -Eq "^content-type: (application|text)/javascript" || fail "$1 is not JavaScript"
+  local body
+  body=$(curl -s "$BASE$1")
+  if printf '%s' "$body" | grep -qi "<!doctype html"; then fail "$1 is the app's page, not a script"; fi
+}
+is_script /sw.js
+expect_header /sw.js "cache-control: no-cache"
+sw=$(curl -s "$BASE/sw.js")
+workbox=$(printf '%s' "$sw" | grep -o 'workbox-[A-Za-z0-9_-]*' | head -1 || true) # named without .js
+[ -n "$workbox" ] || fail "sw.js names no workbox file"
+is_script "/$workbox.js"
+
+[ "$(status_of /manifest.webmanifest)" = 200 ] || fail "/manifest.webmanifest is not 200"
+expect_header /manifest.webmanifest "cache-control: no-cache"
 expect_header /manifest.webmanifest "content-type: application/manifest+json"
 
 for path in / /profile/data "$script" /sw.js /assets/missing-0000.js; do

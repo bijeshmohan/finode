@@ -127,7 +127,8 @@ reverse proxy, using Supabase Postgres as the database.
    cookies enabled. The `web` service serves the built React app
    (`frontend/Dockerfile`, nginx) on `WEB_DOMAIN`; it holds no settings and
    calls the API on `APP_DOMAIN`. The sign-in cookies stay on `APP_DOMAIN`:
-   the two names are the same site, so signing in on either signs in both.
+   the two names are the same site, so in one browser signing in on either
+   signs in both (an app installed on iOS keeps its own cookies).
    `scripts/check-web-image.sh` builds that image and checks what it serves.
 
 Day-to-day:
@@ -139,8 +140,10 @@ git pull && docker compose up -d --build   # deploy a new version
 ```
 
 To be able to go back, tag the running image first
-(`docker tag finode:latest finode:previous`); going back is then
-`docker tag finode:previous finode:latest && docker compose up -d --no-build app`.
+(`docker tag finode:latest finode:pre-trial`); going back is then
+`docker tag finode:pre-trial finode:latest && docker compose up -d --no-build app`.
+`compose.yaml` needs `WEB_DOMAIN` for every command, so keep it in `.env` even
+with the `web` service removed (`docker compose rm -sf web`).
 
 The image (see `Dockerfile`) installs dependencies from `uv.lock`, runs as an
 unprivileged user and has a health check on `/`. `.dockerignore` keeps `.env`,
