@@ -1,8 +1,6 @@
 """Pinned accounts: a flag the person sets from an account's page; the Accounts page lists pinned accounts again in a
 Pinned row at its top, and each stays in its own group row."""
 
-import re
-
 import pytest
 
 from app.services import account as account_service
@@ -49,57 +47,53 @@ def test_only_an_open_account_can_be_pinned_never_a_group_or_a_root(client, root
     assert pin(client, inside).status_code == 400, "a closed account cannot be pinned"
 
 
-def test_the_accounts_page_lists_pinned_ones_in_a_row_at_the_top_and_keeps_them_in_their_group(client):
+def accounts_view(client) -> dict:
+    return client.get("/api/views/accounts").json()
+
+
+def card_of(view, name):
+    return next(c for k in view["kinds"] for c in k["cards"] if c["name"] == name)
+
+
+def test_the_accounts_page_lists_pinned_ones_at_the_top_and_keeps_them_in_their_group(client):
     first, second = bank(client, "HDFC"), bank(client, "ICICI")
-    assert "Pinned" not in client.get("/accounts").text.split("data-accounts", 1)[1].split("</h2>", 1)[0]
-    assert ">Pinned<" not in client.get("/accounts").text
+    assert accounts_view(client)["pinned"] == []
     pin(client, second)
-    page = client.get("/accounts").text
-    top, rest = page.split("<h2>Pinned</h2>", 1)[1].split("</section>", 1)
-    assert "1 account<" in top and "ICICI" in top and "HDFC" not in top and "Add account" not in top
-    assert "ICICI" in rest and "HDFC" in rest, "also in its own group's row"
-    assert top.count("pin-mark") == 0 and rest.count("pin-mark") == 1, "the mark is on the copy in the group row"
-    assert re.search(r'<h2><a href="[^"]+">Bank Accounts</a></h2>', rest)
+    seen = accounts_view(client)
+    assert [c["name"] for c in seen["pinned"]] == ["ICICI"]
+    assert card_of(seen, "ICICI")["pinned"] is True and card_of(seen, "HDFC")["pinned"] is False, "also in its group"
     pin(client, first)
-    heads = re.findall(r"<h2>(?:<a [^>]*>)?([^<]+)(?:</a>)?</h2>", client.get("/accounts").text)
-    assert heads[0] == "Pinned"
+    assert [c["name"] for c in accounts_view(client)["pinned"]] == ["HDFC", "ICICI"]
 
 
 def test_a_closed_account_leaves_the_pinned_row_and_comes_back_on_reopening(client):
     account = bank(client)
     pin(client, account)
     client.post(f"/api/accounts/{account['id']}/close")
-    assert ">Pinned<" not in client.get("/accounts").text
+    assert accounts_view(client)["pinned"] == []
     client.post(f"/api/accounts/{account['id']}/reopen")
-    assert ">Pinned<" in client.get("/accounts").text
+    assert [c["name"] for c in accounts_view(client)["pinned"]] == ["HDFC"]
 
 
-def test_the_account_pages_pin_button_pins_and_unpins(client):
+def test_an_accounts_page_says_whether_it_is_pinned_and_can_be(client):
     account = bank(client)
-    page = client.get(f"/accounts/{account['id']}").text
-    assert f'hx-post="/accounts/{account["id"]}/pin"' in page and 'aria-pressed="false"' in page
-    assert "Pin to top" in page and "Unpin" not in page
-    done = client.post(f"/accounts/{account['id']}/pin")
-    assert done.headers["HX-Redirect"] == f"/accounts/{account['id']}"
-    page = client.get(f"/accounts/{account['id']}").text
-    assert f'hx-post="/accounts/{account["id"]}/unpin"' in page and 'aria-pressed="true"' in page
-    assert "pin-mark" not in page, "the button shows the state"
-    client.post(f"/accounts/{account['id']}/unpin")
-    assert 'aria-pressed="false"' in client.get(f"/accounts/{account['id']}").text
+    page = client.get(f"/api/views/accounts/{account['id']}").json()
+    assert page["can_pin"] is True and page["pinned"] is False
+    pin(client, account)
+    assert client.get(f"/api/views/accounts/{account['id']}").json()["pinned"] is True
 
 
-def test_a_group_or_a_closed_account_has_no_pin_button(client):
+def test_a_group_or_a_closed_account_cannot_be_pinned(client):
     mine = make_group(client).json()
-    assert "pin-button" not in client.get(f"/accounts/{mine['id']}").text
+    assert client.get(f"/api/views/accounts/{mine['id']}").json()["can_pin"] is False
+    assert pin(client, mine).status_code == 400
     account = bank(client)
     client.post(f"/api/accounts/{account['id']}/close")
-    assert "pin-button" not in client.get(f"/accounts/{account['id']}").text
-    refused = client.post(f"/accounts/{mine['id']}/pin")
-    assert refused.headers.get("HX-Retarget") == "#page-error"
+    assert client.get(f"/api/views/accounts/{account['id']}").json()["can_pin"] is False
 
 
-def test_a_pinned_card_carries_the_mark_on_its_groups_page_too(client):
+def test_a_pinned_card_is_marked_on_its_groups_page_too(client):
     account = bank(client)
     pin(client, account)
-    page = client.get(f"/accounts/{group(client, 'assets.bank')['id']}").text
-    assert page.count("pin-mark") == 1
+    cards = client.get(f"/api/views/accounts/{group(client, 'assets.bank')['id']}").json()["cards"]
+    assert [c["pinned"] for c in cards if c["name"] == "HDFC"] == [True]

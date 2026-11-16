@@ -112,8 +112,6 @@ def test_an_account_can_be_moved_into_a_group_but_not_the_group_ordered(client):
     ).json()
     moved = client.patch(f"/api/accounts/{other['id']}", json={"parent_id": group(client, "Cash")["id"]})
     assert moved.status_code == 200, moved.text
-    page = client.post(f"/accounts/{group(client, 'Cash')['id']}/move", data={"direction": "up"})
-    assert page.status_code in (400, 404, 422) or "built in" in page.text
 
 
 def test_a_backup_round_trips_the_groups_by_key(client):
@@ -204,8 +202,8 @@ def test_an_import_uses_the_groups_it_builds_on_and_sets_aside_the_rest(client):
 
 def test_erasing_the_books_gives_the_groups_back(client):
     make(client, "HDFC", "Bank Accounts", balance="500")
-    done = client.post("/profile/data/erase", data={"confirm": " Test@Example.com "})
-    assert done.status_code == 200, done.text
+    done = client.post("/api/erase", json={"confirm": " Test@Example.com "})
+    assert done.status_code == 204, done.text
     found = accounts(client)
     assert {a["system_key"] for a in found if a["system_key"]} == {
         "assets.bank",

@@ -11,6 +11,10 @@ describe("base.css", () => {
     expect(css).toContain("@static/fonts/anek-latin.woff2");
   });
 
+  it("draws the rupee sign from the app's own font, not the phone's", () => {
+    expect(css).toContain("U+20B9");
+  });
+
   it("turns motion off for people who ask for less", () => {
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
   });

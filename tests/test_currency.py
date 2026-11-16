@@ -74,25 +74,13 @@ def test_an_empty_currency_is_refused(client):
     assert client.patch("/api/profile/", json={"default_currency": ""}).status_code in (400, 422)
 
 
-def test_the_settings_page_changes_the_currency(client):
-    page = client.get("/settings").text
-    assert '<option value="INR" selected>' in page and '<option value="JPY"' in page
-    assert "Changing it only changes the label" in page
-    response = client.post("/settings/currency", data={"currency": "EUR"})
-    assert (
-        response.headers["HX-Redirect"].startswith("/settings") and "currency-updated" in response.headers["set-cookie"]
-    )
-    assert '<option value="EUR" selected>' in client.get("/settings").text
-    bad = client.post("/settings/currency", data={"currency": "BTC"})
-    assert bad.status_code == 400 and "unknown currency" in bad.text
-
-
-def test_amounts_wear_the_chosen_currency(client, root_accounts):
-    post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "250"})
-    assert '<span class="cur">&#8377;</span>' in client.get("/budget").text
-    client.patch("/api/profile/", json={"default_currency": "USD"})
-    page = client.get("/budget").text
-    assert '<span class="cur">&#8377;</span>' not in page and "<small>USD</small>" in page
+def test_the_currency_is_changed_through_the_profile(client):
+    assert client.get("/api/profile/").json()["default_currency"] == "INR"
+    assert {c["code"] for c in client.get("/api/profile/currencies").json()} >= {"INR", "JPY", "EUR"}
+    assert client.patch("/api/profile/", json={"default_currency": "EUR"}).status_code == 200
+    assert client.get("/api/profile/").json()["default_currency"] == "EUR"
+    bad = client.patch("/api/profile/", json={"default_currency": "BTC"})
+    assert bad.status_code in (400, 422) and client.get("/api/profile/").json()["default_currency"] == "EUR"
 
 
 # ---- how many decimals an amount may have ----------------------------------------------------------------------------
@@ -178,10 +166,3 @@ def test_extra_fields_from_older_clients_are_ignored(client, root_accounts, acco
     assert made.status_code == 201
     created = post_account(client, {"name": "Old", "parent_id": root_accounts["Assets"], "commodity": "USD"})
     assert created.status_code == 201
-
-
-def test_the_account_form_has_no_commodity_fields(client):
-    page = client.get("/accounts/new").text
-    assert 'name="commodity"' not in page and 'name="balance_value"' not in page and "Balance is worth" not in page
-    form = client.get("/transactions/new").text
-    assert 'name="value"' not in form and 'name="currency"' not in form and "row-worth" not in form
