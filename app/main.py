@@ -12,6 +12,7 @@ from . import recurring_runner
 from .caching import Compression, cache_headers_middleware
 from .config import settings
 from .flash import clear_shown_flash_middleware
+from .framing import NoFraming
 from .mcp_server import transport as mcp_transport
 from .routers import (
     accounts,
@@ -106,4 +107,5 @@ def cors_options() -> dict[str, Any]:
 
 
 app.add_middleware(CORSMiddleware, **cors_options())
+app.add_middleware(NoFraming)
 app.add_middleware(Compression, minimum_size=1000, compresslevel=5)  # outermost: it compresses what the others return

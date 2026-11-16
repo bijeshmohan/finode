@@ -312,11 +312,10 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
           }}
         />
 
-        {note && (
-          <p className={styles.personNote} data-testid="person-note" aria-live="polite">
-            {note}
-          </p>
-        )}
+        {/* Always in the page, hidden while empty: a live region that appears with its text is not read out. */}
+        <p className={styles.personNote} data-testid="person-note" aria-live="polite" hidden={!note}>
+          {note}
+        </p>
         {(problem ?? (save.isError ? messageOf(save.error) : null)) && (
           <p className={styles.error} role="alert">
             {problem ?? messageOf(save.error)}

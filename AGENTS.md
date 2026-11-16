@@ -78,6 +78,7 @@ Plan and design: `docs/superpowers/specs/2026-11-13-react-frontend-design.md`. U
 - **Amounts are strings** end to end, never `Number`; format with `lib/money.ts`, type with `AmountField`. The app's only arithmetic on money is `lib/split.ts` (big.js: what is left to allocate on the Add screen); shares and totals come from the server. **Today comes from `useToday()`** (the server's, in `FINODE_TIMEZONE`), never `new Date()`. `tests/format_cases.json` holds the React helpers and the Jinja filters to the same answers.
 - Colours from `app/static/tokens.css` only (shared with the Jinja pages); icons from `components/Icon` (`tests/test_icon_parity.py` keeps them equal to `partials/icons.html`). Styles in a CSS Module per component, taken from the matching `style.css` rule.
 - A component used by two features lives in `src/components/`; a feature's own pages, queries and parts live in `src/features/<area>/`.
+- The "+" stays in the tab bar on every screen, the Add and Edit screens included (the owner's choice, 2026-11-16; the old pages hid it with `hide_fab=True`). A form still ends in one full-width primary button with no Cancel.
 - Browser tests for the React app use the `spa_page` / `signed_in_spa_page` fixtures (`tests/browser/spa.py`: the built app and the API on one address, only Supabase stood in for); `scripts/browser-tests.sh` builds the app first.
 
 ## Removed on purpose: do not bring back without the owner asking
