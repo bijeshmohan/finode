@@ -48,8 +48,17 @@ is the repo root, because the build reads `app/static` (tokens, font, icons); `f
 only `frontend/` and `app/static/`. nginx answers every app address with `index.html` and sends it, the service worker
 and the manifest with `Cache-Control: no-cache`. Hashed `/assets/*` are kept a year (`immutable`). A missing asset is a
 404, never the page, so a tab open across a redeploy is not handed HTML as a script. Every answer carries
-`X-Content-Type-Options: nosniff` and `Referrer-Policy: same-origin`. The image holds no settings and no secrets;
-`scripts/check-web-image.sh` checks all of this. The API allows the app's origin through `FINODE_FRONTEND_ORIGIN`. The
+`X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin` and the anti-framing headers below. A script at the
+top (`sw.js`, `workbox-<hash>.js`) is a 404 when missing, as under `/assets`; compressed answers carry
+`Vary: Accept-Encoding`. The image holds no settings and no secrets. It is `nginxinc/nginx-unprivileged`, so nginx runs
+as uid 101 on port 8080. Both images are pinned by tag and digest, and `HEALTHCHECK` asks for `/`. compose.yaml runs the
+container `read_only` with `/tmp` in memory, `cap_drop: [ALL]` and `no-new-privileges`. `scripts/check-web-image.sh`
+runs it the same way and checks all of this.
+
+No other site may show finode inside a frame (clickjacking). Every answer, from the API and its pages (`app/framing.py`,
+pure ASGI so `/mcp`'s stream passes untouched) and from the `web` image, carries `X-Frame-Options: DENY` and
+`Content-Security-Policy: frame-ancestors 'none'`. `tests/test_framing.py` guards the API; the image check guards
+nginx. The API allows the app's origin through `FINODE_FRONTEND_ORIGIN`. The
 cookies stay host-only on `APP_DOMAIN`, and `SameSite=Lax` holds because both names are under one site.
 
 The app's service worker (vite-plugin-pwa, `registerType: "prompt"`) caches only the app's own files. After a redeploy

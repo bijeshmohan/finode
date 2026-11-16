@@ -7,3 +7,5 @@ frontend/node_modules/
 frontend/dist/
 frontend/**/*.log
 frontend/**/*.module.css.d.ts
+# A developer's local settings: a VITE_* value in them would be built into the app.
+frontend/.env*

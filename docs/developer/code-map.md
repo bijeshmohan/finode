@@ -27,6 +27,7 @@ Where everything lives, and where to start reading. For how the pieces fit toget
 | `clock.py` | `local_today()` and friends; never call `date.today()` |
 | `currencies.py` | the currency list with decimals and signs |
 | `templating.py`, `flash.py`, `caching.py` | Jinja environment and filters; one-shot messages; cache headers |
+| `framing.py` | `NoFraming`: every answer forbids being shown in another site's frame |
 | `limits.py`, `ratelimit.py` | per-person caps; slowing sign-in guessing |
 | `recurring_runner.py` | background loop that records due recurring transactions |
 | `version.py` | the version from `pyproject.toml` |

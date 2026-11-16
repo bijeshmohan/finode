@@ -87,7 +87,10 @@ def test_lending_from_the_add_screen_with_a_transfer(signed_in_spa_page: Page, s
     page.goto("/transactions/new")
     page.get_by_label("Amount", exact=True).fill("300")
     page.get_by_role("button", name="Transfer", exact=True).click()
-    expect(note(page)).to_have_count(0)  # nobody on it yet
+    # Nobody on it yet: the note is hidden, but its live region is already in the page, so a screen reader reads the
+    # note out when it appears (as the web keeps <p data-person-note hidden>).
+    expect(note(page)).to_be_hidden()
+    expect(note(page)).to_have_attribute("aria-live", "polite")
     choose(page, "From", "Checking")
     choose(page, "To", "Alice")
     expect(note(page)).to_have_text("Alice will owe you this. It is not spending, so your budgets stay as they are.")
