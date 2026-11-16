@@ -52,4 +52,8 @@ and the manifest with `Cache-Control: no-cache`. Hashed `/assets/*` are kept a y
 `scripts/check-web-image.sh` checks all of this. The API allows the app's origin through `FINODE_FRONTEND_ORIGIN`. The
 cookies stay host-only on `APP_DOMAIN`, and `SameSite=Lax` holds because both names are under one site.
 
+The app's service worker (vite-plugin-pwa, `registerType: "prompt"`) caches only the app's own files. After a redeploy
+it fetches the new version in the background. The new version is put in only once the page is hidden
+(`src/app/update.ts`): the page then reloads, so an open screen is never reloaded under someone typing.
+
 Tests live in `tests/`. `tests/conftest.py` builds a fresh in-memory SQLite engine per test  and overrides `get_db_session`, so tests are independent of `finode.db` and of Alembic. The session commits for real, so a service that rolls back only undoes its own unfinished work. `tests/htmlutil.py` has tiny helpers for asserting on HTML (there is no HTML parsing dependency). The migrations are tested on SQLite (the ones before `f4b6d8a0c2e5` stop at `e2a4c6e8f1b3`, because that one cannot be undone: `tests/test_migration_single_currency.py`); the single-currency one was also rehearsed on Postgres 16 with a copy of the production data. `migrations/env.py` reads `alembic.ini`'s logging with `disable_existing_loggers=False`: a migration run in the same process as the app (the tests, a script) must not silence the app's own loggers.

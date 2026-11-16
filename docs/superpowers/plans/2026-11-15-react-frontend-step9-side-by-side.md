@@ -50,7 +50,8 @@ decisions were settled by the owner on 2026-11-15:
 
    Test in Task 2.
 2. **A redeploy reaches people:**
-   - `index.html`, `sw.js`, `registerSW.js` and `manifest.webmanifest` are sent `Cache-Control: no-cache`;
+   - `index.html`, `sw.js` and `manifest.webmanifest` are sent `Cache-Control: no-cache`; `sw.js` and its `workbox-*.js`
+     are real scripts (the app registers the worker itself, so there is no `registerSW.js`);
    - hashed `/assets/*` are `public, max-age=31536000, immutable`.
 
    Test in Task 2.
@@ -160,7 +161,7 @@ decisions were settled by the owner on 2026-11-15:
   - the first `/assets/*.js` named in `index.html` → 200, `application/javascript` or `text/javascript`,
     `Cache-Control: public, max-age=31536000, immutable`;
   - `/assets/missing-0000.js` → 404 (not HTML);
-  - `/sw.js`, `/registerSW.js` and `/manifest.webmanifest` → 200 with `no-cache` (the manifest
+  - `/sw.js` and `/manifest.webmanifest` → 200 with `no-cache`; `/sw.js` and the `workbox-*.js` it names are JavaScript, not the page (the manifest
     `application/manifest+json`);
   - every answer has `X-Content-Type-Options: nosniff` and `Referrer-Policy: same-origin`;
   - `index.html` names `https://finode.bijesh.me` as the API: the build argument reached the bundle (grep the built
@@ -212,12 +213,14 @@ decisions were settled by the owner on 2026-11-15:
     origin with credentials;
   - the same with `Origin: https://evil.example` → no allow-origin;
   - `docker compose logs app` shows the recurring loop starting once and no tracebacks.
-- [ ] **Step 6: The owner signs in** at `https://app.finode.bijesh.me` on the phone (Safari) and on the computer,
-  checks that today's pages are still signed in, and adds the app to the home screen.
+- [ ] **Step 6: The owner signs in** at `https://app.finode.bijesh.me` on the phone (Safari) and on the computer, and
+  checks in that same browser that today's pages are still signed in. Then they add the app to the home screen. On iOS
+  an installed app keeps its own cookies, apart from Safari, so it asks to sign in once.
 - [ ] **Rollback, if anything is wrong:**
   - `docker tag finode:pre-trial finode:latest && docker compose up -d --no-build app`;
-  - `docker compose stop web`;
-  - remove the two `.env` lines.
+  - `docker compose rm -sf web`;
+  - remove `FINODE_FRONTEND_ORIGIN` from `.env`, and keep `WEB_DOMAIN`. This checkout's `compose.yaml` requires it for
+    every compose command, and it does nothing once `web` is gone.
 
   No database change needs undoing: the branch changes no tables.
 

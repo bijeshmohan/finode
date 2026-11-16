@@ -14,7 +14,8 @@ export default defineConfig({
     // Installable to the home screen. The service worker caches the app's own files only, never /api: finode works
     // online only and never keeps your books on the device.
     VitePWA({
-      registerType: "autoUpdate",
+      // A new version waits until the page is left (src/app/update.ts) rather than reloading an open screen.
+      registerType: "prompt",
       // Registered in main.tsx, where a failure is caught: the app works online without it.
       injectRegister: false,
       includeAssets: ["favicon.svg", "apple-touch-icon.png"],
