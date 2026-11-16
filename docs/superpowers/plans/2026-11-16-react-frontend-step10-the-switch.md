@@ -2,25 +2,37 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** The React app becomes finode's only UI.
-- The Jinja pages, `app.js`, htmx, `style.css`, the web routers and their tests go.
-- Every old page address sends the browser to the same address on the app.
+**Goal:** The React app becomes finode's only UI, at `https://finode.bijesh.me`.
+- The Jinja pages, `app.js`, htmx, `style.css`, the web routers and their tests go, with no dead code left behind.
 - `AGENTS.md` and the docs describe one UI.
 - The branch is merged and deployed on the owner's "Merge and deploy".
+- Afterwards the owner removes the `app.finode.bijesh.me` DNS record.
 
-**Architecture:**
-- `finode.bijesh.me` keeps the API, `/mcp` and `/.well-known`. Any other `GET` or `HEAD` there answers `308` to the
-  same path and query on `FINODE_FRONTEND_ORIGIN`.
-- `app.finode.bijesh.me` (the `web` container) is the UI.
+**Architecture:** one address, two containers behind Traefik (the owner's decision, 2026-11-16).
+- `finode.bijesh.me/api/…`, `/mcp` and `/.well-known/…` (and `/docs`, `/redoc`, `/openapi.json`, which only answer
+  when `FINODE_API_DOCS` is on) go to the API container (`app`).
+- Every other path on `finode.bijesh.me` goes to the React container (`web`), which answers every app address with the
+  app.
+- The app and the API share one origin, so:
+  - the app calls `/api` relatively, with no `VITE_API_URL` and no `apiUrl()`;
+  - there is no CORS;
+  - the sign-in cookies (host-only on `finode.bijesh.me`) and today's sessions carry on as they are;
+  - the assistants' `/mcp` address doesn't change;
+  - Supabase's Site URL, reset link (`/reset`) and consent path (`/oauth/consent`) already point at the right host and
+    the right app routes.
+- The check on cookie writes (`check_app_request`) keeps `X-Finode: 1` and requires `Origin` to be the request's own
+  origin (scheme and host as the proxy reports them). `FINODE_FRONTEND_ORIGIN` and `WEB_DOMAIN` go.
 - The files both UIs shared (tokens, font, icons, favicon) move into `frontend/`.
 - The formatting the API and the assistants still use (`money`, `grouping_for`, …) moves out of `templating.py` into a
   module with no Jinja.
 
-**Tech Stack:** as built: FastAPI, React, TypeScript and Vite, nginx, Docker Compose and Traefik.
+**Tech Stack:** as built: FastAPI, React, TypeScript and Vite, nginx, Docker Compose and Traefik v3.
 
 **Spec:** `docs/superpowers/specs/2026-11-13-react-frontend-design.md`, step 10: "The switch: delete the Jinja2 pages,
 `app.js`, web routers and their tests; update `AGENTS.md` (drop "No JavaScript build step", add the frontend rules) and
 `docs/`; redirect the old domain | all checks green, then "Merge and deploy"".
+- **Superseded by the owner, 2026-11-16:** the app takes the old domain itself, so there is nothing to redirect.
+- **Also superseded:** the spec's separate `app.` and `api.` hosts become one host.
 
 ## Global Constraints
 
@@ -33,19 +45,20 @@
 - **Guard tests stay as strong:** isolation, query counts, read memory, contrast, dark-token parity, backup round-trip,
   ledger edges and fuzz, API parity. Each one that read an old page or file is pointed at what replaces it, never
   dropped.
-- **The suite stays green** after every task: the old layer goes last (Task 7), once nothing depends on it.
-- **The API stays at `finode.bijesh.me`.** Assistants' connector URLs (`/mcp`), the sign-in cookies and the OAuth
-  resource metadata don't move. The spec's `api.<domain>` is left for later, if the owner wants it.
-- **Redirects:**
-  - only `GET` and `HEAD`, with path and query kept: `308`, which keeps the method;
-  - anything else at an old page address gets `404`;
-  - never for `/api`, `/mcp`, `/.well-known`, `/docs`, `/redoc` or `/openapi.json`;
-  - with `FINODE_FRONTEND_ORIGIN` empty (development, tests), `404`.
+- **The suite stays green** after every task: the old layer goes in Task 7, once nothing depends on it.
+- **No dead code:**
+  - what only the old pages used goes: routers, templates, static files, flash, web auth, Jinja helpers, CSS, `app.js`;
+  - the cross-origin machinery the one address makes needless goes too: CORS, `VITE_API_URL`, `apiUrl()`,
+    `FINODE_FRONTEND_ORIGIN` and `WEB_DOMAIN`;
+  - `vulture` (once, through `uvx`, not added) and a grep for each removed name confirm it.
+- **Cookie writes stay guarded:** `X-Finode: 1` and an `Origin` equal to the request's own origin. A request from any
+  other origin is refused, as before.
 - **Secrets, dates and tenant rules** are unchanged (`AGENTS.md`).
-- **The deploy:**
-  - only on the owner's "Merge and deploy";
-  - a verified fresh dump first;
-  - the running images tagged `finode:pre-switch` and `finode-web:pre-switch`.
+- **The deploy is the switch.**
+  - It happens only on the owner's "Merge and deploy".
+  - Before it: a verified fresh dump, the running images tagged `finode:pre-switch` and `finode-web:pre-switch`, and
+    `.env` copied.
+  - The rollback is the old images with `develop`'s compose file before the merge (Task 11).
 - **Branches:** `develop` takes the branch with a merge commit; `main` gets a PR only if the owner asks.
 - Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
@@ -53,29 +66,31 @@
 
 1. **A rule that was tested only through an old page loses its test.** Every removed test needs a ledger row naming its
    port or its cover; the reviewer samples the rows against the code.
-2. **Old addresses:**
-   - a bookmark, a home-screen icon or an emailed reset link (`/reset?token_hash=…`), and `/oauth/consent?…` while
-     Supabase still points there, reach the same screen on the app with the query intact;
-   - `/api/*` and `/mcp` answer exactly as before, with no redirect;
-   - a `POST` to an old form address gets `404`, not a redirect that re-sends a form.
+2. **The one address:**
+   - each of these reaches the right container: `/api/…`, `/mcp`, `/mcp/`, `/.well-known/oauth-protected-resource/mcp`,
+     `/`, `/login`, `/reset?token_hash=…`, `/oauth/consent?authorization_id=…`, `/accounts/<id>`;
+   - a path that merely starts with "api" or "mcp" (`/apiary`, `/mcpx`) goes to the app;
+   - the service worker never answers `/api`, `/mcp` or `/.well-known` with the app's page.
 
-   Test in Task 7.
-3. **The guards point at the right files after the move:**
+   Test in Task 7 (compose rules and the browser test server), checked live in Task 11.
+3. **Cookie writes:**
+   - with CORS gone and the origin read from the request, a write from another origin, from no origin, or without
+     `X-Finode` is still refused;
+   - behind Traefik the request's own origin reads `https://finode.bijesh.me`, not `http://…:8000`.
+
+   Test in Task 7, checked live in Task 11.
+4. **The guards point at the right files after the move:**
    - contrast and dark-token parity read `frontend/src/styles/tokens.css`;
    - icon parity becomes "`icons.json` is the one source";
    - query ceilings cover every view endpoint that had a page twin;
    - isolation still fails on an unclassified route.
 
    Test in Tasks 1 and 7.
-4. **Dead code:** helpers only the old pages used are removed; nothing the API, the views or the assistants use is.
-   `vulture` (run once with `uvx`, not added) lists candidates; each one is checked by hand.
-
-   Checked in Task 7.
-5. **The deploy:**
-   - the old pages are gone, and `finode.bijesh.me/` sends people to the app;
-   - a cookie session made on either host still works on the API;
-   - `/mcp` with a token still answers 200;
-   - the rollback (both images tagged) works.
+5. **The switch itself:**
+   - the old pages are gone and `finode.bijesh.me/` is the app;
+   - a session made before the switch still works;
+   - `/mcp` with a token answers 200;
+   - the rollback restores the old pages.
 
    Checked in Task 11.
 
@@ -87,19 +102,22 @@
 - Move to `frontend/src/styles/` and `frontend/public/`:
   - `app/static/tokens.css`;
   - `app/static/fonts/`;
-  - `favicon.svg` and `apple-touch-icon.png` (the app's `public/` copies stay, one copy each).
-- Keep the old pages working meanwhile: they read the moved files through the same `/static/...` URLs, mounted from
-  the new place, until Task 7.
-- Modify: `frontend/vite.config.ts` (drop the `@static` alias and `server.fs.allow`) and `frontend/src/main.tsx`.
-- Modify: `tests/test_contrast.py`, the dark-token parity test, `tests/test_icon_parity.py` (rename to
-  `test_icons.py`: `icons.json` is valid and every `Icon name` used in `src/` exists in it), `tests/test_motion_css.py`
-  (the reduced-motion rule in `frontend/src/styles/base.css`) and `tests/test_format_cases.py` (React and the Python
-  formatting module, not the Jinja filters).
-- Test: those guard tests, `npm run check`, the browser tests.
+  - `favicon.svg` and `apple-touch-icon.png` (one copy each).
+- Keep the old pages working until Task 7: they read the moved files through the same `/static/...` URLs, mounted
+  from the new place.
+- Modify: `frontend/vite.config.ts` (drop the `@static` alias and `server.fs.allow`), `frontend/src/main.tsx` and
+  `frontend/Dockerfile` (no more `app/static`, so the build context becomes `frontend/` with its own `.dockerignore`).
+- Modify the guards:
+  - `tests/test_contrast.py` and the dark-token parity test;
+  - `tests/test_icon_parity.py`, renamed `test_icons.py`: `icons.json` is valid and every `Icon name` used in `src/`
+    exists in it;
+  - `tests/test_motion_css.py`, which reads the reduced-motion rule in `frontend/src/styles/base.css`;
+  - `tests/test_format_cases.py`, which holds React and the Python formatting to the same answers, not the Jinja
+    filters.
+- Test: those guard tests, `npm run check`, `scripts/check-web-image.sh`, the browser tests.
 
-- [ ] **Step 1:** In each guard test, point it at the new paths. Run it. Expected: FAIL, because the files have not
-  moved.
-- [ ] **Step 2:** `git mv` the files; mount `/static` from the new folder for the old pages. Run Step 1 again.
+- [ ] **Step 1:** Point each guard test at the new paths. Run it. Expected: FAIL, because the files have not moved.
+- [ ] **Step 2:** `git mv` the files, and mount `/static` from the new folder for the old pages. Run Step 1 again.
   Expected: PASS.
 - [ ] **Step 3:** Run the whole check. Expected: green. Commit `The shared look moves into the app`.
 
@@ -126,46 +144,64 @@ The same procedure for each area:
 `test_isolation.py` and `test_query_counts.py` are handled in Task 7. A file missing from this table that calls an old
 page is found by Task 7's check and triaged there.
 
-### Task 7: The old layer goes; old addresses lead to the app
+### Task 7: The old layer goes; one address for the app and the API
 
 **Files:**
 - Delete:
-  - `app/routers/web/`, `app/templates/`, `app/static/` (what is left of it), `app/flash.py` and `app/web_auth.py`;
+  - `app/routers/web/`, `app/templates/`, `app/static/`, `app/flash.py`, `app/web_auth.py` and `app/templating.py`;
   - the web parts of `app/dependencies.py` and `app/main.py` (the `/static` mount, the `LoginRequired` handler, the
-    flash and cookie-refresh middlewares the pages used; keep any the API uses), and the static branch of
-    `app/caching.py`;
-  - `tests/htmlutil.py`, the old-page browser tests (every `tests/browser/test_*.py` that is not `test_spa_*`,
-    each with its ledger row naming the `test_spa_*` port), and the `page`/`live_server` fixtures.
-- Create:
-  - `app/formatting.py`, taking from `templating.py` what the API and the assistants use (`money`, `grouping_for`,
-    `group_digits`, `places`, `symbol`, `amount` and the date words they need), with `templating.py` deleted;
-  - `app/routers/old_addresses.py`, the redirect;
-  - `tests/test_old_addresses.py`.
+    page middlewares; keep any the API uses);
+  - the static branch of `app/caching.py`;
+  - the CORS middleware and `cors_options`;
+  - `tests/htmlutil.py`, the old-page browser tests (every `tests/browser/test_*.py` that is not `test_spa_*`, each
+    with its ledger row naming the `test_spa_*` port) and the `page`/`live_server` fixtures.
+- Create: `app/formatting.py`, taking from `templating.py` what the API and the assistants use (`money`,
+  `grouping_for`, `group_digits`, `places`, `symbol`, `amount` and the date words they need).
 - Modify:
-  - `tests/test_isolation.py`: drop the web routes and the `web_login_required` override;
-  - `tests/test_query_counts.py`: keep only `/api/views/*` in `PAGES`, with the same ceilings;
-  - `tests/conftest.py`;
-  - the MCP server's `website_url`, which becomes `settings.frontend_origin` (falling back to no link);
-  - `Dockerfile` and `.dockerignore`.
+  - `app/auth.py` (`check_app_request`: the request's own origin);
+  - `app/config.py` (drop `frontend_origin`);
+  - the MCP server's `website_url`, which becomes the request's own origin, as `/.well-known` already builds its
+    addresses;
+  - `frontend/src/api/client.ts` (no `API_URL`, no `apiUrl()`), its callers and `env.d.ts`;
+  - `frontend/vite.config.ts` (the service worker's `navigateFallbackDenylist` adds `/mcp` and `/.well-known`);
+  - `compose.yaml`;
+  - `scripts/check-web-image.sh` (no API address built in; the bundle names no other host);
+  - `.env.example`;
+  - `tests/test_isolation.py` (drop the web routes and the `web_login_required` override);
+  - `tests/test_query_counts.py` (only `/api/views/*` in `PAGES`, with the same ceilings);
+  - `tests/conftest.py`, `tests/test_api_cookie_auth.py` and `Dockerfile` with `.dockerignore`.
+- Change `compose.yaml` like this:
+  - the `app` router's rule becomes ``Host(`${APP_DOMAIN}`) && (PathPrefix(`/api/`) || Path(`/api`) || Path(`/mcp`) || PathPrefix(`/mcp/`) ||
+    PathPrefix(`/.well-known/`) || Path(`/docs`) || Path(`/redoc`) || Path(`/openapi.json`))``, with `priority: 100`;
+  - the `web` router's rule becomes ``Host(`${APP_DOMAIN}`)``, with `priority: 1`;
+  - `VITE_API_URL` and `WEB_DOMAIN` go.
 
-- [ ] **Step 1: Write `test_old_addresses.py`.** With `FINODE_FRONTEND_ORIGIN=https://app.example`:
-  - `GET /accounts?x=1` → `308`, `Location: https://app.example/accounts?x=1`;
-  - `HEAD /` → `308`;
-  - `GET /reset?token_hash=abc` → `308` to `…/reset?token_hash=abc`;
-  - `GET /oauth/consent?authorization_id=a` → `308` to the same on the app;
-  - `POST /transactions/new` → `404`;
-  - `GET /api/accounts/` → its usual answer;
-  - `GET /api/nope` → `404` JSON;
-  - `POST /mcp` with no token → `401`;
-  - `GET /.well-known/oauth-protected-resource/mcp` → `200`.
+- [ ] **Step 1: Write the failing tests:**
+  - **`tests/test_api_cookie_auth.py`:** a cookie write whose `Origin` equals the request's own origin
+    (`http://testserver`) passes. Another origin, no origin, or no `X-Finode` gets `403`. Behind a proxy that sends
+    `X-Forwarded-Proto: https` and `Host: finode.example`, `Origin: https://finode.example` passes and
+    `http://finode.example` doesn't.
+  - **`tests/test_routes.py`:** the API answers nothing outside `/api`, `/mcp`, `/.well-known` and the docs. Every
+    route of `app.routes` is under those prefixes.
+  - **`tests/test_compose_routes.py`:** load `compose.yaml` and assert the two routers' rules and priorities as above.
+    A `/apiary` path must not match the `app` rule; the rule's matcher is reproduced in the test from the rule's
+    `PathPrefix`/`Path` parts.
 
-  With the origin unset, `GET /accounts` → `404`. Run it. Expected: FAIL, because today the old pages answer.
-- [ ] **Step 2: Delete the old layer** and write `formatting.py` and the redirect, the last route registered. Run
-  Step 1 again, then the whole check. Expected: PASS and green.
-- [ ] **Step 3: Remove dead code.** `uvx vulture app --min-confidence 60`; check each candidate by hand and remove what
-  only the old pages used. Then grep `tests/` for old-page calls (`client.(get|post)("/[^a]`) and `htmlutil`.
-  Expected: none left; any left goes through the triage.
-- [ ] **Step 4: Run the whole check.** Expected: green. Commit `The old pages go; their addresses lead to the app`.
+  Run them. Expected: FAIL.
+- [ ] **Step 2: Delete the old layer and make the one address:**
+  - write `formatting.py`, the origin check and the compose rules;
+  - drop CORS, `frontend_origin`, `VITE_API_URL`, `apiUrl()` and `WEB_DOMAIN`.
+
+  Run Step 1 again, then the whole check. Expected: PASS and green.
+- [ ] **Step 3: Remove dead code:**
+  - `uvx vulture app --min-confidence 60`; check each candidate by hand and remove what only the old pages used;
+  - grep the repo for every removed name (`templating`, `flash`, `htmx`, `hx-`, `web_auth`, `frontend_origin`,
+    `FINODE_FRONTEND_ORIGIN`, `WEB_DOMAIN`, `VITE_API_URL`, `apiUrl`, `static/`);
+  - grep `tests/` for old-page calls (`client.(get|post)("/[^a]`) and for `htmlutil`.
+
+  Expected: none left outside history and plans.
+- [ ] **Step 4: Run the whole check**, `scripts/check-web-image.sh` included. Expected: green. Commit
+  `The old pages go; the app and the API share one address`.
 
 ### Task 8: One set of browser tests
 
@@ -173,11 +209,11 @@ page is found by Task 7's check and triaged there.
   - each `tests/browser/test_spa_*.py` to `test_*.py`;
   - the fixtures `spa_page` → `page`, `signed_in_spa_page` → `signed_in_page`, `spa_api` → `api`, `spa_books` →
     `books` and `spa_server` → `server`;
-  - `tests/browser/spa.py` → `server.py`.
+  - `tests/browser/spa.py` → `server.py`, which already serves the app and the API on one address, as production now
+    does.
 
   Use `git mv` and `sed`, with no other change in the same commit.
-- [ ] `scripts/browser-tests.sh` and CI: unchanged commands. Run both browsers. Expected: the same number of tests
-  passing. Commit `One set of browser tests`.
+- [ ] Run both browsers. Expected: the same number of tests passing. Commit `One set of browser tests`.
 
 ### Task 9: One UI in `AGENTS.md` and the docs
 
@@ -186,15 +222,15 @@ page is found by Task 7's check and triaged there.
     `HX-Retarget`, `partials/`, `safe_back`, `hide_fab`, `app.js` helpers);
   - keep the look rules, now for the app (tokens, phones first, rows and tiles, 16px inputs, green and red for money);
   - the Frontend section becomes the UI section;
-  - the description at the top: one UI, the React app.
+  - the description at the top: one UI, the React app, at the same address as the API.
 - [ ] **The docs:**
-  - `docs/developer/reference/ui-look.md` and `ui-pages.md` describe the app's components and pages (CSS Modules,
-    `components/`, `features/`), not the templates;
-  - also update `data-and-ops.md`, `assistants.md` (the consent screen is the app's), `people.md`, `budget.md` and
-    `ledger.md` wherever they name a template or an old route;
+  - `docs/developer/reference/ui-look.md` and `ui-pages.md` describe the app's components and pages;
+  - also update `data-and-ops.md` (Docker: the one address and the two routers; the cookie-write check), `assistants.md`
+    (the consent screen is the app's), `people.md`, `budget.md` and `ledger.md` wherever they name a template or an
+    old route;
   - `docs/index.md`'s architecture and the user guide;
-  - `code-map.md`;
-  - `README.md`: setup, the Supabase steps with the Site URL on the app, and deployment.
+  - `code-map.md` and `api.md`;
+  - `README.md`: setup, the Supabase steps and deployment.
 - [ ] Run the whole check, `test_api_doc` included. Commit `One UI in the docs`.
 
 ### Task 10: Final review and its fix pass
@@ -205,32 +241,42 @@ page is found by Task 7's check and triaged there.
 - [ ] Report to the owner:
   - every ruling and deferred minor;
   - the triage totals;
-  - the Supabase change in Task 11;
+  - what the deploy does;
   - then wait for "Merge and deploy".
 
 ### Task 11: Merge and deploy (the owner's word only)
 
-- [ ] **The owner, in Supabase (Authentication › URL Configuration):**
-  - set the Site URL to `https://app.finode.bijesh.me`;
-  - add it to the redirect URLs;
-  - keep the OAuth Server's authorization path as `/oauth/consent`, now under the app;
-  - the Reset Password template's `{{ .SiteURL }}/reset` then opens the app's reset screen.
-
-  I check with a consent request and a reset email if reset is on.
 - [ ] **Merge:**
   - `git fetch origin develop`, then merge `origin/develop` into the branch;
   - run the whole check;
-  - `git checkout develop && git merge --no-ff feature/react-frontend`, then push `develop`.
-- [ ] **Safety:** a verified fresh dump, and `docker tag finode:latest finode:pre-switch` and
-  `docker tag finode-web:latest finode-web:pre-switch`.
-- [ ] **Deploy:** `docker compose up -d --build` from `develop`.
+  - `git checkout develop && git merge --no-ff feature/react-frontend`, then push `develop`;
+  - note the `develop` commit before the merge, for the rollback.
+- [ ] **Safety:**
+  - a verified fresh dump;
+  - `docker tag finode:latest finode:pre-switch` and `docker tag finode-web:latest finode-web:pre-switch`;
+  - `.env` copied (mode 600) into the scratchpad.
+- [ ] **Deploy:**
+  - remove `FINODE_FRONTEND_ORIGIN` and `WEB_DOMAIN` from `.env`;
+  - `docker compose up -d --build`, which switches Traefik's routes;
+  - remove `finode-web-check` leftovers if any.
 - [ ] **Smoke checks:**
-  - `finode.bijesh.me/` → `308` to the app;
-  - `/login` → `308`;
+  - `finode.bijesh.me/` is the app's page;
+  - `/login` and `/reset?token_hash=x` are the app;
+  - `/api/auth/options` → `200` JSON;
   - `/mcp` → `401` without a token;
-  - `/api/auth/options` → `200`;
-  - the app signs in;
+  - `/.well-known/oauth-protected-resource/mcp` → `200`;
+  - a `POST /api/auth/sign-out` with `Origin: https://evil.example` → `403`;
+  - `app.finode.bijesh.me` no longer routes (its router is gone), so the owner can remove the record;
   - no errors in the logs.
-- [ ] **Rollback:** `docker tag finode:pre-switch finode:latest && docker tag finode-web:pre-switch finode-web:latest
-  && docker compose up -d --no-build app web`. No database change to undo.
-- [ ] Update memory and the code map. Ask the owner whether `develop` should go to `main` by PR.
+- [ ] **The owner signs in** at `https://finode.bijesh.me` (a session from before the switch should carry on). Then
+  they remove the `app.finode.bijesh.me` DNS record. A home-screen icon added from `app.finode.bijesh.me` is
+  re-added from `finode.bijesh.me`.
+- [ ] **Rollback, if needed:**
+  - check out the pre-merge `develop` commit's `compose.yaml`;
+  - restore `.env`;
+  - `docker tag finode:pre-switch finode:latest && docker tag finode-web:pre-switch finode-web:latest &&
+    docker compose up -d --no-build`.
+
+  No database change to undo.
+- [ ] Update memory. Ask the owner whether `develop` should go to `main` by PR. Delete the scratchpad `.env` copy once
+  confirmed.
