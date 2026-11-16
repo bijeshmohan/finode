@@ -3,11 +3,22 @@ pages show, worked out as the web pages work it out (services/budget_view.py).""
 
 from datetime import date
 
+import pytest
+
 from .books import post_account
 from .test_budget import account, assign
 from .test_budget import budget as api_budget
 from .test_isolation import B_USER, signed_in_as
-from .test_web_budget import THIS_MONTH, setup  # noqa: F401  # setup is a fixture
+
+THIS_MONTH = date.today().replace(day=1)
+
+
+@pytest.fixture
+def setup(client, root_accounts):
+    bank = account(client, root_accounts, "Bank", "Assets", balance="1000")
+    food = account(client, root_accounts, "Food", "Expenses")
+    rent = account(client, root_accounts, "Rent", "Expenses")
+    return {"bank": bank, "food": food, "rent": rent}
 
 
 def view(client, path="/api/views/budget", **params):
@@ -124,3 +135,58 @@ def test_strangers_and_bad_months(client, setup):
         assert "Food" not in client.get("/api/views/budget").text
     assert client.get(f"/api/views/budget/groups/{setup['rent']['id']}").status_code == 404, "not a group"
     assert view(client, month="13-2026")["month"] == THIS_MONTH.strftime("%Y-%m")
+
+
+# Ported from test_web_budget.py (the old Budgets pages), step 10.
+
+
+def test_a_groups_budget_never_goes_below_what_its_categories_add_up_to(client, setup):
+    food = setup["food"]["id"]
+    assign(client, post_account(client, {"name": "Groceries", "parent_id": food}).json(), "200")
+    assign(client, post_account(client, {"name": "Dining", "parent_id": food}).json(), "300")
+    month = f"{THIS_MONTH:%Y-%m}-01"
+
+    def group_budget(amount):
+        return client.put(f"/api/budget/groups/{food}", json={"month": month, "total": amount})
+
+    below = group_budget("499")
+    assert below.status_code == 400 and "500.00" in below.json()["detail"]
+    assert rows(view(client))["Food"]["assigned"] == "500.00", "nothing was saved"
+    assert group_budget("800").status_code == 200 and rows(view(client))["Food"]["assigned"] == "800.00"
+    assert group_budget("500").status_code == 200, "back to the minimum is fine"
+    places = group_budget("800.123")
+    assert places.status_code in (400, 422) and "INR amounts can have at most 2 decimal places" in places.text
+    assert client.put(f"/api/budget/groups/{setup['rent']['id']}", json={"month": month, "total": "5"}).status_code in (
+        400,
+        404,
+    )
+
+
+def test_only_a_category_takes_an_amount(client, setup):
+    assert client.put(f"/api/budget/categories/{setup['bank']['id']}", json={"amount": "5"}).status_code in (400, 404)
+    assert client.put(f"/api/budget/categories/{setup['food']['id']}", json={"amount": "lots"}).status_code == 422
+
+
+def test_a_card_outside_the_budget_is_added_from_the_bell_and_its_spending_counts(client, root_accounts):
+    from .test_budget import move
+
+    account(client, root_accounts, "Bank", "Assets", balance="1000")
+    card = account(client, root_accounts, "Card", "Liabilities")
+    food = account(client, root_accounts, "Food", "Expenses")
+    move(client, card, food, "75")
+    assert [a["account_id"] for a in client.get("/api/todo/").json()["left_out_accounts"]] == [card["id"]]
+    assert client.post(f"/api/budget/accounts/{card['id']}/include").status_code == 200
+    assert client.get("/api/todo/").json()["count"] == 0 and rows(view(client))["Food"]["activity"] == "75.00"
+    assert client.post(f"/api/budget/accounts/{food['id']}/include").status_code == 404, "a category is not an account"
+
+
+def test_one_overspent_category_is_not_overspending_overall_but_more_spent_than_assigned_is(client, setup):
+    from .test_budget import move
+
+    assign(client, setup["food"], "100")
+    assign(client, setup["rent"], "500")
+    move(client, setup["bank"], setup["food"], "150")
+    seen = view(client)
+    assert seen["overspent"] == "0.00" and rows(seen)["Food"]["state"] == "overspent"
+    move(client, setup["bank"], setup["food"], "600")
+    assert view(client)["overspent"] == "150.00"

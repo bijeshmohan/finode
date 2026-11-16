@@ -57,12 +57,12 @@ class Done:
         return budget(self.client, self.month)
 
 
-def press(client, route, month=None, **form):
-    """Post a budget form the way the page does (/budget/move, /budget/copy, /budget/fund)."""
-    data = {k: v for k, v in form.items() if v is not None}
+def press(client, route, month=None, **fields):
+    """Press a budget button the way the app does (/api/budget/move, /api/budget/copy)."""
+    body = {k: v for k, v in fields.items() if v is not None}
     if month is not None:
-        data["month"] = month.isoformat() if hasattr(month, "isoformat") else month
-    return Done(client, client.post(f"/budget/{route}", data=data), month)
+        body["month"] = month.isoformat() if hasattr(month, "isoformat") else month
+    return Done(client, client.post(f"/api/budget/{route}", json=body), month)
 
 
 def move_budget(client, source, target, amount, month=None):
@@ -279,7 +279,7 @@ def test_only_what_is_available_can_be_moved(client, setup):
     assert response.status_code == 400 and "only 100.00 is available" in response.text
     same = move_budget(client, setup["food"], setup["food"], "1")
     assert same.status_code == 400 and "different" in same.text
-    assert move_budget(client, setup["food"], setup["rent"], "0").status_code == 400
+    assert move_budget(client, setup["food"], setup["rent"], "0").status_code in (400, 422), "nothing to move"
 
 
 # ---- guards ----------------------------------------------------------------------------------------------

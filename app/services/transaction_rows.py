@@ -350,8 +350,9 @@ def month_list(
             if filters.narrowing
             else None
         )
+        # Everything dated ahead, however far (up to UPCOMING_LIMIT), soonest first: not only this month's.
         ahead = (
-            transactions.list(account, today + timedelta(days=1), last, UPCOMING_LIMIT, 0, q, kind, also, who, tag=tag)
+            transactions.list(account, today + timedelta(days=1), None, UPCOMING_LIMIT, 0, q, kind, also, who, tag=tag)
             if is_current and offset == 0
             else []
         )
