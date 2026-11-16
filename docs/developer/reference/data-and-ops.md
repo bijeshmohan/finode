@@ -42,4 +42,14 @@ The interactive API docs (`/docs`, `/redoc`, `/openapi.json`) are off unless `FI
 
 `Dockerfile` is multi-stage: uv resolves `uv.lock` into `/opt/venv`, and the runtime stage copies only that venv plus `app/`, `migrations/`, `alembic.ini` and `pyproject.toml` (needed for the `[tool.fastapi]` entrypoint). If a new top-level file is needed at runtime, add it to the `COPY` lines and check `.dockerignore`. `compose.yaml` targets an existing Traefik on an external network; production uses Supabase Postgres, so there is no database service. Uvicorn reads `WEB_CONCURRENCY` and `FORWARDED_ALLOW_IPS` from the environment.
 
+The React app has its own image, `frontend/Dockerfile` (the `web` service): Node builds it with `VITE_API_URL` (the
+API's address, `https://<APP_DOMAIN>`), and nginx (`frontend/nginx.conf`) serves it on `WEB_DOMAIN`. The build context
+is the repo root, because the build reads `app/static` (tokens, font, icons); `frontend/Dockerfile.dockerignore` lets in
+only `frontend/` and `app/static/`. nginx answers every app address with `index.html` and sends it, the service worker
+and the manifest with `Cache-Control: no-cache`. Hashed `/assets/*` are kept a year (`immutable`). A missing asset is a
+404, never the page, so a tab open across a redeploy is not handed HTML as a script. Every answer carries
+`X-Content-Type-Options: nosniff` and `Referrer-Policy: same-origin`. The image holds no settings and no secrets;
+`scripts/check-web-image.sh` checks all of this. The API allows the app's origin through `FINODE_FRONTEND_ORIGIN`. The
+cookies stay host-only on `APP_DOMAIN`, and `SameSite=Lax` holds because both names are under one site.
+
 Tests live in `tests/`. `tests/conftest.py` builds a fresh in-memory SQLite engine per test  and overrides `get_db_session`, so tests are independent of `finode.db` and of Alembic. The session commits for real, so a service that rolls back only undoes its own unfinished work. `tests/htmlutil.py` has tiny helpers for asserting on HTML (there is no HTML parsing dependency). The migrations are tested on SQLite (the ones before `f4b6d8a0c2e5` stop at `e2a4c6e8f1b3`, because that one cannot be undone: `tests/test_migration_single_currency.py`); the single-currency one was also rehearsed on Postgres 16 with a copy of the production data. `migrations/env.py` reads `alembic.ini`'s logging with `disable_existing_loggers=False`: a migration run in the same process as the app (the tests, a script) must not silence the app's own loggers.
