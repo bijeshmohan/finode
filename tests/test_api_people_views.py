@@ -4,7 +4,7 @@ balance all or nothing, and an entry reversed the way its kind is reversed."""
 
 from .books import category
 from .test_isolation import B_USER, signed_in_as
-from .test_web_people import bank, income_form, person  # noqa: F401  # bank is a fixture
+from .test_people_entries import bank, income_form, person, save  # noqa: F401  # bank is a fixture
 
 LOAN = {"direction": "sent", "purpose": "loan", "account_id": None}
 
@@ -114,7 +114,7 @@ def test_the_activity_reads_as_the_page(client, bank):
     lend(client, alice, bank, amount="500", description="Rent help")
     settle(client, alice, bank, amount="100")
     rent = category(client, "Rent", kind="earning")
-    assert client.post("/transactions/split", data=income_form(bank, rent, [alice])).status_code == 200
+    assert save(client, income_form(bank, rent, [alice])).status_code == 201
     client.post(
         "/api/shared-expenses/",
         params={"confirm": True},
@@ -186,7 +186,7 @@ def test_reversing_each_kind(client, bank):
     assert client.post(f"/api/contacts/{alice['id']}/entries/{expense['transaction_id']}/reverse").status_code == 204
     assert client.get(f"/api/shared-expenses/{expense['id']}").status_code == 404
     rent = category(client, "Rent", kind="earning")
-    assert client.post("/transactions/split", data=income_form(bank, rent, [alice])).status_code == 200
+    assert save(client, income_form(bank, rent, [alice])).status_code == 201
     income = next(t for t in client.get("/api/transactions/").json() if t["payee"] == "Rent, Flat 4B")
     assert client.post(f"/api/contacts/{alice['id']}/entries/{income['id']}/reverse").status_code == 204
     lent = lend(client, alice, bank, amount="50")
