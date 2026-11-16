@@ -2,7 +2,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { renderApp, SIGNED_IN } from "../../test/render";
+import { renderApp, SIGNED_IN, figureText } from "../../test/render";
 import type { AccountsView } from "./queries";
 import { accounts, card, ids } from "./fixtures";
 
@@ -20,7 +20,7 @@ describe("the Accounts page", () => {
     renderApp("/accounts", { ...SIGNED_IN, ...INR, "/api/views/accounts": [200, accounts()] });
     expect(await screen.findByRole("heading", { level: 1, name: "Accounts" })).toBeInTheDocument();
     expect(await screen.findByText("Net worth")).toBeInTheDocument();
-    expect(await screen.findByText("₹4,700.00")).toBeInTheDocument();
+    expect(await screen.findByText(figureText("₹4,700.00"))).toBeInTheDocument();
     expect(screen.getByText("3 accounts")).toBeInTheDocument();
     expect(screen.getByText("in the budget")).toBeInTheDocument();
   });

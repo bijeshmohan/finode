@@ -2,7 +2,7 @@
 // grouped (12,34,567.00 for rupees). With `groupAsTyped` the commas go in as you type (the Add screen's amount). When
 // cleaning or grouping changes the text, the cursor stays after the same digits. The value is always a string; the
 // server checks it again.
-import { useLayoutEffect, useRef } from "react";
+import { type CSSProperties, useLayoutEffect, useRef } from "react";
 
 import { type Grouping, cleanAmount, groupAmount, tidyAmount } from "../lib/amount";
 import styles from "./AmountField.module.css";
@@ -24,6 +24,13 @@ interface AmountFieldProps {
 }
 
 const KEPT = /[\d.-]/;
+
+/** The big amount is as wide as what is typed (in characters, a comma counting about half), at least "0.00", so the
+ * currency sign in front sits against the digits (app.js sets --n the same way). */
+function widthOf(text: string): CSSProperties {
+  const commas = text.split(",").length - 1;
+  return { "--n": Math.max(text.length - 0.55 * commas, 4) } as CSSProperties;
+}
 
 /** How many characters that make the amount come before `caret` in `text`. */
 function keptBefore(text: string, caret: number): number {
@@ -89,6 +96,7 @@ export function AmountField({
         ref={input}
         id={id}
         className={styles.input}
+        style={big ? widthOf(value) : undefined}
         type="text"
         inputMode="decimal"
         autoComplete="off"

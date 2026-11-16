@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { calledPaths, renderApp, SIGNED_IN } from "../../test/render";
+import { calledPaths, renderApp, SIGNED_IN, figureText } from "../../test/render";
 import { categories, category, categoryForm, ids } from "./fixtures";
 
 const INR = { "/api/profile/": [200, { default_currency: "INR" }] as [number, unknown] };
@@ -19,7 +19,7 @@ async function sent(fetch: ReturnType<typeof renderApp>["fetch"], path: string, 
 describe("the Categories page", () => {
   it("ranks the month's categories with what is inside and their share", async () => {
     renderApp("/categories", { ...SIGNED_IN, ...INR, "/api/views/categories": [200, categories()] });
-    expect(await screen.findByText("₹1,000.00")).toBeInTheDocument();
+    expect(await screen.findByText(figureText("₹1,000.00"))).toBeInTheDocument();
     expect(screen.getByText("Spent so far")).toBeInTheDocument();
     expect(screen.getByText("3 categories")).toBeInTheDocument();
     const food = screen.getByRole("link", { name: /Food/ });
@@ -55,7 +55,7 @@ describe("a category's page", () => {
     renderApp(`/categories/${ids.food}`, { ...SIGNED_IN, ...INR, [path]: [200, category()] });
     expect(await screen.findByRole("heading", { level: 1, name: "Food" })).toBeInTheDocument();
     expect(screen.getByText("Spending")).toBeInTheDocument();
-    expect(await screen.findByText("₹350.00")).toBeInTheDocument();
+    expect(await screen.findByText(figureText("₹350.00"))).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Groceries/ })).toHaveAttribute(
       "href",
       `/categories/${ids.groceries}?month=2026-11`,

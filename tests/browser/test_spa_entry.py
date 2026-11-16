@@ -365,3 +365,45 @@ def test_adding_a_category_from_the_picker(signed_in_spa_page: Page, spa_books, 
     expect(sheet).to_have_count(0)
     expect(side(page, "Spent on")).to_contain_text("Coffee")
     assert any(c["name"] == "Coffee" for c in spa_api.get("/categories/"))
+
+
+def test_the_amount_is_a_bare_figure_with_the_rupee_sign_against_it_as_on_the_web(
+    signed_in_spa_page: Page, page: Page, spa_books
+):
+    """No box and no ring around the Add screen's amount; the sign muted and right against the digits."""
+    page.goto("/transactions/new")
+    web_sign = page.locator(".total-field .currency-code").evaluate("e => getComputedStyle(e).color")
+    app = signed_in_spa_page
+    app.goto("/transactions/new")
+    field = app.get_by_label("Amount", exact=True)
+    field.focus()
+    field.fill("250")
+    look = field.evaluate(
+        "e => { const s = getComputedStyle(e); return [s.borderTopWidth, s.outlineStyle, s.boxShadow]; }"
+    )
+    assert look == ["0px", "none", "none"], look
+    sign = app.locator("main").get_by_text("₹", exact=True).first
+    assert sign.evaluate("e => getComputedStyle(e).color") == web_sign, "muted, as on the web"
+    sign_box, field_box = sign.bounding_box(), field.bounding_box()
+    assert sign_box and field_box
+    assert 0 <= field_box["x"] - (sign_box["x"] + sign_box["width"]) <= 16, "the sign sits against the digits"
+    assert field_box["width"] < 200, "the field is as wide as what is typed"
+
+
+GLYPH = """(e) => { const b = getComputedStyle(e, '::before');
+  return {content: b.content, dashed: b.borderTopStyle, mask: b.maskImage || b.webkitMaskImage, weight: getComputedStyle(e).fontWeight}; }"""
+
+
+def test_the_rows_read_as_on_the_web_a_plus_until_chosen_then_a_glyph(signed_in_spa_page: Page, spa_books):
+    page = signed_in_spa_page
+    page.goto("/transactions/new")
+    for title in ("Paid from", "Spent on"):
+        empty = side(page, title).evaluate(GLYPH)
+        assert (empty["content"], empty["dashed"]) == ('"+"', "dashed"), (title, empty)
+        assert side(page, title).locator("svg").count() == 0, "no chevron"
+    choose(page, "Paid from", "Checking")
+    choose(page, "Spent on", "Groceries")
+    account, category = side(page, "Paid from").evaluate(GLYPH), side(page, "Spent on").evaluate(GLYPH)
+    assert "M3 10l9-6" in account["mask"], "a bank for an account"
+    assert "M3 12V4h8" in category["mask"], "a tag for a category"
+    assert account["weight"] == "600"

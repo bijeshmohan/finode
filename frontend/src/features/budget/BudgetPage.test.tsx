@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { type Answers, renderApp, SIGNED_IN } from "../../test/render";
+import { type Answers, renderApp, SIGNED_IN, figureText } from "../../test/render";
 import { budget, ids, row } from "./fixtures";
 
 const INR: Answers = { "/api/profile/": [200, { default_currency: "INR" }] };
@@ -26,7 +26,7 @@ async function sent(fetch: ReturnType<typeof renderApp>["fetch"], path: string, 
 describe("the Budgets head", () => {
   it("says what is ready to assign", async () => {
     open();
-    expect(await screen.findByText("₹1,000.00")).toBeInTheDocument();
+    expect(await screen.findByText(figureText("₹1,000.00"))).toBeInTheDocument();
     expect(screen.getByText("Ready to assign")).toBeInTheDocument();
     expect(screen.getByText("Give it a job: tap a category")).toBeInTheDocument();
   });
@@ -34,7 +34,7 @@ describe("the Budgets head", () => {
   it("over-assigned shows zero and says so; zero says every rupee has a job; nothing says so", async () => {
     open(budget({ ready_to_assign: "-200.00" }));
     expect(await screen.findByText("Over-assigned by ₹200.00 · take some back from a category")).toBeInTheDocument();
-    expect(screen.getByText("₹0.00")).toBeInTheDocument();
+    expect(screen.getByText(figureText("₹0.00"))).toBeInTheDocument();
   });
 
   it("at zero every rupee has a job", async () => {
