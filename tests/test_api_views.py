@@ -380,3 +380,66 @@ def test_opening_the_form_from_an_account_or_a_category_picks_the_kind(client, r
     assert form_view(client, account=capital["id"])["kind"] == "other"
     assert form_view(client, category=expense_account["id"])["kind"] == "expense"
     assert form_view(client, account=account["id"])["kind"] == "expense"
+
+
+# Ported from test_web_dashboard.py (the old Home), step 10.
+
+
+def test_home_glance_under_budget_and_the_sum_behind_it(client, root_accounts, expense_account):
+    bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}).json()
+    client.put(f"/api/budget/categories/{expense_account['id']}", json={"amount": "400"})
+    client.post(
+        "/api/transactions/",
+        json={"payee": "Shop", "postings": [leg(expense_account, "debit", "100"), leg(bank, "credit", "100")]},
+    )
+    glance = home(client)["glance"]
+    assert (glance["carried"], glance["assigned"], glance["spent"], glance["left"]) == (
+        "0.00",
+        "400.00",
+        "100.00",
+        "300.00",
+    )
+    assert (glance["of"], glance["percent"]) == ("400.00", 25)
+
+
+def test_home_without_a_budget_says_what_was_spent(client, root_accounts, expense_account):
+    bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}).json()
+    client.post(
+        "/api/transactions/",
+        json={"payee": "Shop", "postings": [leg(expense_account, "debit", "120.50"), leg(bank, "credit", "120.50")]},
+    )
+    seen = home(client)
+    assert seen["glance"]["has_budget"] is False and seen["spent"] == "120.50"
+
+
+def test_the_steps_ignore_an_opening_balance_and_go_once_the_budget_is_used(client, root_accounts):
+    bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "100"}).json()
+    assert [(s["key"], s["done"]) for s in home(client)["steps"]] == [
+        ("account", True),
+        ("spend", False),
+        ("budget", False),
+    ]
+    food = post_account(client, {"name": "food", "parent_id": root_accounts["Expenses"]}).json()
+    client.post("/api/transactions/", json={"postings": [leg(food, "debit", "5"), leg(bank, "credit", "5")]})
+    seen = home(client)
+    assert (seen["steps_done"], seen["steps_total"]) == (2, 3) and seen["steps"][2]["hint"] == "Set aside rent and food"
+    client.put(f"/api/budget/categories/{food['id']}", json={"month": TODAY.replace(day=1).isoformat(), "amount": "50"})
+    assert home(client)["steps"] is None, "all three done: the card goes"
+
+
+def test_home_shows_another_month_and_never_a_future_one(client, root_accounts, expense_account):
+    bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}).json()
+    last = (TODAY.replace(day=1) - timedelta(days=1)).replace(day=1)
+    for when, amount in ((last, "300"), (TODAY, "100")):
+        client.post(
+            "/api/transactions/",
+            json={
+                "date": when.isoformat(),
+                "payee": "x",
+                "postings": [leg(expense_account, "debit", amount), leg(bank, "credit", amount)],
+            },
+        )
+    assert home(client)["spent"] == "100.00"
+    before = home(client, month=f"{last:%Y-%m}")
+    assert before["spent"] == "300.00" and before["is_current"] is False
+    assert home(client, month="2999-01")["month"] == MONTH, "a month that has not started opens this month"

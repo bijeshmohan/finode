@@ -1,10 +1,8 @@
 """What is coming up: entries dated ahead and the occurrences rules will record are one list; the budget is as of today."""
 
-from datetime import date, timedelta
+from datetime import date
 
 import pytest
-
-from app.clock import local_today
 
 from .books import leg, post_account
 from .test_recurring import accounts, rule  # noqa: F401  (fixtures and helpers)
@@ -163,43 +161,12 @@ def test_the_budget_is_as_of_today_and_a_later_month_counts_what_is_dated_in_the
     assert later["money_in_accounts"] == "9900.00", "by December it has happened"
 
 
-def test_the_web_page_lists_them_with_repeats_marked(client, accounts, fake_today):
+def test_the_list_counts_them_and_says_what_they_come_to(client, accounts, fake_today):
     entry(client, accounts, "2999-11-10", payee="Cab", amount="70")
+    one = client.get("/api/views/coming-up", params={"through": "2999-11-30"}).json()
+    assert one["count"] == 1
     rule(client, accounts, start_date="2999-11-12", payee="Landlord", amount="1500")
-    page = client.get("/budget/coming-up").text
-    assert "Coming up" in page and "Cab" in page and "Landlord" in page
-    assert page.count("Repeats") == 1, "only the rule is marked"
-    assert "/recurring/" in page and "back=/budget/coming-up" in page
-    assert "1,570.00" in page, "what they come to"
-
-
-def test_the_note_in_the_sum_says_how_many_and_how_much(client, accounts, fake_today):
-    assert client.get("/budget/coming-up/note").text.strip() == "", "nothing coming up, nothing said"
-    entry(client, accounts, "2999-11-10", payee="Cab", amount="70")
-    rule(client, accounts, start_date="2999-11-12", payee="Landlord", amount="1500")
-    note = client.get("/budget/coming-up/note").text
-    assert "2 payments coming up by" in note and "1,570.00" in note and 'href="/budget/coming-up"' in note
-
-
-def test_only_the_current_month_asks_for_the_note(client, accounts):
-    this_month = client.get("/budget").text
-    assert 'hx-get="/budget/coming-up/note"' in this_month and "counted up to today" in this_month
-    earlier = (local_today().replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
-    past = client.get(f"/budget?month={earlier}").text
-    assert 'hx-get="/budget/coming-up/note"' not in past and "counted up to the end of" in past
-
-
-def test_an_account_page_says_what_the_balance_will_be_after_what_is_coming_up(client, accounts):
-    tomorrow = local_today() + timedelta(days=1)
-    entry(client, accounts, tomorrow, amount="250")
-    page = client.get(f"/accounts/{accounts['bank']}").text
-    assert "9,750.00 after the 1 coming up" in page
-    nothing = client.get(f"/accounts/{accounts['rent']}")
-    assert nothing.status_code == 404 or "after the" not in nothing.text
-
-
-def test_the_count_line_agrees_with_one_payment_and_with_several(client, accounts, fake_today):
-    entry(client, accounts, "2999-11-10", payee="Cab", amount="70")
-    assert "1 payment that touches your budget accounts" in client.get("/budget/coming-up").text
-    entry(client, accounts, "2999-11-11", payee="Bus", amount="20")
-    assert "2 payments that touch your budget accounts" in client.get("/budget/coming-up").text
+    seen = client.get("/api/views/coming-up", params={"through": "2999-11-30"}).json()
+    assert (seen["count"], seen["total"]) == (2, "1570.00"), "the entry and the rule, both going out"
+    marked = {r["title"]: r["recurring_id"] is not None for d in seen["days"] for r in d["rows"]}
+    assert marked == {"Cab": False, "Landlord": True}, "only the rule repeats"

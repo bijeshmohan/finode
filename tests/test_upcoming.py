@@ -34,64 +34,53 @@ def record(client, bank, loan, payee, on):
     assert r.status_code == 201, r.text
 
 
+def view(client, path="/api/views/transactions", **params) -> dict:
+    answer = client.get(path, params=params)
+    assert answer.status_code == 200, answer.text
+    return answer.json()
+
+
 def test_home_leaves_out_what_is_dated_ahead(client, ledger):
     bank, loan = ledger
     record(client, bank, loan, "Paid already", local_today())
     record(client, bank, loan, "EMI next month", local_today() + timedelta(days=40))
-    page = client.get("/").text
-    assert "Paid already" in page and "EMI next month" not in page
+    titles = [r["title"] for r in view(client)["rows"]]  # Home lists the Transactions view's rows
+    assert "Paid already" in titles and "EMI next month" not in titles
 
 
-def test_the_transactions_page_keeps_them_in_one_collapsed_row(client, ledger):
+def test_the_transactions_list_keeps_them_apart_soonest_first(client, ledger):
     bank, loan = ledger
     record(client, bank, loan, "Paid already", local_today())
     for i, days in enumerate((40, 10, 70)):
         record(client, bank, loan, f"EMI {i}", local_today() + timedelta(days=days))
-    page = client.get("/transactions").text
-    assert "3 upcoming" in page and '<details class="upcoming"' in page and 'class="upcoming" open' not in page
-    ahead, history = page.split('<details class="upcoming"', 1)[1].split("</details>", 1)
-    assert ahead.index("EMI 1") < ahead.index("EMI 0") < ahead.index("EMI 2"), "soonest first"
-    assert "Paid already" in history and "EMI" not in history, "the main list is history only"
-    assert page.count('id="txn-sheet"') == 1
+    seen = view(client)
+    assert [u["title"] for u in seen["upcoming"]] == ["EMI 1", "EMI 0", "EMI 2"], "soonest first"
+    titles = [r["title"] for r in seen["rows"]]
+    assert "Paid already" in titles and not [t for t in titles if t.startswith("EMI")], "the list is history only"
 
 
-def test_only_upcoming_entries_still_gets_a_sheet_and_no_empty_state(client, ledger):
-    bank, loan = ledger
-    # the opening balance is an entry too: the search leaves only the one dated ahead
-    record(client, bank, loan, "EMI later", local_today() + timedelta(days=20))
-    page = client.get("/transactions?q=EMI later").text
-    assert "1 upcoming" in page and "Nothing matches" not in page and page.count('id="txn-sheet"') == 1
-    assert 'class="upcoming" open' in page, "a search opens the row so the match is visible"
-
-
-def test_a_date_range_in_the_future_lists_what_falls_in_it(client, ledger):
-    bank, loan = ledger
-    record(client, bank, loan, "EMI soon", local_today() + timedelta(days=5))
-    record(client, bank, loan, "EMI far", local_today() + timedelta(days=90))
-    start, end = local_today() + timedelta(days=1), local_today() + timedelta(days=30)
-    page = client.get(f"/transactions?date_from={start}&date_to={end}").text
-    page = (
-        page[: page.index('id="tx-filter"')] + page[page.index("</dialog>", page.index('id="tx-filter"')) :]
-    )  # the Filter sheet names every payee
-    assert "EMI soon" in page and "EMI far" not in page and "1 upcoming" in page
-
-
-def test_later_pages_have_no_upcoming_row(client, ledger):
+def test_a_search_finds_what_is_dated_ahead_too(client, ledger):
     bank, loan = ledger
     record(client, bank, loan, "EMI later", local_today() + timedelta(days=20))
-    assert '<details class="upcoming"' in client.get("/transactions").text
-    assert '<details class="upcoming"' not in client.get("/transactions/more?offset=25").text
+    seen = view(client, q="EMI later")
+    assert [u["title"] for u in seen["upcoming"]] == ["EMI later"] and seen["rows"] == []
 
 
-def test_the_header_says_what_the_schedule_comes_to(client, ledger):
+def test_later_pages_have_no_upcoming(client, ledger):
+    bank, loan = ledger
+    record(client, bank, loan, "EMI later", local_today() + timedelta(days=20))
+    assert view(client)["upcoming"] and view(client, offset=25)["upcoming"] == []
+
+
+def test_the_upcoming_total_is_what_the_schedule_comes_to(client, ledger):
     bank, loan = ledger
     for days in (10, 40):
         record(client, bank, loan, "EMI", local_today() + timedelta(days=days))
-    page = client.get("/transactions").text
-    assert "2 upcoming" in page and "200.00 in all" in page
+    seen = view(client)
+    assert len(seen["upcoming"]) == 2 and seen["upcoming_total"] == "200.00"
 
 
-def test_no_total_when_something_coming_in_is_mixed_with_what_goes_out(client, ledger, root_accounts):
+def test_no_total_when_money_in_is_mixed_with_money_out(client, ledger, root_accounts):
     bank, loan = ledger
     salary = post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]}).json()["id"]
     record(client, bank, loan, "EMI", local_today() + timedelta(days=10))
@@ -106,63 +95,25 @@ def test_no_total_when_something_coming_in_is_mixed_with_what_goes_out(client, l
             ],
         },
     )
-    page = client.get("/transactions").text
-    assert "2 upcoming" in page and "in all" not in page
-
-
-def test_a_filter_does_not_open_the_upcoming_row_while_there_is_history_to_show(client, ledger):
-    bank, loan = ledger
-    record(client, bank, loan, "Paid already", local_today())
-    record(client, bank, loan, "EMI later", local_today() + timedelta(days=20))
-    for url in ("/transactions?kind=transfer", f"/transactions?account={bank}", "/transactions?q=a"):
-        page = client.get(url).text
-        assert "1 upcoming" in page and "Paid already" in page, url
-        assert 'class="upcoming" open' not in page, f"{url}: history is showing, so the row stays closed"
-    only_ahead = client.get("/transactions?q=EMI later").text
-    assert 'class="upcoming" open' in only_ahead, "nothing else matches, so the row opens to show the match"
+    listed = view(client)
+    assert len(listed["upcoming"]) == 2 and listed["upcoming_total"] is None
+    on_bank = view(client, f"/api/views/accounts/{bank}")
+    assert on_bank["upcoming_total"] is None and {u["title"]: u["income"] for u in on_bank["upcoming"]} == {
+        "EMI": False,
+        "Pay": True,
+    }, "money coming in is marked"
 
 
 def test_an_account_page_keeps_what_is_dated_ahead_out_of_its_activity(client, ledger):
     bank, loan = ledger
     record(client, bank, loan, "Paid already", local_today())
+    assert view(client, f"/api/views/accounts/{bank}")["upcoming"] == [], "nothing ahead: no card"
     for i, days in enumerate((40, 10)):
         record(client, bank, loan, f"EMI {i}", local_today() + timedelta(days=days))
-    page = client.get(f"/accounts/{bank}").text
-    assert page.index("<h2>Transactions</h2>") < page.index('<details class="upcoming"'), (
-        "the card sits under the heading"
-    )
-    assert "Activity" not in page
-    card, activity = page.split('<details class="upcoming"', 1)[1].split("</details>", 1)
-    assert "2 upcoming" in card and "200.00 in all" in card
-    assert card.index("EMI 1") < card.index("EMI 0"), "soonest first"
-    assert "/transactions/" in card and f"?back=/accounts/{bank}" in card, "a row opens the entry and comes back here"
-    assert "Paid already" in activity and "EMI" not in activity, "the list below the card is history only"
-
-
-def test_an_account_page_with_nothing_ahead_has_no_card(client, ledger):
-    bank, loan = ledger
-    record(client, bank, loan, "Paid already", local_today())
-    assert '<details class="upcoming"' not in client.get(f"/accounts/{bank}").text
-
-
-def test_money_in_and_out_ahead_gives_no_total_on_an_account(client, ledger, root_accounts):
-    bank, loan = ledger
-    salary = post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]}).json()["id"]
-    record(client, bank, loan, "EMI", local_today() + timedelta(days=10))
-    client.post(
-        "/api/transactions/",
-        json={
-            "date": (local_today() + timedelta(days=12)).isoformat(),
-            "payee": "Pay",
-            "postings": [
-                {"account_id": bank, "side": "debit", "amount": "900"},
-                {"category_id": salary, "side": "credit", "amount": "900"},
-            ],
-        },
-    )
-    page = client.get(f"/accounts/{bank}").text
-    assert "2 upcoming" in page and "in all" not in page
-    assert "+900.00" in page, "money coming in is marked"
+    seen = view(client, f"/api/views/accounts/{bank}")
+    assert [u["title"] for u in seen["upcoming"]] == ["EMI 1", "EMI 0"] and seen["upcoming_total"] == "200.00"
+    titles = [r["title"] for r in seen["entries"]]
+    assert "Paid already" in titles and not [t for t in titles if t.startswith("EMI")], "history only"
 
 
 def test_a_category_page_only_lists_what_has_happened(client, ledger, root_accounts):
@@ -180,5 +131,4 @@ def test_a_category_page_only_lists_what_has_happened(client, ledger, root_accou
                 ],
             },
         )
-    page = client.get(f"/categories/{food}").text
-    assert "Lunch" in page and "Dinner next week" not in page and '<details class="upcoming"' not in page
+    assert [r["title"] for r in view(client, f"/api/views/categories/{food}")["entries"]] == ["Lunch"]
