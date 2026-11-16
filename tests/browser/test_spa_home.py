@@ -73,3 +73,24 @@ def test_deleting_on_home_after_show_more_leaves_no_duplicates(signed_in_spa_pag
     expect(shops).to_have_count(13)
     titles = [t.split("\n")[0] for t in shops.all_inner_texts()]
     assert len(titles) == len(set(titles)), "no entry twice"
+
+
+SIGN = """(el) => {
+  const own = getComputedStyle(el), around = getComputedStyle(el.parentElement);
+  return {ratio: parseFloat(own.fontSize) / parseFloat(around.fontSize), color: own.color, raised: own.verticalAlign};
+}"""
+
+
+def test_the_rupee_sign_sits_apart_from_the_figure_as_on_the_web_pages(
+    signed_in_spa_page: Page, page: Page, spa_books, spa_api: Api
+):
+    """Smaller, lighter and raised in front of the digits (partials/money.html `figure`, `.cur`)."""
+    shop(spa_api, spa_books, "Swiggy")
+    page.goto("/")
+    web = page.locator(".glance-figure .cur").first.evaluate(SIGN)
+    app_page = signed_in_spa_page
+    app_page.goto("/")
+    sign = app_page.locator("main").get_by_text("₹", exact=True).first
+    app = sign.evaluate(SIGN)
+    assert abs(app["ratio"] - web["ratio"]) < 0.03, (app, web)
+    assert (app["color"], app["raised"]) == (web["color"], web["raised"])

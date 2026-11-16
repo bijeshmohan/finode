@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { type Answers, renderApp, SIGNED_IN } from "../../test/render";
+import { type Answers, renderApp, SIGNED_IN, figureText } from "../../test/render";
 import { group, ids } from "./fixtures";
 
 const INR: Answers = { "/api/profile/": [200, { default_currency: "INR" }] };
@@ -12,7 +12,7 @@ describe("a group's budget page", () => {
   it("shows its glance and its categories", async () => {
     renderApp(`/budget/groups/${ids.food}?month=2026-11`, { ...SIGNED_IN, ...INR, [PATH]: [200, group()] });
     expect(await screen.findByRole("heading", { level: 1, name: "Food" })).toBeInTheDocument();
-    expect(await screen.findByText("₹500.00")).toBeInTheDocument();
+    expect(await screen.findByText(figureText("₹500.00"))).toBeInTheDocument();
     expect(screen.getByText("Spent 0.00 of 500.00")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Dining/ })).toBeInTheDocument();
     // The way back keeps the month (the tab bar's Budgets does not).

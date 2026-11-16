@@ -88,3 +88,10 @@ export function renderInApp(ui: ReactNode, answers: Answers = SIGNED_IN) {
   );
   return { router, queryClient, fetch };
 }
+
+/** A large figure (components/Figure) found by its whole text, "₹4,700.00": the rupee sign sits in an element of its
+ * own, so the text is split; this matches the innermost element holding all of it. */
+export function figureText(text: string) {
+  return (_: string, element: Element | null) =>
+    element?.textContent === text && ![...element.children].some((child) => child.textContent === text);
+}

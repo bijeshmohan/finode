@@ -223,7 +223,7 @@ export function Lines<S extends LinesState>({
               <div className={styles.rowLine}>
                 <button
                   type="button"
-                  className={styles.rowPick}
+                  className={`${styles.rowPick} ${label === null ? styles.empty : category ? styles.onCategory : styles.onAccount}`}
                   aria-labelledby={`${ids[s]} ${valueId}`}
                   onClick={() => {
                     setPicking({ side: s, index, category: false });
@@ -236,7 +236,6 @@ export function Lines<S extends LinesState>({
                     {when && <span className={styles.rowWhen}>{when}</span>}
                     {amount && <span className={styles.rowAmount}>{amount}</span>}
                   </span>
-                  <Icon name="caret" />
                 </button>
                 {r.choice !== null && (
                   <button
