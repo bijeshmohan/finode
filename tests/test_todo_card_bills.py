@@ -21,6 +21,8 @@ def card_with_bill(client, root_accounts, expense_account, due_in, amount="1250"
             "parent_id": root_accounts["Liabilities"],
             "statement_day": statement.day,
             "due_day": (today + timedelta(days=due_in)).day,
+            # In the budget, so its spending (this month from the 16th on) is no "left out" to-do of its own.
+            "on_budget": True,
         },
     ).json()
     on = (statement - timedelta(days=5)).isoformat()

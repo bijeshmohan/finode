@@ -85,6 +85,7 @@ def test_a_bill_due_soon_is_in_the_bell_and_pay_bill_opens_the_form(signed_in_sp
         parent_id=spa_books["roots"]["Liabilities"],
         statement_day=statement.day,
         due_day=(today + timedelta(days=2)).day,
+        on_budget=True,  # so its spending (this month from the 16th on) is no "left out" to-do of its own
     )
     spa_api.post(
         "/transactions/",
