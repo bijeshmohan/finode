@@ -107,7 +107,12 @@ reverse proxy, using Supabase Postgres as the database.
      prepared statements psycopg uses, and the direct `db.<ref>.supabase.co`
      host, which is IPv6-only and unreachable from Docker's default networks.
    - `FINODE_SUPABASE_URL`, `FINODE_SUPABASE_ANON_KEY`
-   - `APP_DOMAIN` — the public host name Traefik should route to the app
+   - `APP_DOMAIN` — the public host name Traefik should route to the app (the API,
+     `/mcp` for assistants, and the old pages)
+   - `WEB_DOMAIN` — the React app's host name (e.g. `app.finode.example.com`),
+     with `FINODE_FRONTEND_ORIGIN=https://<WEB_DOMAIN>` so the API lets the app
+     call it. Point an `A` record for it at the server, not proxied, as for
+     `APP_DOMAIN`; Traefik gets its certificate.
    - optionally `TRAEFIK_NETWORK` (default `proxy`), `TRAEFIK_ENTRYPOINT`
      (`websecure`), `TRAEFIK_CERTRESOLVER` (`le`) and `WEB_CONCURRENCY` (`2`)
 2. Build, migrate and start:
@@ -119,7 +124,11 @@ reverse proxy, using Supabase Postgres as the database.
    The one-off `migrate` service runs `alembic upgrade head`; the `app`
    service starts only after it succeeds. The app publishes no ports — it is
    reachable only through Traefik on the external proxy network, with secure
-   cookies enabled.
+   cookies enabled. The `web` service serves the built React app
+   (`frontend/Dockerfile`, nginx) on `WEB_DOMAIN`; it holds no settings and
+   calls the API on `APP_DOMAIN`. The sign-in cookies stay on `APP_DOMAIN`:
+   the two names are the same site, so signing in on either signs in both.
+   `scripts/check-web-image.sh` builds that image and checks what it serves.
 
 Day-to-day:
 
@@ -128,6 +137,10 @@ docker compose logs -f app            # follow application logs
 docker compose run --rm migrate       # run migrations on their own
 git pull && docker compose up -d --build   # deploy a new version
 ```
+
+To be able to go back, tag the running image first
+(`docker tag finode:latest finode:previous`); going back is then
+`docker tag finode:previous finode:latest && docker compose up -d --no-build app`.
 
 The image (see `Dockerfile`) installs dependencies from `uv.lock`, runs as an
 unprivileged user and has a health check on `/`. `.dockerignore` keeps `.env`,

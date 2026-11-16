@@ -79,7 +79,9 @@ Where everything lives, and where to start reading. For how the pieces fit toget
 |---|---|
 | `scripts/db-backup.sh` | nightly `pg_dump` in the `backup` service |
 | `scripts/browser-tests.sh` | runs the browser tests in Playwright's container |
-| `Dockerfile`, `compose.yaml` | image and the `migrate`, `app`, `backup` services |
+| `scripts/check-web-image.sh` | builds the React app's image and checks what it serves (deep links, caching, 404s, headers, no secrets) |
+| `Dockerfile`, `compose.yaml` | image and the `migrate`, `app`, `web`, `backup` services |
+| `frontend/Dockerfile`, `frontend/nginx.conf` | the React app's image (the `web` service): built with Node, served by nginx |
 | `migrations/` | Alembic (`versions/` holds one file per schema change) |
 
 ## Finding your way by task

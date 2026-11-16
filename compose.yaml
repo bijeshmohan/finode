@@ -1,7 +1,9 @@
 # finode behind the existing Traefik reverse proxy.
 #
 # Reads .env for both the app (FINODE_*) and the deployment settings below:
-#   APP_DOMAIN           public host name, e.g. finode.example.com (required)
+#   APP_DOMAIN           public host name, e.g. finode.example.com (required): the API, /mcp and the old pages
+#   WEB_DOMAIN           the React app's host name, e.g. app.finode.example.com (required); set
+#                        FINODE_FRONTEND_ORIGIN=https://<WEB_DOMAIN> too, so the API lets the app call it
 #   TRAEFIK_NETWORK      external network Traefik watches (default: proxy)
 #   TRAEFIK_ENTRYPOINT   HTTPS entrypoint (default: websecure)
 #   TRAEFIK_CERTRESOLVER ACME resolver (default: le)
@@ -45,6 +47,25 @@ services:
       traefik.http.routers.finode.tls: "true"
       traefik.http.routers.finode.tls.certresolver: ${TRAEFIK_CERTRESOLVER:-le}
       traefik.http.services.finode.loadbalancer.server.port: "8000"
+
+  # The React app (frontend/Dockerfile): static files only, no settings and no secrets. It calls the API on APP_DOMAIN.
+  web:
+    image: finode-web:latest
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_URL: https://${APP_DOMAIN:?set APP_DOMAIN in .env}
+    restart: unless-stopped
+    networks: [proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:-proxy}
+      traefik.http.routers.finode-web.rule: Host(`${WEB_DOMAIN:?set WEB_DOMAIN in .env}`)
+      traefik.http.routers.finode-web.entrypoints: ${TRAEFIK_ENTRYPOINT:-websecure}
+      traefik.http.routers.finode-web.tls: "true"
+      traefik.http.routers.finode-web.tls.certresolver: ${TRAEFIK_CERTRESOLVER:-le}
+      traefik.http.services.finode-web.loadbalancer.server.port: "80"
 
   # Nightly dump of the database into ./backups (kept BACKUP_KEEP_DAYS days,
   # default 14). Restore notes: README, "Backups".

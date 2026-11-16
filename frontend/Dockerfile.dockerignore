@@ -1,0 +1,9 @@
+# The web image's build context is the repo root (see Dockerfile): only the app and the files it shares with the old
+# pages go in, never secrets, local data or what the build makes itself.
+*
+!frontend/
+!app/static/
+frontend/node_modules/
+frontend/dist/
+frontend/**/*.log
+frontend/**/*.module.css.d.ts
