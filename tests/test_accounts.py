@@ -453,3 +453,33 @@ def test_account_register_uses_normal_side_and_sub_accounts(
 
 def test_account_register_not_found(session):
     assert services(session).accounts.register(uuid4()) is None
+
+
+# Ported from test_web_accounts.py (the old pages' form), step 10.
+
+
+def test_an_opening_balance_that_is_not_a_number_is_refused_and_nothing_is_made(client, root_accounts):
+    made = client.post("/api/accounts/", json={"name": "x", "parent_id": root_accounts["Assets"], "balance": "abc"})
+    assert made.status_code == 422
+    assert all(a["name"] != "x" for a in client.get("/api/accounts/").json())
+
+
+def test_saving_an_account_unchanged_records_nothing(client, root_accounts, account):
+    again = client.patch(
+        f"/api/accounts/{account['id']}",
+        json={"name": account["name"], "parent_id": root_accounts["Assets"], "balance": "0.00"},
+    )
+    assert again.status_code == 200, again.text
+    assert client.get("/api/transactions/").json() == []
+
+
+def test_a_new_account_is_in_the_budget_as_asked_and_by_its_kind_when_not(client, root_accounts):
+    def made(name, parent, **extra):
+        answer = client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[parent], **extra})
+        assert answer.status_code == 201, answer.text
+        return answer.json()["on_budget"]
+
+    assert made("Savings", "Assets", on_budget=True) is True
+    assert made("Fund", "Assets", on_budget=False) is False, "left out as asked"
+    assert made("Car loan", "Liabilities") is False, "a loan starts outside the budget"
+    assert made("Wallet", "Assets") is True, "nothing asked: an asset starts in"

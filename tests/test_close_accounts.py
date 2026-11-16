@@ -160,73 +160,45 @@ def test_a_running_recurring_rule_blocks_closing(client, books):
     ).json()
     refused = close(client, books["old"])
     assert refused.status_code == 409 and "Netflix" in refused.json()["detail"]
-    paused = client.post(f"/recurring/{rule['id']}/pause")
+    paused = client.post(f"/api/recurring/{rule['id']}/pause")
     assert paused.status_code == 200
     assert close(client, books["old"]).status_code == 200
 
 
 def test_reopening_brings_back_the_account_its_groups_and_what_is_inside(client, books):
     client.post(f"/api/categories/{books['food']['id']}/close")
-    reopened = client.post(f"/categories/{books['food']['id']}/reopen")
+    reopened = client.post(f"/api/categories/{books['food']['id']}/reopen")
     assert (
         reopened.status_code == 200 and client.get(f"/api/categories/{books['food']['id']}").json()["closed_on"] is None
     )
     assert client.get(f"/api/categories/{books['groceries']['id']}").json()["closed_on"] is None
-    client.post(f"/categories/{books['groceries']['id']}/reopen")
+    client.post(f"/api/categories/{books['groceries']['id']}/reopen")
     assert client.get(f"/api/categories/{books['food']['id']}").json()["closed_on"] is None, "its group opens with it"
     assert spend(client, books["hdfc"], books["groceries"]).status_code == 201
 
 
 def test_pickers_leave_closed_accounts_out_but_keep_what_an_entry_uses(client, books):
     made = client.post(
-        "/api/transactions/",
-        json={
-            "postings": [
-                leg(books["old"], "debit", "5"),
-                leg(books["hdfc"], "credit", "5"),
-            ]
-        },
+        "/api/transactions/", json={"postings": [leg(books["old"], "debit", "5"), leg(books["hdfc"], "credit", "5")]}
     ).json()
     client.post(
-        "/api/transactions/",
-        json={
-            "postings": [
-                leg(books["hdfc"], "debit", "5"),
-                leg(books["old"], "credit", "5"),
-            ]
-        },
+        "/api/transactions/", json={"postings": [leg(books["hdfc"], "debit", "5"), leg(books["old"], "credit", "5")]}
     )
     close(client, books["old"])
-    assert f'<option value="{books["old"]["id"]}"' not in client.get("/transactions/new").text
-    assert f'<option value="{books["old"]["id"]}"' in client.get(f"/transactions/{made['id']}/edit").text
+
+    def offered(**params):
+        form = client.get("/api/views/entry-form", params=params).json()
+        return {o["id"] for g in form["groups"] for o in g["options"]}
+
+    assert books["old"]["id"] not in offered(), "a new entry is not offered a closed account"
+    assert books["old"]["id"] in offered(transaction_id=made["id"]), "an entry that uses it keeps it"
 
 
-def test_the_accounts_page_tucks_closed_accounts_away(client, books):
+def test_a_closed_accounts_page_says_so_and_starts_no_entry(client, books):
     close(client, books["old"])
-    page = client.get("/accounts").text
-    assert (
-        ">Load more</button>" in page
-        and "closed account" not in page.split("<main", 1)[1].split("data-accounts", 1)[0]
-        and "closed-hidden" in page
-        and '<span class="badge">closed</span>' in page
-    )
-    detail = client.get(f"/accounts/{books['old']['id']}").text
-    assert (
-        "Reopen account" in detail
-        and "Closed on " in detail
-        and f"/transactions/new?account={books['old']['id']}" not in detail
-    )
-    open_detail = client.get(f"/accounts/{books['hdfc']['id']}").text
-    assert "Close account" in open_detail and "still holds" in open_detail
-
-
-def test_the_close_and_reopen_pages_work(client, books):
-    refused = client.post(f"/accounts/{books['hdfc']['id']}/close")
-    assert refused.status_code == 400 and refused.headers["HX-Retarget"] == "#page-error"
-    done = client.post(f"/accounts/{books['old']['id']}/close")
-    assert done.headers["HX-Redirect"] == "/accounts" and "account-closed" in done.headers["set-cookie"]
-    back = client.post(f"/accounts/{books['old']['id']}/reopen")
-    assert back.headers["HX-Redirect"] == f"/accounts/{books['old']['id']}"
+    seen = client.get(f"/api/views/accounts/{books['old']['id']}").json()
+    assert seen["closed_on"] and seen["new_transaction_url"] is None
+    assert client.get(f"/api/views/accounts/{books['hdfc']['id']}").json()["closed_on"] is None
 
 
 def test_a_closed_category_leaves_the_budget_once_it_is_empty(client, books):

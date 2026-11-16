@@ -244,3 +244,33 @@ def test_a_recurring_row_may_name_only_its_category(client, books):
         (expenses, books["groceries"]["id"]),
         (books["bank"]["id"], None),
     }
+
+
+# Ported from test_web_quick_account.py (the old Add screen's quick-add sheet), step 10: the app's quick-add uses these
+# same routes.
+
+
+def test_a_name_is_needed_and_unique_among_its_kind_ignoring_case(client, books):
+    assert client.post("/api/categories/", json={"name": "  ", "kind": "spending"}).status_code in (400, 422)
+    assert client.post("/api/categories/", json={"name": "FOOD", "kind": "spending"}).status_code == 400
+    assert client.post("/api/categories/", json={"name": "Food", "kind": "earning"}).status_code == 201, (
+        "the same name in the other kind is fine"
+    )
+
+
+def test_a_category_with_entries_can_still_gain_a_subcategory(client, books):
+    spent = client.post(
+        "/api/transactions/",
+        json={"postings": [leg(books["food"], "debit", "1"), leg(books["bank"], "credit", "1")]},
+    )
+    assert spent.status_code == 201, spent.text
+    inside = client.post(
+        "/api/categories/", json={"name": "Snacks", "kind": "spending", "parent_id": books["food"]["id"]}
+    )
+    assert inside.status_code == 201, inside.text
+
+
+def test_expenses_and_income_hold_categories_not_accounts(client, root_accounts):
+    for root in ("Expenses", "Income"):
+        refused = client.post("/api/accounts/", json={"name": "x", "parent_id": root_accounts[root]})
+        assert refused.status_code == 400 and "categor" in refused.json()["detail"], root
