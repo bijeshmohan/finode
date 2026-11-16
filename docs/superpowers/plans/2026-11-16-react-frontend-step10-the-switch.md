@@ -26,6 +26,11 @@
 - The formatting the API and the assistants still use (`money`, `grouping_for`, …) moves out of `templating.py` into a
   module with no Jinja.
 
+**Later (the owner, 2026-11-16):** this single-host setup is for now. Once things are stable, the frontend and the
+backend move to separate machines. That needs no code change as long as one proxy in front keeps one address and
+routes by path, as Traefik does here. Only separate hostnames would bring back CORS and a cross-origin cookie check
+(step 1's code, in git history).
+
 **Tech Stack:** as built: FastAPI, React, TypeScript and Vite, nginx, Docker Compose and Traefik v3.
 
 **Spec:** `docs/superpowers/specs/2026-11-13-react-frontend-design.md`, step 10: "The switch: delete the Jinja2 pages,
