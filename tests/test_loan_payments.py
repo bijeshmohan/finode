@@ -101,38 +101,33 @@ def test_a_split_emi_counts_both_parts(client, books):
     )
 
 
-def test_the_edit_page_has_no_usual_category(client, books):
-    page = client.get(f"/accounts/{books['loan']['id']}/edit").text
-    assert "Usual category" not in page and 'name="payment_category"' not in page and "Part of the budget" in page
-    saved = client.post(
-        f"/accounts/{books['loan']['id']}/edit",
-        data={"name": "Home Loan", "budget_choice": "1", "payment_category": books["emi"]["id"]},
-    )
-    assert saved.status_code == 200 and saved.headers["HX-Redirect"].startswith("/accounts/")
+def test_the_account_form_has_no_usual_category(client, books):
+    form = client.get("/api/views/account-form", params={"account_id": books["loan"]["id"]}).json()
+    assert not [k for k in form if "payment" in k or "usual" in k], "a removed feature stays removed"
 
 
 # ---- the Categories page sees them too ---------------------------------------------------------------------------------
 
 
-def test_the_categories_page_and_the_category_page_count_payments_into_the_loan(client, books):
+def test_the_categories_and_a_categorys_page_count_payments_into_the_loan(client, books):
     move(client, books["bank"], books["loan"], "15000", category=books["emi"])
-    move(
-        client, books["loan"], books["interest"], "900"
-    )  # interest charged by the lender: spending on Interest, not a payment
-    page = client.get("/categories").text
-    assert "15,000.00" in page and "15,900.00" in page, "EMI 15,000 and Interest 900 make 15,900"
-    emi = client.get(f"/categories/{books['emi']['id']}").text
-    assert "15,000.00" in emi and emi.count('class="tx"') == 1, "the payment is listed under the category"
-    assert "Home Loan" in emi
+    move(client, books["loan"], books["interest"], "900")  # interest charged by the lender: spending, not a payment
+    seen = client.get("/api/views/categories").json()
+    assert seen["grand"] == "15900.00", "EMI 15,000 and Interest 900"
+    totals = {r["name"]: r["total"] for r in seen["rows"]}
+    assert (totals["EMI"], totals["Interest"]) == ("15000.00", "900.00")
+    emi = client.get(f"/api/views/categories/{books['emi']['id']}").json()
+    assert emi["total"] == "15000.00" and [r["amount"] for r in emi["entries"]] == ["15000.00"]
+    assert "Home Loan" in emi["entries"][0]["title"], "the row names the loan"
 
 
 def test_payments_into_a_loan_count_in_a_group_of_categories(client, books, root_accounts):
     debts = account(client, root_accounts, "Debts", "Expenses")
     sub = post_account(client, {"name": "Car EMI", "parent_id": debts["id"]}).json()
     move(client, books["bank"], books["loan"], "7000", category=sub)
-    assert "7,000.00" in client.get("/categories").text
-    assert "7,000.00" in client.get(f"/categories/{debts['id']}").text, "the group's figure"
-    assert client.get(f"/categories/{sub['id']}").text.count('class="tx"') == 1, "listed on the category itself"
+    assert {r["name"]: r["total"] for r in client.get("/api/views/categories").json()["rows"]}["Debts"] == "7000.00"
+    assert client.get(f"/api/views/categories/{debts['id']}").json()["total"] == "7000.00", "the group's figure"
+    assert len(client.get(f"/api/views/categories/{sub['id']}").json()["entries"]) == 1, "listed on the category"
 
 
 def test_every_report_speaks_the_same_language_about_what_an_emi_spent(client, books, svc):
@@ -152,8 +147,8 @@ def test_every_report_speaks_the_same_language_about_what_an_emi_spent(client, b
     assert str(summary.spent) == "15900.00", "what the budget calls spending"
     assert str(summary.expenses) == "900.00" and str(summary.net_income) == "-900.00", "the books: only the interest"
     assert str(breakdown.total) == "15900.00" and [l.account for l in breakdown.lines] == ["EMI", "Interest"]
-    categories = " ".join(client.get("/categories").text.split())
-    assert "15,000.00" in categories and "900.00" in categories
+    totals = {r["name"]: r["total"] for r in client.get("/api/views/categories").json()["rows"]}
+    assert (totals["EMI"], totals["Interest"]) == ("15000.00", "900.00"), "the Categories page counts them alike"
 
 
 def test_without_a_label_no_report_counts_the_emi(client, books, svc):
