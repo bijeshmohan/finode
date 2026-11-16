@@ -286,10 +286,3 @@ def test_recurring_occurrences_balance(client, root_accounts, account, expense_a
     client.get("/api/recurring/")
     result = trial(client)
     assert result["balanced"] and result["debit"] != "0.00", result
-
-
-def test_the_edit_page_shows_no_history(client, account, expense_account):
-    made = post(client, account, expense_account, "10", payee="Shop")
-    client.patch(f"/api/transactions/{made['id']}", json={"payee": "Market"})
-    page = client.get(f"/transactions/{made['id']}/edit").text
-    assert "History" not in page and "history" not in page

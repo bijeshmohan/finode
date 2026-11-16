@@ -1,11 +1,8 @@
 """The payee chips on the Add screen: the people you pay most, names only. They never choose an account or a category."""
 
-import re
-
 import pytest
 
 from .books import leg, post_account
-from .htmlutil import option_selected
 
 
 @pytest.fixture
@@ -39,8 +36,10 @@ def pay(client, payee, source, target, amount="10"):
 
 
 def chips(client, payee=""):
-    html = client.get("/transactions/suggest", params={"payee": payee}).text
-    return re.findall(r'<button type="button" class="chip" data-suggest data-payee="([^"]*)">', html)
+    """The names the Add screen offers under the payee field for what is typed."""
+    found = client.get("/api/transactions/payee-suggestions", params={"payee": payee})
+    assert found.status_code == 200, found.text
+    return found.json()["names"]
 
 
 def test_nothing_to_suggest_without_history(client, books):
@@ -51,15 +50,6 @@ def test_nothing_is_suggested_until_something_is_typed(client, books):
     pay(client, "Swiggy", books["hdfc"], books["delivery"])
     assert chips(client) == [] and chips(client, "   ") == []
     assert chips(client, "sw") == ["Swiggy"]
-
-
-def test_a_chip_is_a_name_and_nothing_else(client, books):
-    pay(client, "Swiggy", books["hdfc"], books["delivery"])
-    pay(client, "Swiggy", books["card"], books["delivery"])
-    assert chips(client, "s") == ["Swiggy"], "once, even though it was paid twice"
-    html = client.get("/transactions/suggest", params={"payee": "s"}).text
-    for leftover in ("data-from", "data-to", "data-suggest-kind", "data-exact", "data-amount", "title="):
-        assert leftover not in html, leftover
 
 
 def test_often_paid_people_come_first_and_typing_narrows(client, books):
@@ -91,51 +81,22 @@ def test_only_six_chips_are_offered(client, books):
     assert len(chips(client, "shop")) == 6
 
 
-def test_the_chips_are_html_escaped(client, books):
-    pay(client, '<b>x</b> "q"', books["hdfc"], books["delivery"])
-    html = client.get("/transactions/suggest", params={"payee": "x"}).text
-    assert "<b>x</b>" not in html and "&lt;b&gt;" in html
-
-
-def test_the_add_page_asks_for_chips_as_you_type_not_on_load_and_edit_offers_only_people(client, books):
-    pay(client, "Swiggy", books["hdfc"], books["delivery"])
-    page = client.get("/transactions/new").text
-    assert 'id="payee-chips"' in page and 'hx-get="/transactions/suggest"' in page
-    assert "load," not in page.split('id="payee-chips"')[1].split(">")[0], (
-        "nothing is asked for before the person types"
-    )
-    transaction_id = client.get("/api/transactions/").json()[0]["id"]
-    edit = client.get(f"/transactions/{transaction_id}/edit").text
-    assert 'hx-get="/transactions/suggest?only=people"' in edit, "editing offers people after an @, never payee names"
-    assert client.get("/transactions/suggest", params={"payee": "sw", "only": "people"}).text.strip() == ""
-
-
 def test_the_form_starts_with_no_account_chosen_however_often_you_pay_from_one(client, books):
     for _ in range(3):
         pay(client, "A", books["card"], books["delivery"])
     pay(client, "B", books["hdfc"], books["groceries"])
-    page = client.get("/transactions/new").text
-    assert not option_selected(page, books["card"]["id"])
-    assert not option_selected(page, books["hdfc"]["id"])
-    assert not option_selected(page, books["delivery"]["id"])
-
-
-def test_opening_the_form_from_an_account_keeps_that_account(client, books):
-    pay(client, "A", books["card"], books["delivery"])
-    page = client.get("/transactions/new", params={"account": books["hdfc"]["id"]}).text
-    assert option_selected(page, books["hdfc"]["id"])
-    assert not option_selected(page, books["card"]["id"])
+    blank = client.get("/api/views/entry-form").json()
+    assert [r["choice"] for r in blank["from_rows"] + blank["to_rows"]] == [None, None], "nothing is pre-filled"
 
 
 # ---- the same chips through the JSON API (the finode app) ------------------------------------------------------------
 
 
-def test_api_payee_suggestions_match_the_chips(client, books):
+def test_api_payee_suggestions_are_names_and_people(client, books):
     for payee in ("Swiggy", "Swiggy", "Swiggy Instamart", "Zepto"):
         pay(client, payee, books["hdfc"], books["delivery"])
     found = client.get("/api/transactions/payee-suggestions", params={"payee": "swi"}).json()
     assert found == {"names": ["Swiggy", "Swiggy Instamart"], "people": []}
-    assert found["names"] == chips(client, "swi")
 
 
 def test_api_suggests_people_after_an_at(client, books):

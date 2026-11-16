@@ -119,8 +119,10 @@ def test_each_occurrence_is_linked_and_marked(client, accounts, session):
     created = rule(client, accounts, start_date="2026-01-01")
     row = transactions(session)[0]
     assert str(row.recurring_id) == created["id"] and row.recurring_date == date(2026, 1, 1)
-    page = client.get("/transactions").text
-    assert "Recurring" in page and "Landlord" in page
+    [listed] = [
+        r for r in client.get("/api/views/transactions", params={"month": "2026-01"}).json()["rows"] if r["recurring"]
+    ]
+    assert listed["title"] == "Landlord", "the list marks it as recurring"
     api = next(t for t in client.get("/api/transactions/").json() if t["created_via"] == "recurring")
     assert api["recurring_id"] == created["id"]
 
@@ -135,14 +137,14 @@ def test_the_end_date_stops_it(client, accounts, session):
 def test_pausing_stops_it_and_resuming_skips_what_was_missed(client, accounts, session):
     created = rule(client, accounts, start_date="2999-01-01", frequency="daily")
     recurring_id = created["id"]
-    assert client.post(f"/recurring/{recurring_id}/pause").status_code == 200
+    assert client.post(f"/api/recurring/{recurring_id}/pause").status_code == 200
     assert client.get(f"/api/recurring/{recurring_id}").json()["active"] is False
     # pretend it was due a month ago while paused
     session.exec(RecurringTransaction.__table__.update().values(next_date=date(2026, 1, 1)))
     session.commit()
     client.get("/api/recurring/")
     assert transactions(session) == [], "paused: nothing recorded"
-    assert client.post(f"/recurring/{recurring_id}/resume").status_code == 200
+    assert client.post(f"/api/recurring/{recurring_id}/resume").status_code == 200
     resumed = client.get(f"/api/recurring/{recurring_id}").json()
     assert resumed["active"] is True and resumed["next_date"] >= str(date.today())
     assert all(r.date >= date.today() for r in transactions(session)), "nothing recorded for the paused days"
@@ -150,8 +152,8 @@ def test_pausing_stops_it_and_resuming_skips_what_was_missed(client, accounts, s
 
 def test_resuming_an_ended_rule_explains(client, accounts):
     created = rule(client, accounts, start_date="2026-01-15", end_date="2026-02-20")
-    response = client.post(f"/recurring/{created['id']}/resume")
-    assert response.status_code == 400 and "ended" in response.text
+    response = client.post(f"/api/recurring/{created['id']}/resume")
+    assert response.status_code == 400 and "ended" in response.json()["detail"]
 
 
 def test_editing_carries_on_after_what_was_recorded(client, accounts, session):
@@ -285,7 +287,7 @@ def test_a_failing_user_does_not_stop_the_run(client, accounts, session, monkeyp
 
 
 def test_trouble_recording_what_is_due_never_stops_a_page_and_is_logged(client, accounts, monkeypatch, caplog):
-    """Home, Transactions and the Recurring page record what has fallen due as they open: a problem there is written to
+    """Home, Transactions and the Recurring views record what has fallen due as they open: a problem there is written to
     the log, not shown."""
     from app.services.recurring import RecurringService
 
@@ -294,94 +296,66 @@ def test_trouble_recording_what_is_due_never_stops_a_page_and_is_logged(client, 
 
     monkeypatch.setattr(RecurringService, "process_due", boom)
     with caplog.at_level("ERROR", logger="finode.recurring"):
-        assert client.get("/").status_code == 200
-        assert client.get("/transactions").status_code == 200
-        assert client.get("/recurring").status_code == 200
+        assert client.get("/api/views/home").status_code == 200
+        assert client.get("/api/views/transactions").status_code == 200
+        assert client.get("/api/views/recurring").status_code == 200
     assert len([r for r in caplog.records if r.exc_info and "boom" in str(r.exc_info[1])]) == 3
 
 
-# ---- the pages -----------------------------------------------------------------------------------
+# ---- the views and the form ---------------------------------------------------------------------------
 
 
-def test_the_list_page_shows_rules_and_an_empty_state(client, accounts):
-    assert "Nothing on repeat yet." in client.get("/recurring").text
+def test_the_list_shows_rules_and_is_empty_without_any(client, accounts):
+    assert client.get("/api/views/recurring").json() == {"live": [], "stopped": []}
     rule(client, accounts, start_date="2999-01-01")
-    page = client.get("/recurring").text
-    assert "Landlord" in page and "Every month · next " in page and "Rent" not in page
-    assert 'href="/recurring/new"' in page
-
-
-def test_settings_and_transactions_pages_link_to_it(client):
-    assert 'href="/recurring"' in client.get("/settings").text
-
-
-def form(accounts, amount="1500", **extra):
-    """What the page posts: a row on each side, like the transaction form."""
-    return {
-        "account": [accounts["rent"], accounts["bank"]],
-        "side": ["debit", "credit"],
-        "amount": [amount, amount],
-        "frequency": "monthly",
-        "every": "1",
-        "start": "2999-01-01",
-        **extra,
-    }
-
-
-def test_creating_through_the_form(client, accounts, session):
-    page = client.get("/recurring/new")
-    assert page.status_code == 200 and 'name="frequency"' in page.text and 'name="start"' in page.text
-    assert 'name="total"' in page.text and 'data-rows="credit"' in page.text and 'data-rows="debit"' in page.text
-    response = client.post("/recurring", data=form(accounts, payee="Landlord"))
-    assert client.get("/api/recurring/").json()[0]["from_account_id"] == accounts["bank"], (
-        "one on each side stays a plain rule"
-    )
-    assert response.headers["HX-Redirect"] == "/recurring" and "recurring-saved" in response.headers["set-cookie"]
-    assert "Landlord" in client.get("/recurring").text
+    [row] = client.get("/api/views/recurring").json()["live"]
+    assert (row["title"], row["schedule"], row["status"]) == ("Landlord", "Every month", "active")
 
 
 def test_the_form_reports_mistakes(client, accounts):
-    def post(**data):
-        response = client.post("/recurring", data={**form(accounts, "5"), **data})
-        assert response.status_code == 400 and response.headers["HX-Retarget"] == "#form-error"
-        return response.text
+    from .test_api_recurring_form import form, plain, row
 
-    assert "where the money comes from" in post(account=[accounts["rent"], ""], amount=["5", ""])
-    assert "whole number" in post(every="x")
-    assert "start date" in post(start="")
-    assert "not a valid date" in post(end="31/12")
-    assert "end date cannot be before" in post(end="2998-01-01")
-    assert "balance" in post(amount=["5", "6"]).lower()
+    def refused(body):
+        answer = client.post("/api/recurring/form", json=body)
+        assert answer.status_code in (400, 422), answer.text
+        return answer.text
+
+    assert "every" in refused(form(plain(accounts), every="x")).lower()
+    assert "start" in refused(form(plain(accounts), start_date=None)).lower()
+    assert "date" in refused(form(plain(accounts), end_date="31/12")).lower()
+    assert "end date cannot be before" in refused(form(plain(accounts), end_date="2998-01-01"))
+    unbalanced = [row(accounts["bank"], "credit", "5"), row(accounts["rent"], "debit", "6")]
+    assert "balance" in refused(form(unbalanced)).lower()
+    assert client.get("/api/recurring/").json() == [], "nothing is saved"
 
 
-def test_editing_pausing_and_deleting_through_the_pages(client, accounts):
+def test_editing_pausing_and_deleting(client, accounts):
+    from .test_api_recurring_form import form, plain
+
     created = rule(client, accounts, start_date="2999-01-01")
     recurring_id = created["id"]
-    edit = client.get(f"/recurring/{recurring_id}/edit")
-    assert edit.status_code == 200 and "Landlord" in edit.text and "Pause" in edit.text
-    saved = client.post(
-        f"/recurring/{recurring_id}/edit", data=form(accounts, "1600", frequency="weekly", every="2", payee="Landlord")
+    saved = client.put(
+        f"/api/recurring/{recurring_id}/form", json=form(plain(accounts, "1600"), frequency="weekly", every=2)
     )
-    assert saved.headers["HX-Redirect"] == "/recurring"
-    assert "Every 2 weeks" in client.get("/recurring").text
-    client.post(f"/recurring/{recurring_id}/pause")
-    page = client.get("/recurring").text
-    assert "paused" in page and "Paused</h3>" in page
-    assert "Resume" in client.get(f"/recurring/{recurring_id}/edit").text
-    client.post(f"/recurring/{recurring_id}/resume")
-    assert client.post(f"/recurring/{recurring_id}/delete").headers["HX-Redirect"] == "/recurring"
-    assert client.get(f"/recurring/{recurring_id}/edit").status_code == 404
+    assert saved.status_code == 200, saved.text
+    assert client.get("/api/views/recurring").json()["live"][0]["schedule"] == "Every 2 weeks"
+    client.post(f"/api/recurring/{recurring_id}/pause")
+    [paused] = client.get("/api/views/recurring").json()["stopped"]
+    assert paused["status"] == "paused"
+    client.post(f"/api/recurring/{recurring_id}/resume")
+    assert client.delete(f"/api/recurring/{recurring_id}").status_code == 204
+    assert client.get("/api/views/recurring-form", params={"recurring_id": recurring_id}).status_code == 404
     missing = "00000000-0000-4000-8000-0000000000aa"
-    for action in ("pause", "resume", "delete"):
-        assert client.post(f"/recurring/{missing}/{action}", data={}).status_code == 404
-    assert client.post(f"/recurring/{missing}/edit", data=form(accounts, "1")).status_code == 404
+    for action in ("pause", "resume", "skip"):
+        assert client.post(f"/api/recurring/{missing}/{action}").status_code == 404, action
+    assert client.put(f"/api/recurring/{missing}/form", json=form(plain(accounts, "1"))).status_code == 404
 
 
-def test_opening_the_dashboard_catches_up(client, accounts, session):
+def test_opening_home_catches_up(client, accounts, session):
     rule(client, accounts, start_date="2999-01-01", frequency="daily")
     session.exec(RecurringTransaction.__table__.update().values(next_date=date.today()))
     session.commit()
-    assert client.get("/").status_code == 200
+    assert client.get("/api/views/home").status_code == 200
     assert len(transactions(session)) == 1
 
 
@@ -487,38 +461,6 @@ def test_deleting_a_split_rule_removes_its_rows(client, split_accounts, session)
     assert session.exec(RecurringPosting.__table__.select()).all() == []
 
 
-def test_the_form_saves_a_split_and_shows_it_again(client, split_accounts):
-    a = split_accounts
-    response = client.post(
-        "/recurring",
-        data={
-            "account": [a["rent"], a["Water"], a["bank"]],
-            "side": ["debit", "debit", "credit"],
-            "amount": ["1000", "200", "1200"],
-            "frequency": "monthly",
-            "every": "1",
-            "start": "2999-01-01",
-            "payee": "Landlord",
-        },
-    )
-    assert response.headers["HX-Redirect"] == "/recurring", response.text
-    [stored] = client.get("/api/recurring/").json()
-    assert stored["from_account_id"] is None and len(stored["postings"]) == 3
-    listing = client.get("/recurring").text
-    assert "Landlord" in listing and "1,200.00" in listing
-    page = client.get(f"/recurring/{stored['id']}/edit").text
-    debit = page[page.index('data-rows="debit"') :]
-    assert page.count('class="txn-row"') >= 3 and 'value="1200.00"' in page and "data-touched" in debit
-    assert 'value="1000.00"' in page and 'value="200.00"' in page
-
-
-def test_the_edit_page_shows_a_plain_rule_as_one_row_each_side(client, accounts):
-    created = rule(client, accounts, start_date="2999-01-01")
-    page = client.get(f"/recurring/{created['id']}/edit").text
-    credit = page[page.index('data-rows="credit"') : page.index('data-rows="debit"')]
-    assert credit.count('class="txn-row"') == 1 and 'value="1500.00"' in page
-
-
 def test_assistants_see_split_rules(session, client, split_accounts):
     import asyncio
 
@@ -533,15 +475,3 @@ def test_assistants_see_split_rules(session, client, split_accounts):
     [item] = asyncio.run(go())
     assert "from" not in item and len(item["postings"]) == 3
     assert {p["side"] for p in item["postings"]} == {"debit", "credit"} and item["postings"][0]["account"]
-
-
-def test_the_recurring_form_has_the_kind_buttons(client, accounts):
-    new = client.get("/recurring/new").text
-    assert 'name="kind" value="expense"' in new and ">Transfer</button>" in new
-    created = rule(client, accounts, start_date="2999-01-01")
-    assert 'name="kind" value="expense"' in client.get(f"/recurring/{created['id']}/edit").text
-
-
-def test_the_past_start_hint_is_hidden_until_the_start_is_past(client):
-    page = client.get("/recurring/new").text
-    assert "data-past-hint hidden" in page, "a new rule starts today: nothing to warn about"

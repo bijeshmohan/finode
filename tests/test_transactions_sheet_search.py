@@ -1,12 +1,8 @@
 """Searching and filtering the transactions list, the details sheet that opens from a row, and "add again"."""
 
-import re
-from datetime import date
-
 import pytest
 
 from .books import leg, post_account
-from .htmlutil import option_selected
 
 
 @pytest.fixture
@@ -52,17 +48,18 @@ def ledger(client, books):
     }
 
 
-def titles(html):
-    return re.findall(r'<span class="tx-title-text">([^<]*)</span>', html)
+def titles(found: dict) -> list[str]:
+    return [r["title"] for r in found["rows"]]
 
 
-def page(client, **params):
-    response = client.get("/transactions", params=params)
+def page(client, **params) -> dict:
+    """The Transactions view of this month (where the ledger's entries are dated)."""
+    response = client.get("/api/views/transactions", params=params)
     assert response.status_code == 200, response.text
-    return response.text
+    return response.json()
 
 
-# ---- search ---------------------------------------------------------------------------------------------------
+# ---- search (the views take `q`) -----------------------------------------------------------------------------------
 
 
 def test_search_finds_a_payee_a_note_or_an_account(client, books, ledger):
@@ -70,11 +67,7 @@ def test_search_finds_a_payee_a_note_or_an_account(client, books, ledger):
     assert titles(page(client, q="WEEKLY")) == ["DMart"], "the note"
     assert set(titles(page(client, q="groceries"))) == {"DMart"}, "the name of an account used"
     assert set(titles(page(client, q="regalia"))) == {"Swiggy", "Card payment"}
-
-
-def test_search_that_finds_nothing_says_so(client, books, ledger):
-    html = page(client, q="zzz")
-    assert titles(html) == [] and "Nothing matches." in html and "Show everything" in html
+    assert titles(page(client, q="zzz")) == [], "nothing found is an empty list"
 
 
 def test_search_treats_percent_and_underscore_as_plain_text(client, books, ledger):
@@ -83,24 +76,19 @@ def test_search_treats_percent_and_underscore_as_plain_text(client, books, ledge
     assert titles(page(client, q="_")) == []
 
 
-def test_search_box_keeps_what_was_typed(client, books, ledger):
-    assert 'name="q" value="swig"' in page(client, q="swig")
+# ---- the kind ------------------------------------------------------------------------------------------------------
 
 
-# ---- the kind chips --------------------------------------------------------------------------------------------
-
-
-def test_chips_filter_by_what_kind_of_entry_it_is(client, books, ledger):
+def test_the_kind_filters_by_what_kind_of_entry_it_is(client, books, ledger):
     assert set(titles(page(client, kind="expense"))) == {"Swiggy", "DMart"}
     assert titles(page(client, kind="income")) == ["Employer"]
     assert set(titles(page(client, kind="transfer"))) == {"Card payment", "Opening balance"}
-    assert len(titles(page(client))) == 5, "All shows everything"
-    assert len(titles(page(client, kind="nonsense"))) == 5, "an unknown chip is ignored"
-
-
-def test_search_and_kind_combine_and_page(client, books, ledger):
-    assert titles(page(client, kind="expense", q="swig")) == ["Swiggy"]
-    assert titles(page(client, kind="income", q="swig")) == []
+    assert len(titles(page(client))) == 5, "no kind: everything"
+    assert len(titles(page(client, kind="nonsense"))) == 5, "an unknown kind is ignored"
+    assert (
+        titles(page(client, kind="expense", q="swig")) == ["Swiggy"]
+        and titles(page(client, kind="income", q="swig")) == []
+    )
 
 
 # ---- the Filter sheet: account, category, merchant ------------------------------------------------------------
@@ -115,76 +103,36 @@ def test_the_category_and_the_merchant_narrow_the_list_together_with_the_account
 
 
 def test_a_filter_says_how_many_match_and_what_they_come_to(client, books, ledger):
-    html = page(client, category=books["groceries"]["id"])
-    assert "<b>1</b> transaction" in html and "1,286.00 spent" in html
-    assert "All transactions" not in page(client) and "transactions ·" not in page(client), "no filter: a plain count"
-    income = page(client, category=books["salary"]["id"])
-    assert "earned" in income
+    summary = page(client, category=books["groceries"]["id"])["summary"]
+    assert (summary["count"], summary["total"], summary["word"]) == (1, "1286.00", "spent")
+    assert page(client)["summary"] is None, "no filter: no summary"
+    assert page(client, category=books["salary"]["id"])["summary"]["word"] == "earned"
 
 
-def test_each_filter_shows_its_value_with_a_way_to_remove_it(client, books, ledger):
-    html = page(client, category=books["groceries"]["id"], merchant="DMart")
-    applied = html[html.index('class="tx-applied"') :].split("</p>")[0]
-    assert "Groceries" in applied and "DMart" in applied and "Filter · 2" in html
-    removal = re.findall(r'href="([^"]*)"', applied)
-    assert any("merchant" not in h and "category" in h for h in removal) and any(
-        "category" not in h and "merchant" in h for h in removal
-    )
-
-
-def test_the_sheet_lists_the_choices(client, books, ledger):
-    html = page(client)
-    start = html.index('id="tx-filter"')
-    sheet = html[start : html.index("</dialog>", start)]
-    assert 'data-filter-list="account"' in sheet and "HDFC" in sheet and "Regalia Gold" in sheet
-    assert 'data-filter-list="category"' in sheet and "Groceries" in sheet and "Salary" in sheet
-    assert 'data-filter-list="merchant"' in sheet and "Swiggy" in sheet and "DMart" in sheet
-    accounts = sheet[sheet.index('data-filter-list="account"') : sheet.index('data-filter-list="category"')]
-    assert "Groceries" not in accounts, "categories are not accounts here"
+def test_each_filter_is_listed_with_its_value(client, books, ledger):
+    applied = page(client, category=books["groceries"]["id"], merchant="DMart")["applied"]
+    assert {(a["key"], a["name"]) for a in applied} == {("category", "Groceries"), ("merchant", "DMart")}
 
 
 # ---- the details sheet ----------------------------------------------------------------------------------------
 
 
-def sheet(client, tx):
-    response = client.get(f"/transactions/{tx['id']}/sheet")
+def sheet(client, tx) -> dict:
+    response = client.get(f"/api/views/transactions/{tx['id']}")
     assert response.status_code == 200, response.text
-    return response.text
+    return response.json()
 
 
-def flat(html):
-    return " ".join(re.sub(r"<[^>]+>", " ", html).split())
-
-
-def test_the_sheet_shows_the_entry(client, books, ledger):
-    text = flat(sheet(client, ledger["swiggy"]))
-    assert "Swiggy" in text and "597.00" in text and "−597.00" not in text, "an ordinary expense has no minus"
-    assert "Paid from Regalia Gold" in text and "Spent on Delivery" in text
-    assert "Note" not in text and "Added" not in text, "no empty note row, and nothing about who the app or API is"
-    assert "weekly shop" in flat(sheet(client, ledger["dmart"])) and "Note weekly shop" in flat(
-        sheet(client, ledger["dmart"])
-    )
-
-
-def test_a_date_is_not_said_twice(client, books, ledger):
-    from app.clock import local_today
-
-    day = local_today().strftime("%d %b %Y")
-    text = flat(sheet(client, ledger["swiggy"]))  # dated today and recorded today
-    assert text.count(day) == 1 and "Today · " + day in text
-
-
-def test_the_labels_follow_the_kind(client, books, ledger):
-    assert "Earned from Salary Paid into HDFC" in flat(sheet(client, ledger["pay"]))
-    assert "+5,000.00" in flat(sheet(client, ledger["pay"]))
-    move = flat(sheet(client, ledger["move"]))
-    assert "From HDFC To Regalia Gold" in move
-
-
-def test_the_note_is_shown_and_escaped(client, books):
-    tx = post(client, "Shop", books["groceries"], books["cash"], comment="<b>hi</b>")
-    html = sheet(client, tx)
-    assert "<b>hi</b>" not in html and "&lt;b&gt;hi" in html
+def test_the_sheet_shows_the_entry_and_labels_its_sides_by_kind(client, books, ledger):
+    swiggy = sheet(client, ledger["swiggy"])
+    assert (swiggy["row"]["title"], swiggy["row"]["amount"], swiggy["row"]["kind"]) == ("Swiggy", "597.00", "expense")
+    assert (swiggy["from_label"], swiggy["to_label"]) == ("Paid from", "Spent on")
+    assert [line["name"] for line in swiggy["from_lines"]] == ["Regalia Gold"] and swiggy["comment"] is None
+    assert sheet(client, ledger["dmart"])["comment"] == "weekly shop"
+    pay = sheet(client, ledger["pay"])
+    assert (pay["from_label"], pay["to_label"], pay["row"]["kind"]) == ("Earned from", "Paid into", "income")
+    move = sheet(client, ledger["move"])
+    assert (move["from_label"], move["to_label"]) == ("From", "To")
 
 
 def test_a_split_lists_every_account_with_its_amount(client, books):
@@ -199,44 +147,15 @@ def test_a_split_lists_every_account_with_its_amount(client, books):
             ],
         },
     ).json()
-    text = flat(sheet(client, tx))
-    assert "Groceries 600.00" in text and "Delivery 300.00" in text and "900.00" in text and "−900.00" not in text
-
-
-def test_the_sheet_offers_edit_add_again_and_delete(client, books, ledger):
-    html = sheet(client, ledger["dmart"])
-    assert f'href="/transactions/{ledger["dmart"]["id"]}/edit"' in html
-    assert f'href="/transactions/new?repeat={ledger["dmart"]["id"]}"' in html
-    assert f'hx-post="/transactions/{ledger["dmart"]["id"]}/delete"' in html and "hx-confirm" in html, (
-        "deleting is for good, so it asks first"
-    )
-
-
-def test_a_missing_entry_has_no_sheet(client, books, ledger):
-    assert client.get("/transactions/00000000-0000-4000-8000-0000000000aa/sheet").status_code == 404
-
-
-def test_rows_open_the_sheet_and_fall_back_to_the_edit_page(client, books, ledger):
-    html = page(client)
-    transaction_id = ledger["swiggy"]["id"]
-    assert (
-        f'href="/transactions/{transaction_id}/edit" hx-get="/transactions/{transaction_id}/sheet" hx-target="#txn-sheet-body"'
-        in html
-    )
-    assert html.count('<dialog id="txn-sheet"') == 1
-    assert 'id="txn-sheet"' in client.get("/").text, "Home's recent rows open it too"
+    seen = sheet(client, tx)
+    assert sorted((line["name"], line["amount"]) for line in seen["to_lines"]) == [
+        ("Delivery", "300.00"),
+        ("Groceries", "600.00"),
+    ]
+    assert [(line["name"], line["amount"]) for line in seen["from_lines"]] == [("HDFC", "900.00")]
 
 
 # ---- add again ------------------------------------------------------------------------------------------------
-
-
-def test_add_again_copies_the_entry_for_today(client, books, ledger):
-    html = client.get("/transactions/new", params={"repeat": ledger["dmart"]["id"]}).text
-    assert 'value="1286.00"' in html and 'value="DMart"' in html and 'value="weekly shop"' in html
-    assert f'name="date" value="{date.today().isoformat()}"' in html
-    assert option_selected(html, books["hdfc"]["id"])
-    assert option_selected(html, books["groceries"]["id"])
-    assert 'name="kind" value="expense"' in html
 
 
 def test_add_again_keeps_every_row_of_a_split(client, books):
@@ -251,88 +170,24 @@ def test_add_again_keeps_every_row_of_a_split(client, books):
             ],
         },
     ).json()
-    html = client.get("/transactions/new", params={"repeat": tx["id"]}).text
-    assert (
-        html.count('name="side" value="debit"') >= 2
-        and 'value="600.00"' in html
-        and 'value="300.00"' in html
-        and 'value="900.00"' in html
-    )
+    again = client.get("/api/views/entry-form", params={"repeat": tx["id"]}).json()
+    assert sorted(r["amount"] for r in again["to_rows"]) == ["300.00", "600.00"]
+    assert [r["choice"] for r in again["from_rows"]] == [books["hdfc"]["id"]] and again["total"] == "900.00"
 
 
-def test_add_again_of_a_missing_entry(client, books):
-    assert client.get("/transactions/new", params={"repeat": "00000000-0000-4000-8000-0000000000aa"}).status_code == 404
-
-
-def test_only_an_assistant_or_a_rule_is_named_above_the_buttons(client, session, books, ledger):
+def test_only_an_assistant_or_a_rule_is_named(client, session, books, ledger):
     from uuid import UUID
 
     from app.models.transaction import Transaction
 
-    html = sheet(client, ledger["swiggy"])
-    assert "sheet-by" not in html, "an entry made through the API says nothing about who added it"
+    assert sheet(client, ledger["swiggy"])["added_by"] is None, "an entry made through the API says nothing"
     made = session.get(Transaction, UUID(ledger["swiggy"]["id"]))
     made.created_via = "mcp:Claude"
     session.add(made)
     session.commit()
-    html = sheet(client, ledger["swiggy"])
-    assert "Added by Claude" in flat(html) and html.index("sheet-by") < html.index("sheet-actions")
+    assert sheet(client, ledger["swiggy"])["added_by"] == "Claude"
     made.created_via = "recurring"
     session.add(made)
     session.commit()
-    html = sheet(client, ledger["swiggy"])
-    assert 'href="/recurring"' in html and "Recurring" in flat(html) and "Added by" not in flat(html)
-
-
-def test_the_sheet_leads_like_the_row_and_offers_words_not_glyphs(client, books, ledger):
-    entry = client.post(
-        "/api/transactions/",
-        json={
-            "postings": [
-                leg(books["groceries"], "debit", "70"),
-                leg(books["cash"], "credit", "70"),
-            ]
-        },
-    ).json()
-    sheet = client.get(f"/transactions/{entry['id']}/sheet").text
-    assert "No payee" not in sheet and "<h2>Groceries</h2>" in sheet, (
-        "the title is where the money went, as in the list"
-    )
-    links = sheet.split('class="sheet-links"', 1)[1]
-    assert ">Repeat</a>" in links and ">Related</a>" in links and "Delete" in links and "circ-button" not in sheet
-    assert 'class="tx tx-system"' in page(client), "an opening balance is the quiet kind of row"
-
-
-def test_edit_from_a_filtered_list_returns_to_that_list(client, books, ledger):
-    here = f"/transactions?category={books['groceries']['id']}&merchant=DMart"
-    header = {"HX-Current-URL": f"http://testserver{here}"}
-    html = client.get(f"/transactions/{ledger['dmart']['id']}/sheet", headers=header).text
-    from urllib.parse import quote
-
-    wanted = quote(here, safe="/")
-    assert f'href="/transactions/{ledger["dmart"]["id"]}/edit?back={wanted}"' in html
-    assert (
-        f"/transactions/new?repeat={ledger['dmart']['id']}&amp;back={wanted}" in html
-        or f"repeat={ledger['dmart']['id']}&back={wanted}" in html
-    )
-    saved = client.post(
-        f"/transactions/{ledger['dmart']['id']}/edit",
-        data={
-            "account": [books["groceries"]["id"], books["hdfc"]["id"]],
-            "side": ["debit", "credit"],
-            "amount": ["1286", "1286"],
-            "date": "2026-11-01",
-            "back": here,
-        },
-    )
-    assert saved.status_code == 200 and saved.headers["HX-Redirect"] == here, "the filter is still there after saving"
-    home = client.get(
-        f"/transactions/{ledger['dmart']['id']}/sheet", headers={"HX-Current-URL": "http://testserver/?month=2026-10"}
-    ).text
-    assert f"edit?back={quote('/?month=2026-10', safe='/')}" in home, "Home brings you back to Home"
-    plain = client.get(f"/transactions/{ledger['dmart']['id']}/sheet").text
-    assert f'href="/transactions/{ledger["dmart"]["id"]}/edit"' in plain, "no page to return to: the default"
-    elsewhere = client.get(
-        f"/transactions/{ledger['dmart']['id']}/sheet", headers={"HX-Current-URL": "http://x/api/accounts"}
-    ).text
-    assert "/api" not in elsewhere.split("edit")[1][:40], "never back to a path outside the pages"
+    seen = sheet(client, ledger["swiggy"])
+    assert seen["row"]["recurring"] is True and seen["added_by"] is None

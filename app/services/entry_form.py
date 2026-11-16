@@ -93,11 +93,13 @@ def new_start(
         again = transactions.read(repeat)
         if again is None:
             raise LookupError("transaction not found")
+        # A repeat is a new entry dated today: no line keeps the old entry's posting day.
+        lines = [p.model_copy(update={"posted_on": None}) for p in again.postings]
         return EntryStart(
-            kind=infer_kind(again.postings, roots),
-            total=sum((p.amount for p in again.postings if p.side == PostingSide.DEBIT), Decimal(0)),
-            from_rows=form_rows(again.postings, PostingSide.CREDIT, roots=roots),
-            to_rows=form_rows(again.postings, PostingSide.DEBIT, roots=roots),
+            kind=infer_kind(lines, roots),
+            total=sum((p.amount for p in lines if p.side == PostingSide.DEBIT), Decimal(0)),
+            from_rows=form_rows(lines, PostingSide.CREDIT, roots=roots),
+            to_rows=form_rows(lines, PostingSide.DEBIT, roots=roots),
             payee=again.payee or "",
             comment=again.comment or "",
             tags=list(again.tags or []),
