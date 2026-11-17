@@ -40,7 +40,7 @@ filterwarnings = [
 [tool.ruff]
 line-length = 120
 target-version = "py314"
-extend-exclude = ["app/static", "backups"]
+extend-exclude = ["backups"]
 
 [tool.ruff.lint]
 select = [
@@ -123,7 +123,6 @@ bad-argument-type = "ignore"
 [tool.coverage.run]
 source = ["app"]
 branch = true
-omit = ["app/static/*"]
 
 [tool.coverage.report]
 show_missing = true

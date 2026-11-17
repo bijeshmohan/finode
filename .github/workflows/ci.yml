@@ -83,3 +83,4 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: docker build -t finode .
+      - run: docker build -t finode-web frontend

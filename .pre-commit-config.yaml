@@ -6,9 +6,9 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: ^(app/static/htmx\.min\.js|docs/guide/img/)
+        exclude: ^docs/guide/img/
       - id: end-of-file-fixer
-        exclude: ^(app/static/htmx\.min\.js|docs/guide/img/|app/static/fonts/)
+        exclude: ^(docs/guide/img/|frontend/src/styles/fonts/)
       - id: check-yaml
       - id: check-toml
       - id: check-merge-conflict

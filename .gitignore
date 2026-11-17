@@ -105,4 +105,5 @@ tests/browser/failures/
 # The React app (frontend/)
 frontend/node_modules/
 frontend/dist/
+frontend/*.tsbuildinfo
 frontend/src/**/*.module.css.d.ts
