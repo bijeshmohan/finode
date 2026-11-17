@@ -22,6 +22,7 @@ import { positive, sameAmount } from "../../lib/split";
 import { EntrySheet } from "./EntrySheet";
 import styles from "./People.module.css";
 import { type PersonAction, type PersonView, usePerson, usePersonAction } from "./queries";
+import { useTabTitle } from "../../app/title";
 
 const SAID = {
   archived: "Person archived. Their history stays.",
@@ -119,6 +120,7 @@ export function PersonPage() {
   const [error, setError] = useState<string | null>(null);
   const [opened, setOpened] = useState<{ id: string; title: string } | null>(null);
   const view = query.data;
+  useTabTitle(view?.name);
   if (query.isError) return <LoadError error={query.error} onRetry={() => void query.refetch()} />;
   if (!view) return <h1 className="sr-only">Person</h1>;
   const money = (value: string) => formatMoney(value, grouping);

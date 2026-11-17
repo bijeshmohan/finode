@@ -23,6 +23,7 @@ import look from "../../components/Page.module.css";
 import styles from "./Accounts.module.css";
 import { CardBill } from "./CardBill";
 import { type AccountView, useAccount, useAccountAction } from "./queries";
+import { useTabTitle } from "../../app/title";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -137,6 +138,7 @@ export function AccountPage() {
   const [error, setError] = useState<string | null>(null);
   const [openId, openEntry, closeEntry] = useOpenEntry();
   useNewEntryHere(pages.data?.pages[0]?.new_transaction_url ?? null);
+  useTabTitle(pages.data?.pages[0]?.name);
 
   if (pages.isError) return <LoadError error={pages.error} onRetry={() => void pages.refetch()} />;
   const loaded = pages.data?.pages ?? [];
