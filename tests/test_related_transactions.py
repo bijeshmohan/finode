@@ -115,11 +115,11 @@ def test_the_backup_and_the_service_see_the_links(session, client, account, expe
 def test_only_the_related_entry_carries_a_pill_with_the_originals_date_and_amount(client, account, expense_account):
     first = make(client, expense_account, account, "1000", "Amazon", on="2026-10-12")
     second = make(client, account, expense_account, "300", "Amazon refund", on="2026-10-20", related_id=first["id"])
-    for url in ("/transactions?month=2026-10", f"/accounts/{account['id']}"):
-        page = client.get(url).text
-        assert page.count('class="tx-pill"') == 1, url
-        marked = [r for r in page.split("<li>") if "tx-pill" in r]
-        assert len(marked) == 1 and "Amazon refund" in marked[0], url
-        assert "12 Oct" in marked[0] and "1,000.00" in marked[0], url
-        assert f"/transactions/{first['id']}/sheet" in marked[0], "the pill opens the original, the row its own"
-        assert f"/transactions/{second['id']}/sheet" in marked[0]
+    lists = {
+        "transactions": client.get("/api/views/transactions", params={"month": "2026-10"}).json()["rows"],
+        "account": client.get(f"/api/views/accounts/{account['id']}").json()["entries"],
+    }
+    for name, rows in lists.items():
+        marked = [r for r in rows if r["related"]]
+        assert [r["id"] for r in marked] == [second["id"]], name
+        assert marked[0]["related"] == {"id": first["id"], "date": "2026-10-12", "amount": "1000.00"}, name

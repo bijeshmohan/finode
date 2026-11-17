@@ -1,4 +1,4 @@
-// The parts the sign-in forms are made of, in the look of the web pages' forms (label, .error, .login-notice, .switch).
+// The parts the sign-in forms are made of.
 import type { ReactNode } from "react";
 import type { UseFormRegisterReturn } from "react-hook-form";
 
@@ -9,7 +9,7 @@ interface TextFieldProps {
   registration: UseFormRegisterReturn;
   type?: "email" | "password" | "text";
   autoComplete: string;
-  /** The field the screen starts in, as the web pages do. */
+  /** The field the screen starts in. */
   startHere?: boolean;
   error?: string | undefined;
 }
@@ -29,7 +29,7 @@ export function TextField({
         className={styles.input}
         type={type}
         autoComplete={autoComplete}
-        // The first field of a sign-in screen, as on the web pages.
+        // The first field of a sign-in screen.
         // eslint-disable-next-line jsx-a11y-x/no-autofocus
         autoFocus={startHere}
         aria-invalid={error ? true : undefined}

@@ -1,4 +1,4 @@
-// Home (dashboard.html): the month's budget at a glance, a new person's first steps, and the month's entries, a few
+// Home: the month's budget at a glance, a new person's first steps, and the month's entries, a few
 // first and "Show more" for the rest. The month and an open entry live in the address.
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";

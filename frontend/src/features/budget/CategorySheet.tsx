@@ -1,4 +1,4 @@
-// One category in the sheet over the budget (partials/budget_sheet.html): what is left, what is assigned this month,
+// One category in the sheet over the budget: what is left, what is assigned this month,
 // what was spent, Save, and Move money.
 import { useId, useState } from "react";
 import { Link } from "react-router";
@@ -65,7 +65,7 @@ export function CategorySheet({ row, month, monthName, onClose }: SheetProps) {
           onChange={setAmount}
           places={places}
           grouping={grouping}
-          // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the sheet is opened to set this amount, as on the web page
+          // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the sheet is opened to set this amount
           autoFocus
         />
         {assign.isError && (

@@ -1,4 +1,4 @@
-// Choosing an account, a category or a person: our own sheet (app.js "Choosing an account or a category"), the same on
+// Choosing an account, a category or a person: our own sheet, the same on
 // iOS and Android. The groups are headed by their type; a search lists the matches with their group under each name;
 // each shows its balance; the chosen one is bold and the other side's choice is greyed.
 import { useState } from "react";

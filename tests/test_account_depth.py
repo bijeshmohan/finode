@@ -101,10 +101,10 @@ def test_a_restore_refuses_a_third_level_and_ignores_old_limits(client: TestClie
 def test_parent_pickers_leave_out_accounts_that_cannot_hold_more(client: TestClient, root_accounts):
     food = _make(client, "Food", root_accounts["Expenses"]).json()
     groceries = _make(client, "Groceries", food["id"]).json()
-    for url in ("/categories/new", "/accounts/quick?hint=Expenses"):
-        text = client.get(url).text
-        assert f'value="{food["id"]}"' in text
-        assert f'value="{groceries["id"]}"' not in text
+    groups = {g["id"] for g in client.get("/api/views/category-form").json()["groups"]}
+    pickers = {g["id"] for g in client.get("/api/views/entry-form").json()["category_parents"]}
+    for offered in (groups, pickers):
+        assert food["id"] in offered and groceries["id"] not in offered
 
 
 def test_a_category_offers_subcategories_only_where_there_is_room(client: TestClient, root_accounts):

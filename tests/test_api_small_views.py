@@ -1,5 +1,5 @@
 """/api/views/todo, /api/views/coming-up and /api/views/recurring: what the to-do bell's sheet, the Coming up list and
-the Recurring list show in the finode app, worked out as the web pages work it out (services/coming_up_view.py,
+the Recurring list show in the finode app, worked out by services/coming_up_view.py,
 services/recurring_view.py), and the bell's one fix with no route of its own before: giving a payment a category."""
 
 from datetime import date
@@ -161,7 +161,7 @@ def test_the_recurring_view(client, split_accounts, session):
         "active",
     )
     assert live[later["id"]]["schedule"] == "Every month" and live[later["id"]]["next_date"] == "2999-01-01"
-    assert live[nameless["id"]]["title"] == "Expenses › Rent", "no payee: the To name, as the web page reads it"
+    assert live[nameless["id"]]["title"] == "Expenses › Rent", "no payee: the To name"
     assert live[split["id"]]["amount"] == "1200.00", "a split: what leaves"
     assert live[failing["id"]]["status"] == "error"
     assert live[failing["id"]]["last_error"] == "Bank can no longer be posted to"

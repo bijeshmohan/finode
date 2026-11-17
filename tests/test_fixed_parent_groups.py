@@ -1,4 +1,4 @@
-"""The built-in groups on the web: Accounts page headings with a round +, the form starting as the group says, no menu."""
+"""The built-in groups: Accounts page headings with a round +, the form starting as the group says, no menu."""
 
 import pytest
 

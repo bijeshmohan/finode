@@ -1,4 +1,4 @@
-"""/api/entries: what the finode app's Add screen saves. It records exactly what the web form records."""
+"""/api/entries: what the finode app's Add screen saves."""
 
 from decimal import Decimal
 
@@ -30,28 +30,17 @@ def lines(client, transaction_id):
     return sorted((p["account_id"], p["side"], Decimal(p["amount"]), p["category_id"]) for p in found["postings"])
 
 
-def test_an_entry_on_a_category_posts_as_the_web_form_does(client, root_accounts):
+def test_an_entry_on_a_category_posts_on_expenses_with_the_category(client, root_accounts):
     bank, food, _ = made(client, root_accounts)
     saved = client.post("/api/entries", json=entry(bank, food, payee="Swiggy"))
     assert saved.status_code == 201, saved.text
     assert saved.json()["recorded"] == "transaction"
-    web = client.post(
-        "/transactions/split",
-        data={
-            "account": [bank["id"], food["id"]],
-            "side": ["credit", "debit"],
-            "amount": ["30", "30"],
-            "kind": "expense",
-            "payee": "Swiggy",
-        },
+    assert lines(client, saved.json()["transaction_id"]) == sorted(
+        [
+            (bank["id"], "credit", Decimal("30"), None),
+            (root_accounts["Expenses"], "debit", Decimal("30"), food["id"]),
+        ]
     )
-    assert web.status_code == 200, web.text
-    web_id = next(
-        t["id"]
-        for t in client.get("/api/transactions/").json()
-        if t["payee"] == "Swiggy" and t["id"] != saved.json()["transaction_id"]
-    )
-    assert lines(client, saved.json()["transaction_id"]) == lines(client, web_id)
 
 
 def test_a_transfer_to_a_person_is_a_loan(client, root_accounts):

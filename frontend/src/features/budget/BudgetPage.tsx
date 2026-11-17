@@ -1,4 +1,4 @@
-// The Budgets page (budget.html, budget_body.html): Ready to assign with the sum behind it, Copy last month's amounts,
+// The Budgets page: Ready to assign with the sum behind it, Copy last month's amounts,
 // a first-time welcome, the overspent warning, and the month's categories biggest budget first, each opening the sheet
 // where its amount is set (a group opens its own page). Whole groups with nothing in them wait behind "Show".
 import { useState } from "react";

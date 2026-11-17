@@ -1,5 +1,5 @@
 // Who owes whom, the amount and since when: the opening balance's fields, on the person form and the opening balance
-// form (person_form.html, person_opening.html).
+// form.
 import { useGrouping, usePlaces } from "../../app/currency";
 import { AmountField } from "../../components/AmountField";
 import form from "../../components/Forms.module.css";

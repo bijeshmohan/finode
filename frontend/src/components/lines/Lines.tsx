@@ -1,4 +1,4 @@
-// The Add screen's rows (txn_rows.html), shared with the recurring form: what kind of entry, the amount, and where the
+// The Add screen's rows, shared with the recurring form: what kind of entry, the amount, and where the
 // money came from and went (rows on each side, chosen in our own picker, each with its own amount and, where `dated`,
 // its posting day from its settings), with "＋ New" to make an account or a category on the way. The server decides
 // what the choices record (services/entry.py, services/recurring_form.py); this part only collects them.
@@ -74,8 +74,7 @@ function categoryGroups(groups: PickGroup[]): PickGroup[] {
   return groups.filter((g) => g.title === "Expenses" || g.title === "Income");
 }
 
-/** What "＋ New" makes on a side: a category where the side lists categories, else an account under its first root
- * (app.js suggestedRoot). */
+/** What "＋ New" makes on a side: a category where the side lists categories, else an account under its first root. */
 function quickKind(kind: Kind, side: Side): QuickKind {
   const root = KINDS[kind][side].roots?.[0] ?? (side === "debit" ? "Expenses" : "Assets");
   if (root === "Expenses") return { what: "category", kind: "spending" };

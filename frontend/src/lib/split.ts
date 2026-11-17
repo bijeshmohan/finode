@@ -62,7 +62,7 @@ function more(text: string): Big | null {
   return value?.gt(0) ? value : null;
 }
 
-/** What a transfer with a person does, in the web's words (app.js, noteForPeople). `owes` is what they owe you (a
+/** What a transfer with a person does. `owes` is what they owe you (a
  * negative one: what you owe them); `toThem` is money going to them. The amount is the row's, else the total's. Money
  * from someone who owes you pays that back first, and money to someone you owe does the same; only the rest is a new
  * loan or borrowing, which is not income or spending. */

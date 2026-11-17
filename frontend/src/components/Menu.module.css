@@ -1,4 +1,4 @@
-/* details.menu and details.note-info of app/static/style.css: the "…" menu of an account's or a category's page, and the
+/* details.menu and details.note-info: the "…" menu of an account's or a category's page, and the
    "i" beside its name that opens its description. They share the place under the title. */
 .holder {
   position: static;

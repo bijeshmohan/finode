@@ -1,4 +1,4 @@
-/* The picker sheet of app/static/style.css (.pick-sheet): a search, the groups, each option's name and balance. */
+/* The picker sheet (.pick-sheet): a search, the groups, each option's name and balance. */
 .search {
   width: 100%;
   min-height: var(--tap);

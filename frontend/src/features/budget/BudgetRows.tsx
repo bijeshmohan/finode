@@ -1,4 +1,4 @@
-// The rows of a budget (partials/budget_rows.html): a category, or a group, with what is left, one quiet line ("of
+// The rows of a budget: a category, or a group, with what is left, one quiet line ("of
 // 25,000.00 · all spent · Fuel · Taxi") and a bar under both. How each reads is the server's (services/budget_view).
 // A group opens its own page; a category opens the sheet where its amount is set.
 import type { ReactNode } from "react";

@@ -1,4 +1,4 @@
-// One account as a card (partials/account_card.html): its name, its balance and, when there is something to say, one
+// One account as a card: its name, its balance and, when there is something to say, one
 // quiet line. Which line is the server's (a bill, no entries yet, none for a month); only its wording is here.
 import { Link } from "react-router";
 

@@ -1,4 +1,4 @@
-// The Split of the Add screen (people_editor.html, income_editor.html): who a bill is shared with and how, who paid;
+// The Split of the Add screen: who a bill is shared with and how, who paid;
 // or which part of an income is theirs and who received some of it for you. Only what is typed for the people ticked
 // is sent; the server works out the rest and its preview shows it (SharePreview).
 import { type ReactNode, useState } from "react";
@@ -33,7 +33,7 @@ interface FieldPickProps {
   onChange: (id: string | null) => void;
 }
 
-/** A labelled field that opens the picker (pickers.html account_pick / category_pick). */
+/** A labelled field that opens the picker. */
 function FieldPick({ label, empty, value, groups, clearable = false, onChange }: FieldPickProps) {
   const [open, setOpen] = useState(false);
   const shown = labelOf(value, groups);

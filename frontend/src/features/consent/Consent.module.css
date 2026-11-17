@@ -1,4 +1,4 @@
-/* The consent screen (.card.stack, h2.choose, .access-choice, .access-card of app/static/style.css). */
+/* The consent screen (.card.stack, h2.choose, .access-choice, .access-card). */
 .card {
   display: flex;
   flex-direction: column;

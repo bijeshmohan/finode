@@ -1,5 +1,5 @@
 """/api/views/accounts and /api/views/accounts/{account_id}: what the finode app's Accounts page and an account's page
-show, worked out as the web pages work it out (services/accounts_view.py)."""
+show, worked out by services/accounts_view.py."""
 
 import itertools
 from datetime import UTC, datetime, timedelta

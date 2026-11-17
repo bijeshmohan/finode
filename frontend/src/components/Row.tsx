@@ -1,4 +1,4 @@
-// The shared list row (partials/transaction_list.html's `.tx`): a name, a quiet second line, a figure at the right.
+// The shared list row: a name, a quiet second line, a figure at the right.
 // Green and "+" only for money in; red only for a real negative; everything else is plain ink.
 import type { ReactNode } from "react";
 import { Link } from "react-router";

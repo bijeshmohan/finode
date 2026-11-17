@@ -1,6 +1,6 @@
 """Where the Add screen starts: the rows, the kind and the amount of a new entry (blank, from an account or a category, a
-repeat, a related entry, a card bill to pay, money to or from a person) or of one being edited. The web form and the
-finode app's form view (/api/views/entry-form) both start from here."""
+repeat, a related entry, a card bill to pay, money to or from a person) or of one being edited. The finode app's form
+view (/api/views/entry-form) starts from here."""
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field

@@ -1,4 +1,4 @@
-// What each kind of entry offers on each side and what the sides are called (app.js KINDS): an expense is paid from an
+// What each kind of entry offers on each side and what the sides are called: an expense is paid from an
 // account and spent on a category, income is earned from a category and paid into an account, a transfer moves between
 // accounts and people, and "other" (the chosen kind tapped again) offers everything.
 import type { PickGroup } from "./queries";

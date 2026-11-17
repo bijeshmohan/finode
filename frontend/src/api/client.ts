@@ -55,12 +55,5 @@ function goToSignIn(): void {
   window.location.assign(`/sign-in?next=${encodeURIComponent(next)}`);
 }
 
-const API_URL = import.meta.env.VITE_API_URL ?? "";
-
-export const api = makeClient({ baseUrl: API_URL, onUnauthorized: goToSignIn });
-
-/** The API's own address for `path`, for a plain link (a download): `app.` and `api.` are one site, so the session
- * cookie goes with it. */
-export function apiUrl(path: string): string {
-  return API_URL + path;
-}
+// The app and the API share one address: every call is to /api on the page's own origin.
+export const api = makeClient({ baseUrl: "", onUnauthorized: goToSignIn });

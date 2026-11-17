@@ -75,22 +75,22 @@ def test_deleting_on_home_after_show_more_leaves_no_duplicates(signed_in_spa_pag
     assert len(titles) == len(set(titles)), "no entry twice"
 
 
+# The computed colour of --muted, to compare a muted element against.
+MUTED = """() => { const s = document.createElement('span'); s.style.color = 'var(--muted)'; document.body.append(s);
+  const c = getComputedStyle(s).color; s.remove(); return c; }"""
 SIGN = """(el) => {
   const own = getComputedStyle(el), around = getComputedStyle(el.parentElement);
   return {ratio: parseFloat(own.fontSize) / parseFloat(around.fontSize), color: own.color, raised: own.verticalAlign};
 }"""
 
 
-def test_the_rupee_sign_sits_apart_from_the_figure_as_on_the_web_pages(
-    signed_in_spa_page: Page, page: Page, spa_books, spa_api: Api
-):
-    """Smaller, lighter and raised in front of the digits (partials/money.html `figure`, `.cur`)."""
+def test_the_rupee_sign_sits_apart_from_the_figure(signed_in_spa_page: Page, spa_books, spa_api: Api):
+    """Smaller (0.62 of the digits), muted and raised in front of the digits."""
     shop(spa_api, spa_books, "Swiggy")
+    page = signed_in_spa_page
     page.goto("/")
-    web = page.locator(".glance-figure .cur").first.evaluate(SIGN)
-    app_page = signed_in_spa_page
-    app_page.goto("/")
-    sign = app_page.locator("main").get_by_text("₹", exact=True).first
-    app = sign.evaluate(SIGN)
-    assert abs(app["ratio"] - web["ratio"]) < 0.03, (app, web)
-    assert (app["color"], app["raised"]) == (web["color"], web["raised"])
+    sign = page.locator("main").get_by_text("₹", exact=True).first
+    measured = sign.evaluate(SIGN)
+    assert abs(measured["ratio"] - 0.62) < 0.03, measured
+    assert measured["color"] == page.evaluate(MUTED), measured
+    assert measured["raised"] not in ("baseline", "0px"), measured

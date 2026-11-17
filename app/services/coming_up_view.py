@@ -1,6 +1,6 @@
 """What the Coming up list shows: what is coming up for the budget (services/coming_up.py) by day, each row with its
-title and quiet second line, and a day's total when it adds up. The web page (routers/web/coming_up.py) and the finode
-app's view (/api/views/coming-up) both read from here."""
+title and quiet second line, and a day's total when it adds up. The finode app's view (/api/views/coming-up) reads
+from here."""
 
 from __future__ import annotations
 

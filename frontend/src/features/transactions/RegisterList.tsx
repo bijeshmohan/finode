@@ -1,5 +1,4 @@
-// The entries on an account's or a category's own page, by day, newest first (account_entries.html,
-// category_entries.html). How each row reads is the server's (services/transaction_rows.RegisterRow): green and "+" for
+// The entries on an account's or a category's own page, by day, newest first. How each row reads is the server's (services/transaction_rows.RegisterRow): green and "+" for
 // money coming in, "−" for a category's line that went the other way, the running balance small beneath on an account.
 import { useGrouping } from "../../app/currency";
 import { useToday } from "../../app/session";

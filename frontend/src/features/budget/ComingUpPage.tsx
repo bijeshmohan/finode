@@ -1,4 +1,4 @@
-// Coming up (coming_up.html): until when, what it comes to and how many payments touch the budget's accounts, then the
+// Coming up: until when, what it comes to and how many payments touch the budget's accounts, then the
 // days, soonest first. A rule's row opens the rule; an entry dated ahead opens on its edit screen and comes back here.
 // Each row's words and a day's total are the server's (services/coming_up_view.py).
 import { Link } from "react-router";

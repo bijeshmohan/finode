@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.templating import group_digits, grouping_for, money
+from app.formatting import group_digits, grouping_for, money
 
 
 @pytest.mark.parametrize(

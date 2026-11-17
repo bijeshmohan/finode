@@ -135,7 +135,7 @@ describe("the Add screen", () => {
     });
   });
 
-  it("an edit keeps each line's own posting date, as the web form does", async () => {
+  it("an edit keeps each line's own posting date", async () => {
     const { fetch } = await screenWith(
       view({
         editing: true,

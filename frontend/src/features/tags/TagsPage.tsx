@@ -1,4 +1,4 @@
-// The Tags page (tags.html): every tag with how many entries carry it, most used first; a tag opens its sheet.
+// The Tags page: every tag with how many entries carry it, most used first; a tag opens its sheet.
 import { useState } from "react";
 import { Link } from "react-router";
 

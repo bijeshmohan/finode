@@ -1,4 +1,4 @@
-// The recurring form (recurring_form.html): the Add screen's rows (no posting day of their own, no people), the payee,
+// The recurring form: the Add screen's rows (no posting day of their own, no people), the payee,
 // how often it repeats, when it starts and ends, the note and tags; for a rule being edited where it stands, and
 // Pause, Skip, Resume and Delete. The server turns the rows into a plain rule or a split (services/recurring_form.py).
 import { useState } from "react";
@@ -39,7 +39,7 @@ const SAID: Record<RuleAction | "saved", string> = {
 
 const SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** "01 Dec 2026", as the web page's confirmation writes a day (strftime %d %b %Y). */
+/** "01 Dec 2026", as the server's confirmation writes a day (strftime %d %b %Y). */
 function fullDay(iso: string): string {
   const [year = "", month = "1", day = ""] = iso.split("-");
   return `${day} ${SHORT[Number(month) - 1] ?? ""} ${year}`;
@@ -360,7 +360,7 @@ export function RecurringForm() {
   return <RuleScreen key={recurringId ?? "new"} view={query.data} recurringId={recurringId} />;
 }
 
-/** A rule's own address (the bell's "Open rule" on the web page) opens its form. */
+/** A rule's own address (the bell's "Open rule") opens its form. */
 export function RuleAddress() {
   const { recurringId = "" } = useParams();
   return <Navigate to={`/recurring/${recurringId}/edit`} replace />;

@@ -1,4 +1,4 @@
-/* The app shell, from the "App shell" and toast rules of app/static/style.css. Colours from tokens.css only. */
+/* The app shell, from the "App shell" and toast rules. Colours from tokens.css only. */
 .topbar {
   position: sticky;
   top: 0;

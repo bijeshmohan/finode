@@ -1,4 +1,4 @@
-// A list of transactions in day sections, newest first (partials/transaction_days.html). How each row names itself is
+// A list of transactions in day sections, newest first. How each row names itself is
 // the server's (services/transaction_rows.py); several opening balances on one day fold into one quiet row.
 import { useToday } from "../../app/session";
 import { useGrouping } from "../../app/currency";

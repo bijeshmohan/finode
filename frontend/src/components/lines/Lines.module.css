@@ -1,4 +1,4 @@
-/* The Add screen's rows, shared with the recurring form (txn_rows.html's rules of app/static/style.css): the kinds, the
+/* The Add screen's rows, shared with the recurring form: the kinds, the
    amount, the two sides with their rows, the swap. */
 .kinds {
   display: flex;
@@ -77,7 +77,7 @@
   text-align: left;
   cursor: pointer;
 }
-/* A row's picker (style.css .row-pick.slim): a glyph, then the name in semibold; a bank for an account, a tag for a
+/* A row's picker: a glyph, then the name in semibold; a bank for an account, a tag for a
    category, and a dashed "+" while nothing is chosen. */
 .rowPick {
   justify-content: flex-start;
@@ -241,7 +241,7 @@
   width: 1.1rem;
   height: 1.1rem;
 }
-/* An empty row's "Account…" or "Category…" reads in the row's own muted colour (the web's .row-pick.slim.empty). */
+/* An empty row's "Account…" or "Category…" reads in the row's own muted colour. */
 .empty .placeholder {
   color: inherit;
 }

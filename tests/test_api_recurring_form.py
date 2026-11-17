@@ -1,5 +1,5 @@
 """A recurring rule saved from the Add screen's rows (POST /api/recurring/form, PUT /api/recurring/{id}/form) and the
-form's view (GET /api/views/recurring-form): the server turns the rows into a plain rule or a split as the web form does
+form's view (GET /api/views/recurring-form): the server turns the rows into a plain rule or a split
 (services/recurring_form.py)."""
 
 from .test_isolation import B_USER, signed_in_as

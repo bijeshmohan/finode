@@ -1,9 +1,8 @@
-// Your data (profile_data.html): Export and Backup as downloads from the API, Restore and Import (a preview first),
+// Your data: Export and Backup as downloads from the API, Restore and Import (a preview first),
 // and under "Erase or leave" Erase my books and Delete my account, each asking first and wanting the confirm word.
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
-import { apiUrl } from "../../api/client";
 import { messageOf } from "../../api/messages";
 import { useToast } from "../../app/toast";
 import { Icon } from "../../components/Icon";
@@ -93,10 +92,10 @@ export function DataPage() {
                 Ledger format opens in hledger and similar tools; CSV opens in a spreadsheet.
               </p>
               <div className={styles.actions}>
-                <a className={styles.secondary} href={apiUrl("/api/export?format=ledger")} download>
+                <a className={styles.secondary} href="/api/export?format=ledger" download>
                   Export ledger file
                 </a>
-                <a className={styles.secondary} href={apiUrl("/api/export?format=csv")} download>
+                <a className={styles.secondary} href="/api/export?format=csv" download>
                   Export CSV
                 </a>
               </div>
@@ -107,7 +106,7 @@ export function DataPage() {
                 included.
               </p>
               <div className={styles.actions}>
-                <a className={styles.secondary} href={apiUrl("/api/backup")} download>
+                <a className={styles.secondary} href="/api/backup" download>
                   Download backup
                 </a>
               </div>

@@ -1,4 +1,4 @@
-// Forgotten password (forgot.html): ask for a reset link. The answer is the same whether or not the address has an
+// Forgotten password: ask for a reset link. The answer is the same whether or not the address has an
 // account, so the screen cannot be used to find out who does.
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";

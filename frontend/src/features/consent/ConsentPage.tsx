@@ -1,4 +1,4 @@
-// The consent screen of "Sign in with finode" for assistants (oauth_consent.html): Supabase sends the person here with
+// The consent screen of "Sign in with finode" for assistants: Supabase sends the person here with
 // an authorization id; they choose what the app may do, or deny, and are sent back to the app at the address the API
 // checked. An app already decided is sent back at once.
 import { useMutation, useQuery } from "@tanstack/react-query";

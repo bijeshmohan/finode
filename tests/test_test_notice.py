@@ -8,7 +8,7 @@ import pytest
 from app.config import settings
 from app.version import VERSION
 
-from .test_api_auth import APP, SIGN_UP, from_the_app, signup_on  # noqa: F401  (fixtures)
+from .test_api_auth import APP, SIGN_UP, signup_on  # noqa: F401  (a fixture)
 from .test_api_signup import supabase  # noqa: F401  (a fixture)
 
 

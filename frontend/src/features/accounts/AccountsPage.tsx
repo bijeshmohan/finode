@@ -1,4 +1,4 @@
-// The Accounts page (accounts.html): net worth, the pinned accounts, then a row of cards per kind (Bank Accounts, Credit
+// The Accounts page: net worth, the pinned accounts, then a row of cards per kind (Bank Accounts, Credit
 // Cards…, the groups the person made, the plain accounts). Closed accounts wait behind "Load more".
 import { useState } from "react";
 import { Link } from "react-router";

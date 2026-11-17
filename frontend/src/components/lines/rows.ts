@@ -1,4 +1,4 @@
-// The rows of one side of an entry, as the web form keeps them (recomputeTxn in app.js): a row whose amount was typed
+// The rows of one side of an entry: a row whose amount was typed
 // is "touched"; at most one open row waits for the rest while something is left, and suggests it; a side with one row
 // is the whole amount. The server checks that the sides add up.
 import { type Grouping, groupAmount } from "../../lib/amount";

@@ -1,9 +1,8 @@
 """Who is calling the JSON API or /mcp: verifies Supabase JWTs against Supabase's published keys and exposes `CurrentUser`.
 
-There are three ways in: a bearer header (scripts, assistants' own clients), the web pages' request state (set by
-`web_auth.web_login_required`) and the session cookie sent by the finode app (the React frontend). A cookie request that
-changes anything must also carry `X-Finode: 1` from the app's own origin (`FINODE_FRONTEND_ORIGIN`), so another site
-cannot make the browser act for you.
+There are two ways in: a bearer header (scripts, assistants' own clients) and the session cookie the finode app sends.
+The app and the API share one address, so a cookie request that changes anything must come from that same origin and
+carry `X-Finode: 1`: another site can send neither, so it cannot make the browser act for you.
 """
 
 from dataclasses import dataclass
@@ -134,7 +133,7 @@ def reject_app_token(claims: dict[str, Any]) -> None:
 
 def token_from_cookies(request: Request) -> str | None:
     """The access token the session cookies carry, renewed with the refresh cookie when it has expired (the new
-    cookies are written by `web_auth.refreshed_cookies_middleware`); None when there is no usable session.
+    cookies are written by `session.refreshed_cookies_middleware`); None when there is no usable session.
 
     Worked out once per request: Supabase rotates refresh tokens, so refreshing twice would spend the old one again."""
     if hasattr(request.state, "cookie_token"):
@@ -166,10 +165,11 @@ def _token_from_cookies(request: Request) -> str | None:
 
 
 def check_app_request(request: Request) -> None:
-    """Refuse a cookie request that changes something unless it comes from the finode app: its own origin, with the
-    X-Finode header (another site can send neither without the browser asking us first, and we would refuse)."""
-    origin = request.headers.get("origin")
-    if request.headers.get(APP_HEADER) != "1" or not settings.frontend_origin or origin != settings.frontend_origin:
+    """Refuse a cookie request that changes something unless it comes from the finode app: the origin the request
+    itself came in on (scheme and host, as uvicorn's proxy headers give them behind Traefik), with the X-Finode header.
+    Another site can send neither without the browser asking us first, and we would refuse."""
+    own = f"{request.url.scheme}://{request.url.netloc}"
+    if request.headers.get(APP_HEADER) != "1" or request.headers.get("origin") != own:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="this request did not come from the finode app"
         )
@@ -194,7 +194,7 @@ def require_authenticated_user(
 ) -> CurrentUser:
     if credentials:
         return _user(credentials.credentials)
-    token = getattr(request.state, "access_token", None)  # the web pages (web_auth.web_login_required)
+    token = getattr(request.state, "access_token", None)  # already worked out for this request
     if token is None:
         token = token_from_cookies(request)
         if token is None:

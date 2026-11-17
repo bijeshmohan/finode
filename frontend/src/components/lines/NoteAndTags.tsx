@@ -1,4 +1,4 @@
-// The note, with its # button, and the line of chosen tags under it (partials/tags_box.html). Tags are their own
+// The note, with its # button, and the line of chosen tags under it. Tags are their own
 // thing, not words in the note: a # typed in the note stays text. The sheet lists the tags in use, searches them, and
 // offers to create a new one; an entry can have at most 10.
 import { useQuery } from "@tanstack/react-query";

@@ -1,5 +1,5 @@
-"""The view endpoints (/api/views): what one screen of the React app shows, in one call, built from the same rows as the
-web pages (services/transaction_rows.py)."""
+"""The view endpoints (/api/views): what one screen of the React app shows, in one call, built from the server's
+own rows (services/transaction_rows.py)."""
 
 from datetime import timedelta
 from uuid import UUID

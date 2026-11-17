@@ -1,4 +1,4 @@
-/* People (.person-actions, .person-entry and .out-amount of app/static/style.css); the rows are Rows.module.css, the
+/* People (.person-actions, .person-entry and .out-amount); the rows are Rows.module.css, the
    head and title Page.module.css. */
 .out {
   color: var(--negative);
@@ -101,7 +101,7 @@
   font-weight: 600;
   text-decoration: none;
 }
-/* "Already owes you, or is owed?" (.sheet-extra on the web form). */
+/* "Already owes you, or is owed?". */
 .extra {
   display: flex;
   align-items: center;

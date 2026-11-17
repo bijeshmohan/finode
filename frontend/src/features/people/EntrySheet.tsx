@@ -1,4 +1,4 @@
-// One entry done with a person in its sheet (partials/person_entry_sheet.html): what it was, its notes, Edit for an
+// One entry done with a person in its sheet: what it was, its notes, Edit for an
 // opening balance, and Reverse, which the server does the way the entry's kind is undone.
 import { Link } from "react-router";
 

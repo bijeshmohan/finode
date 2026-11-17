@@ -1,4 +1,4 @@
-// A person's page (person.html): what they owe you or you owe them, the short-hands to the Add screen, what is open and
+// A person's page: what they owe you or you owe them, the short-hands to the Add screen, what is open and
 // what was done with them (each opening its sheet), and the menu. Who owes whom and how each row reads are the
 // server's (services/people_view.py).
 import { useQueryClient } from "@tanstack/react-query";

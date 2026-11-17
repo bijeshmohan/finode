@@ -1,4 +1,4 @@
-// The Categories page (categories.html): one month, Spending or Earning, what each category came to, biggest first, with
+// The Categories page: one month, Spending or Earning, what each category came to, biggest first, with
 // the biggest inside it and its share of the month. The month and the tab live in the address.
 import { Link, useSearchParams } from "react-router";
 

@@ -1,4 +1,4 @@
-// A new group (group_form.html): a shelf on the Accounts page for accounts, holding money the person owns or owes, and
+// A new group: a shelf on the Accounts page for accounts, holding money the person owns or owes, and
 // what the accounts made in it start as. Nothing is chosen for the person.
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -66,7 +66,7 @@ export function GroupForm() {
             maxLength={40}
             required
             placeholder="e.g. Family"
-            // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the form starts with the name, as the web form does
+            // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the form starts with the name
             autoFocus
             value={name}
             onChange={(event) => {

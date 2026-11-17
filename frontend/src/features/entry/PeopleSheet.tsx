@@ -1,4 +1,4 @@
-// The sheet that adds people to a Split (people_sheet.html): tick the ones who are in it; a search narrows the list.
+// The sheet that adds people to a Split: tick the ones who are in it; a search narrows the list.
 import { useState } from "react";
 
 import { Sheet } from "../../components/Sheet";

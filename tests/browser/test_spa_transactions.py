@@ -27,7 +27,7 @@ def row(page: Page, text: str):
 
 
 def open_row(page: Page, text: str):
-    """Tap a row on its title: its middle can be the related pill, which opens the other entry (as on the web page)."""
+    """Tap a row on its title: its middle can be the related pill, which opens the other entry."""
     row(page, text).get_by_text(text, exact=True).click()
 
 

@@ -1,4 +1,4 @@
-/* The parts every page of the app shares (style.css): the title row, the hero with its figure, the back link, an
+/* The parts every page of the app shares: the title row, the hero with its figure, the back link, an
    account's or a category's title and balance, the section heads, the empty state, the add row, the badge. */
 .pageHead {
   display: flex;

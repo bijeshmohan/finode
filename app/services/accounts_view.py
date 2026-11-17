@@ -1,6 +1,6 @@
 """What the Accounts page and an account's own page show: the kinds of account as rows of cards, each card's quiet line,
-net worth, and an account's balance, bill, coming-up entries and register. The web pages (routers/web/accounts.py) and
-the finode app's views (/api/views/accounts) both read from here."""
+net worth, and an account's balance, bill, coming-up entries and register. The finode app's views
+(/api/views/accounts) read from here."""
 
 from __future__ import annotations
 

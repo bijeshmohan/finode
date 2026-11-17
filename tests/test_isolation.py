@@ -24,7 +24,6 @@ from app.repositories.oauth_grant import OAuthGrantRepository
 from app.schemas.api_token import ApiTokenCreate
 from app.services.api_token import ApiTokenService
 from app.services.oauth_grant import OAuthGrantService
-from app.web_auth import web_login_required
 
 from .books import leg, post_account
 from .conftest import TEST_USER_ID
@@ -49,23 +48,12 @@ A_WORDS = [
 
 # Doors that need no sign-in, or have their own kind of sign-in (checked on their own).
 PUBLIC = {
-    ("GET", "/login"),
-    ("POST", "/login"),
-    ("POST", "/logout"),
-    ("GET", "/signup"),
-    ("POST", "/signup"),
-    ("GET", "/forgot"),
-    ("POST", "/forgot"),
-    ("GET", "/reset"),
-    ("POST", "/reset"),
     ("GET", "/.well-known/oauth-protected-resource"),
     ("GET", "/.well-known/oauth-protected-resource/mcp"),
     ("DELETE", "/mcp"),
     ("GET", "/mcp"),
     ("HEAD", "/mcp"),
     ("POST", "/mcp"),  # bearer tokens, tested below
-    ("GET", "/oauth/consent"),
-    ("POST", "/oauth/consent"),  # a Supabase authorization id of the signed-in user
     ("GET", "/api/auth/options"),
     ("POST", "/api/auth/sign-in"),
     ("POST", "/api/auth/sign-up"),
@@ -78,7 +66,6 @@ PUBLIC = {
 
 # Routes without an id in the path: what they list is scoped to whoever asks.
 LISTS = {
-    ("GET", "/"),
     ("GET", "/api/auth/session"),
     ("GET", "/api/assistants/"),
     ("GET", "/api/data-options"),
@@ -98,22 +85,13 @@ LISTS = {
     ("GET", "/api/views/recurring"),
     ("GET", "/api/views/people"),
     ("GET", "/api/views/related-entries"),
-    ("GET", "/accounts"),
-    ("GET", "/accounts/new"),
-    ("GET", "/accounts/new-group"),
-    ("GET", "/accounts/options"),
-    ("GET", "/accounts/quick"),
     ("GET", "/api/accounts/"),
     ("GET", "/api/categories/"),
     ("GET", "/api/contacts/"),
-    ("GET", "/people"),
-    ("GET", "/people/new"),
     ("GET", "/api/shared-expenses/"),
     ("GET", "/api/backup"),
     ("GET", "/api/budget/"),
     ("GET", "/api/todo/"),
-    ("GET", "/todo/badge"),
-    ("GET", "/todo/sheet"),
     ("GET", "/api/export"),
     ("GET", "/api/profile/"),
     ("GET", "/api/recurring/"),
@@ -126,47 +104,19 @@ LISTS = {
     ("GET", "/api/reports/breakdown"),
     ("GET", "/api/reports/summary"),
     ("GET", "/api/transactions/payees"),
-    ("GET", "/backup"),
-    ("GET", "/budget"),
-    ("GET", "/budget/move"),
-    ("GET", "/export"),
-    ("GET", "/profile/assistants"),
-    ("GET", "/profile/data"),
-    ("GET", "/recurring"),
-    ("GET", "/recurring/new"),
-    ("GET", "/categories"),
-    ("GET", "/categories/new"),
-    ("GET", "/settings"),
-    ("GET", "/transactions"),
-    ("GET", "/transactions/suggest"),
-    ("GET", "/transactions/tag-options"),
-    ("GET", "/transactions/tag-picker"),
-    ("GET", "/tags"),
     ("GET", "/api/tags/"),
-    ("GET", "/transactions/more"),
-    ("GET", "/budget/coming-up"),
-    ("GET", "/budget/coming-up/note"),
     ("GET", "/api/budget/coming-up"),
-    ("GET", "/transactions/related-picker"),
-    ("GET", "/transactions/new"),
 }
 
 # Routes that take A's ids or names inside the request: refused (see `test_b_cannot_use_a_s_things_in_requests`).
 REFERENCES = {
-    ("POST", "/accounts"),
-    ("POST", "/accounts/quick"),
     ("POST", "/api/accounts/"),
     ("POST", "/api/categories/"),
     ("POST", "/api/contacts/"),
-    ("POST", "/people"),
-    ("POST", "/people/expense/preview"),
-    ("POST", "/people/income/preview"),
     ("POST", "/api/shared-expenses/"),
     ("POST", "/api/shared-expenses/preview"),
     ("POST", "/api/shared-incomes/"),
     ("POST", "/api/shared-incomes/preview"),
-    ("POST", "/categories"),
-    ("POST", "/categories/quick"),
     ("POST", "/api/import"),
     ("PATCH", "/api/profile/"),
     ("POST", "/api/recurring/"),
@@ -175,21 +125,9 @@ REFERENCES = {
     ("POST", "/api/restore"),
     ("POST", "/api/transactions/"),
     ("POST", "/api/transactions/batch"),
-    ("POST", "/budget/assign"),
-    ("POST", "/budget/copy"),
-    ("POST", "/budget/move"),
-    ("POST", "/import"),
-    ("POST", "/import/preview"),
-    ("POST", "/profile"),
-    ("POST", "/profile/assistants"),
     ("POST", "/api/assistants/tokens"),
     ("POST", "/api/entries"),
     ("POST", "/api/views/entry-share-preview"),
-    ("POST", "/recurring"),
-    ("POST", "/restore"),
-    ("POST", "/restore/preview"),
-    ("POST", "/settings/currency"),
-    ("POST", "/transactions/split"),
     ("POST", "/api/budget/copy"),
     ("POST", "/api/budget/move"),
 }
@@ -197,9 +135,6 @@ REFERENCES = {
 
 # Actions on the caller's own data (their whole account): they take no id, so B's use of them must leave A alone.
 OWN_DATA = {
-    ("POST", "/profile/data/erase"),
-    ("POST", "/profile/data/delete-account"),
-    ("POST", "/accounts/new-group"),
     ("POST", "/api/accounts/groups"),
     ("POST", "/api/erase"),
     ("POST", "/api/delete-account"),
@@ -369,8 +304,6 @@ def candidates(world: World, name: str) -> list[str]:
 def body_for(world: World, method: str, path: str) -> dict:
     """A valid-looking request, so a refusal comes from the ownership check and not from validation."""
     mine, bills = world.b_mine["id"], world.b_bills["id"]
-    rows = {"date": "2026-10-01", "account_id": [bills, mine], "side": ["debit", "credit"], "amount": ["5", "5"]}
-    api = path.startswith("/api/")
     bodies = {
         ("PATCH", "/api/accounts/{account_id}"): {"json": {"name": "hacked", "details": "hacked"}},
         ("PATCH", "/api/transactions/{transaction_id}"): {"json": {"payee": "hacked"}},
@@ -388,22 +321,15 @@ def body_for(world: World, method: str, path: str) -> dict:
         ("PUT", "/api/recurring/{recurring_id}"): {
             "json": {"from_account_id": mine, "to_account_id": bills, "amount": "1", "start_date": "2999-01-01"}
         },
-        ("POST", "/accounts/{account_id}/edit"): {"data": {"name": "hacked"}},
-        ("POST", "/transactions/{transaction_id}/edit"): {"data": rows},
-        ("POST", "/recurring/{recurring_id}/edit"): {
-            "data": {**rows, "frequency": "monthly", "every": "1", "start": "2999-01-01"}
-        },
         ("POST", "/api/accounts/{account_id}/merge"): {"json": {"into": bills}},
         ("POST", "/api/categories/{category_id}/merge"): {"json": {"into": bills}},
         ("PATCH", "/api/categories/{category_id}"): {"json": {"name": "hacked"}},
         ("PATCH", "/api/contacts/{contact_id}"): {"json": {"name": "hacked"}},
         ("PATCH", "/api/shared-expenses/{expense_id}"): {"json": {"description": "hacked"}},
-        ("POST", "/oauth/apps/{grant_id}/access"): {"data": {"scope": "read"}},
-        ("POST", "/profile/assistants/{token_id}/access"): {"data": {"scope": "read"}},
         ("POST", "/api/assistants/tokens/{token_id}/access"): {"json": {"scope": "read"}},
         ("POST", "/api/assistants/apps/{grant_id}/access"): {"json": {"scope": "read"}},
     }
-    return bodies.get((method, path), {"json": {}} if api else {"data": {}})
+    return bodies.get((method, path), {"json": {}})
 
 
 def test_nothing_of_a_is_reachable_by_id(client: TestClient, world: World):
@@ -418,10 +344,7 @@ def test_nothing_of_a_is_reachable_by_id(client: TestClient, world: World):
                 url = template.replace("{" + name + "}", value)
                 response = client.request(method, url, **body_for(world, method, template), follow_redirects=False)
                 calls += 1
-                redirect_only = response.status_code in (301, 307) and "/accounts/" in response.headers.get(
-                    "location", ""
-                )
-                if response.status_code not in BAD_ANSWERS and not redirect_only:
+                if response.status_code not in BAD_ANSWERS:
                     problems.append(f"{method} {url} -> {response.status_code}")
                 echoed = response.text.replace(value, "")  # an error may repeat the id the caller sent
                 if leaked(world, echoed):
@@ -492,11 +415,8 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
         response = client.request(method, url, **kw)
         sent = json.dumps(kw, default=str) + url
         refusals.append(label)
-        assert (
-            response.status_code in BAD_ANSWERS
-            or "HX-Retarget" in response.headers
-            or (response.status_code == 200 and ("Nothing was" in response.text or "error" in response.text.lower()))
-        ), (label, response.status_code, response.text[:200])
+        assert response.status_code in BAD_ANSWERS, (label, response.status_code, response.text[:200])
+        assert response.text != '{"detail":"Not Found"}', (label, "no such route: the refusal proves nothing")
         assert not leaked(world, response.text, sent), (label, leaked(world, response.text, sent)[:3])
 
     with signed_in_as(B_USER):
@@ -585,47 +505,45 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             },
         )
         b_category = next(c["id"] for c in client.get("/api/categories/").json())
-        form = {"mode": "split", "total": "10", "category_id": b_category, "account_id": mine, "date": "2026-11-01"}
-        refused(
-            "a bill paid from A's account",
-            "POST",
-            "/transactions/split",
-            data={**form, "account_id": a["HDFC"], f"with_{world.b_contact['id']}": "1"},
-        )
-        refused(
-            "a bill under A's category",
-            "POST",
-            "/transactions/split",
-            data={**form, "category_id": a["Groceries"], f"with_{world.b_contact['id']}": "1"},
-        )
+
+        def bill(**share) -> dict:
+            parts = {"kind": "expense", "category_id": b_category, "account_id": mine}
+            people = [{"contact_id": world.b_contact["id"]}]
+            return {
+                "kind": "expense",
+                "total": "10",
+                "date": "2026-11-01",
+                "share": {**parts, "people": people, **share},
+            }
+
+        refused("a bill paid from A's account", "POST", "/api/entries", json=bill(account_id=a["HDFC"]))
+        refused("a bill under A's category", "POST", "/api/entries", json=bill(category_id=a["Groceries"]))
         refused(
             "a bill shared with A's contact",
             "POST",
-            "/transactions/split",
-            data={**form, f"with_{world.contact_ids[0]}": "1"},
+            "/api/entries",
+            json=bill(people=[{"contact_id": world.contact_ids[0]}]),
         )
         own_entry = next(t["id"] for t in client.get("/api/transactions/").json() if t["payee"] == "Power")
+
+        def loan(paid_from: str, to: str) -> dict:
+            lines = [
+                {"choice": paid_from, "side": "credit", "amount": "5"},
+                {"choice": to, "side": "debit", "amount": "5"},
+            ]
+            return {"kind": "transfer", "date": "2026-11-01", "rows": lines}
+
         refused(
             "an entry of B's turned into a loan to A's contact",
-            "POST",
-            f"/transactions/{own_entry}/edit",
-            data={
-                "account": [mine, world.contact_ids[0]],
-                "side": ["credit", "debit"],
-                "amount": ["5", "5"],
-                "date": "2026-11-01",
-            },
+            "PUT",
+            f"/api/entries/{own_entry}",
+            json=loan(mine, world.contact_ids[0]),
         )
         refused(
             "an entry of B's turned into a loan paid from A's account",
-            "POST",
-            f"/transactions/{own_entry}/edit",
-            data={
-                "account": [a["HDFC"], world.b_contact["id"]],
-                "side": ["credit", "debit"],
-                "amount": ["5", "5"],
-                "date": "2026-11-01",
-            },
+            "PUT",
+            f"/api/entries/{own_entry}",
+            json=loan(a["HDFC"], world.b_contact["id"]),
         )
         refused(
             "a transfer from A's account",
@@ -753,56 +671,30 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
         refused("API register of A's account", "GET", f"/api/accounts/{a['HDFC']}/register")
         refused("API filter by A's category", "GET", "/api/transactions/", params={"category_id": a["Groceries"]})
         refused(
-            "budget move A's",
-            "POST",
-            "/budget/move",
-            data={"from_category": a["Groceries"], "to_category": bills, "amount": "1"},
-        )
-        refused(
             "restore into a used ledger",
             "POST",
             "/api/restore",
             files={"file": ("b.json", json.dumps(world.backup), "application/json")},
         )
-        # the web forms
         refused(
-            "form tx with A's account",
+            "entry with A's account",
             "POST",
-            "/transactions/split",
-            data={
-                "date": "2026-10-01",
-                "account": [a["Groceries"], mine],
-                "side": ["debit", "credit"],
-                "amount": ["5", "5"],
+            "/api/entries",
+            json={
+                "kind": "expense",
+                "rows": [
+                    {"choice": a["Groceries"], "side": "debit", "amount": "5"},
+                    {"choice": mine, "side": "credit", "amount": "5"},
+                ],
             },
         )
+        refused("move view for A's category", "GET", "/api/views/budget-move", params={"source": a["Groceries"]})
         refused(
-            "form recurring with A's",
+            "a category inside A's",
             "POST",
-            "/recurring",
-            data={
-                "account": [a["Groceries"], mine],
-                "side": ["debit", "credit"],
-                "amount": ["5", "5"],
-                "frequency": "monthly",
-                "every": "1",
-                "start": "2999-01-01",
-            },
+            "/api/categories/",
+            json={"name": "x", "kind": "spending", "parent_id": a["Groceries"]},
         )
-        refused("assign A's category", "POST", "/budget/assign", data={"category": a["Groceries"], "amount": "5"})
-        refused(
-            "move A's money",
-            "POST",
-            "/budget/move",
-            data={"from_category": a["Groceries"], "to_category": bills, "amount": "1"},
-        )
-        refused("move page for A's category", "GET", "/budget/move", params={"source": a["Groceries"]})
-        refused("quick account under A's group", "POST", "/accounts/quick", data={"name": "x", "parent_id": a["Banks"]})
-        refused(
-            "quick category inside A's", "POST", "/categories/quick", data={"name": "x", "parent_id": a["Groceries"]}
-        )
-        refused("a category inside A's", "POST", "/categories", data={"name": "x", "parent_id": a["Groceries"]})
-        refused("account form under A's group", "POST", "/accounts", data={"name": "x", "parent_id": a["Banks"]})
     assert len(refusals) >= 18
     assert books_of(client, TEST_USER_ID) == before_a, "A's books were changed"
     assert books_of(client, B_USER) == before_b, "a refused request still changed B's books"
@@ -817,11 +709,6 @@ def test_tags_are_per_person(client: TestClient, world: World):
         assert client.get("/api/tags/").json() == []
         assert client.patch("/api/tags/food", json={"name": "taken"}).status_code == 404
         assert client.delete("/api/tags/food").status_code == 404
-        assert client.get("/tags/food/sheet").status_code == 404
-        assert client.post("/tags/food/delete").status_code == 404
-        assert (
-            "food" not in client.get("/tags").text and "weekly-shop" not in client.get("/transactions/tag-picker").text
-        )
         assert client.get("/api/transactions/", params={"tag": "food"}).json() == []
         made = client.post(
             "/api/transactions/",
@@ -852,19 +739,16 @@ def test_a_backup_is_only_ever_the_callers_own(client: TestClient, world: World)
 
 def test_b_erasing_their_own_books_leaves_a_alone(client: TestClient, world: World, monkeypatch):
     from app.config import settings
-    from app.routers.web import profile as profile_router
+    from app.routers import data as data_router
 
     before_a = books_of(client, TEST_USER_ID)
     monkeypatch.setattr(settings, "supabase_service_role_key", "sb_secret_x")
     monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co")
     deleted = []
-    monkeypatch.setattr(profile_router, "delete_user", lambda user_id: deleted.append(user_id))
+    monkeypatch.setattr(data_router, "delete_user", lambda user_id: deleted.append(user_id))
     with signed_in_as(B_USER):
-        assert client.post("/profile/data/erase", data={"confirm": "x@example.com"}).headers["HX-Redirect"] == "/"
-        assert (
-            client.post("/profile/data/delete-account", data={"confirm": "x@example.com"}).headers["HX-Redirect"]
-            == "/login"
-        )
+        assert client.post("/api/erase", json={"confirm": "x@example.com"}).status_code == 204
+        assert client.post("/api/delete-account", json={"confirm": "x@example.com"}).status_code == 204
     assert deleted == [B_USER], "only B's login"
     assert books_of(client, TEST_USER_ID) == before_a, "A's books are exactly as they were"
 
@@ -904,7 +788,7 @@ async def test_b_s_assistant_cannot_reach_a(client: TestClient, session, world: 
 
 @pytest.mark.anyio
 async def test_a_token_only_ever_acts_as_its_owner(client: TestClient, session, world: World):
-    """A's token reads A's books and B's reads B's, whoever is signed in on the web at the time."""
+    """A's token reads A's books and B's reads B's, whoever is signed in to the app at the time."""
     secret_a = make_token(session, TEST_USER_ID, name="A-Phone")
     secret_b = make_token(session, B_USER, name="B-Phone")
     async with running_app(session):
@@ -919,7 +803,6 @@ async def test_a_token_only_ever_acts_as_its_owner(client: TestClient, session, 
 
 def test_nothing_answers_without_a_sign_in(session, world: World):
     app.dependency_overrides.pop(require_authenticated_user, None)
-    app.dependency_overrides.pop(web_login_required, None)
     app.dependency_overrides[get_db_session] = lambda: session
     try:
         with TestClient(app, follow_redirects=False) as anonymous:
@@ -939,16 +822,9 @@ def test_nothing_answers_without_a_sign_in(session, world: World):
                     "name",
                 ):
                     url = url.replace("{" + name + "}", str(world.transaction_ids[0]))
-                response = anonymous.request(
-                    method,
-                    url,
-                    json={} if url.startswith("/api/") else None,
-                    data=None if url.startswith("/api/") else {},
-                )
+                response = anonymous.request(method, url, json={})
                 checked += 1
-                ok = response.status_code in (401, 403) or (
-                    response.status_code in (302, 303, 307) and "/login" in response.headers.get("location", "")
-                )
+                ok = response.status_code in (401, 403)
                 if not ok or leaked(world, response.text):
                     problems.append((method, url, response.status_code))
             assert checked > 100 and not problems, problems[:10]

@@ -1,5 +1,5 @@
 """/api/views/categories and /api/views/categories/{category_id}: what the finode app's Categories page and a category's
-page show for a month, worked out as the web pages work it out (services/categories_view.py)."""
+page show for a month, worked out by services/categories_view.py."""
 
 from datetime import date, timedelta
 

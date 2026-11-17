@@ -1,4 +1,4 @@
-// Sign in (login.html): email and password, then where the person was going (only inside the app), or Home.
+// Sign in: email and password, then where the person was going (only inside the app), or Home.
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";

@@ -36,7 +36,7 @@ import { Layout } from "./Layout";
 import { SessionProvider } from "./session";
 import { ToastProvider } from "./toast";
 
-/** An old address of the web pages (/login, /signup), kept so bookmarks and mails still work. */
+/** An old address (/login, /signup), kept so bookmarks and mails still work. */
 function MovedTo({ path }: { path: string }) {
   const { search } = useLocation();
   return <Navigate to={path + search} replace />;

@@ -1,5 +1,5 @@
 """/api/auth: what the finode app uses to sign people in, up and out, reset a password and learn who is signed in.
-The rules and messages are the web pages' own (app/auth_flows.py)."""
+The rules and messages live in app/auth_flows.py."""
 
 from datetime import date
 
@@ -11,8 +11,7 @@ from app.reset import ResetLinkInvalidError
 from app.routers import auth as auth_router
 from app.session import ACCESS_COOKIE, REFRESH_COOKIE, InvalidCredentialsError, SessionTokens
 
-FRONTEND = "https://app.example.com"
-APP = {"X-Finode": "1", "Origin": FRONTEND}
+APP = {"X-Finode": "1", "Origin": "http://testserver"}  # the test client's own origin: the app and the API share one
 TOKENS = SessionTokens("access-1", "refresh-1", 3600)
 SIGN_UP = {
     "email": "new@example.com",
@@ -20,11 +19,6 @@ SIGN_UP = {
     "confirm_password": "correct horse",
     "invite_code": "a-long-enough-invite-code",
 }
-
-
-@pytest.fixture(autouse=True)
-def from_the_app(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(settings, "frontend_origin", FRONTEND)
 
 
 @pytest.fixture

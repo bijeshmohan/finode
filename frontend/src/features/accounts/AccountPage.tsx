@@ -1,4 +1,4 @@
-// An account's (or a group's) own page (account.html): its balance and kind, a card's bill, a group's accounts as cards,
+// An account's (or a group's) own page: its balance and kind, a card's bill, a group's accounts as cards,
 // what is dated ahead, and its entries with the running balance, a chunk at a time. The pin and the "…" menu pin, close,
 // reopen and edit it.
 import { useState } from "react";

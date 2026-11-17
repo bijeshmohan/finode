@@ -2,7 +2,7 @@
 
 import pytest
 
-from .books import leg, post_account
+from .books import category, leg, post_account
 
 
 def post(client, debit, credit, amount, **extra):
@@ -25,11 +25,11 @@ def test_sums_longer_than_one_amount_can_be_still_show_up(client, root_accounts,
         made = post(client, expense_account, account, "5000000000000000.00")
         assert made.status_code == 201, made.text
     for page in (
-        "/",
-        "/accounts",
-        "/categories",
-        "/budget",
-        f"/accounts/{account['id']}",
+        "/api/views/home",
+        "/api/views/accounts",
+        "/api/views/categories",
+        "/api/views/budget",
+        f"/api/views/accounts/{account['id']}",
         "/api/accounts/",
         "/api/reports/trial-balance",
         "/api/budget/",
@@ -51,36 +51,29 @@ def test_a_transaction_outside_the_calendar_finode_works_in_is_refused_with_a_re
 def test_the_first_and_last_day_work_everywhere(client, account, expense_account, day):
     assert post(client, expense_account, account, "5", date=day).status_code == 201
     for page in (
-        "/",
-        "/transactions",
-        "/accounts",
-        "/budget",
-        f"/budget?month={day[:7]}",
-        f"/categories?month={day[:7]}",
+        "/api/views/home",
+        "/api/views/transactions",
+        f"/api/views/transactions?month={day[:7]}",
+        "/api/views/accounts",
+        "/api/views/budget",
+        f"/api/views/budget?month={day[:7]}",
+        f"/api/views/categories?month={day[:7]}",
     ):
         assert client.get(page).status_code == 200, page
 
 
 @pytest.mark.parametrize("month", ["0001-01", "9999-12", "1899-12", "2200-01", "1900-01", "2999-12"])
 def test_odd_months_in_the_address_never_break_a_page(client, expense_account, month):
-    for page in ("/budget", "/categories", f"/budget/group/{expense_account['id']}"):
-        assert client.get(f"{page}?month={month}").status_code in (200, 404), (page, month)
+    group = category(client, "Bills")
+    category(client, "Power", parent=group["id"])
+    for page in ("/api/views/budget", "/api/views/categories", f"/api/views/budget/groups/{group['id']}"):
+        assert client.get(f"{page}?month={month}").status_code == 200, (page, month)
 
 
 def test_the_api_refuses_a_month_it_cannot_work_with(client):
     assert client.get("/api/budget/?month=9999-12-01").status_code == 400
     assert client.get("/api/budget/?month=0001-01-01").status_code == 400
     assert client.get("/api/budget/?month=2026-10-01").status_code == 200
-
-
-def test_the_ends_of_the_calendar_do_not_move_the_month_arrows_off_it():
-    from datetime import date
-
-    from app.routers.web.budget import shift
-
-    assert shift(date(2999, 12, 1), 1) == date(2999, 12, 1)
-    assert shift(date(1900, 2, 1), -1) == date(1900, 2, 1)
-    assert shift(date(2026, 10, 1), 1) == date(2026, 11, 1) and shift(date(2026, 1, 1), -1) == date(2025, 12, 1)
 
 
 def test_a_nul_character_is_dropped_instead_of_failing(client, account, expense_account, root_accounts):

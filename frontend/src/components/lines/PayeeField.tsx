@@ -1,4 +1,4 @@
-// The payee, with the chips of people you pay (partials/txn_payee.html): names only, while you type; a chip fills the
+// The payee, with the chips of people you pay: names only, while you type; a chip fills the
 // payee and moves on to the amount, never an account. After an "@", your people: choosing one names them on an expense
 // or an income (a gift, nothing owed), shown in a chip with ✕ to take them off.
 import { useQuery } from "@tanstack/react-query";

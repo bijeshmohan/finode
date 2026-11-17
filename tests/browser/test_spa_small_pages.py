@@ -1,5 +1,5 @@
 """The React app's to-do bell, Coming up and Tags pages in a browser (ports of test_todo_bell.py, test_coming_up.py and the
-Tags-page tests of test_tags.py), with the web pages' measures (style.css) held to."""
+Tags-page tests of test_tags.py)."""
 
 import calendar
 import re
@@ -103,7 +103,7 @@ def test_a_bill_due_soon_is_in_the_bell_and_pay_bill_opens_the_form(signed_in_sp
 
 
 def test_the_bell_sits_where_the_web_page_puts_it(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    """style.css: the badge at the bell's top right; in the sidebar the bell sits at the foot with Settings."""
+    """The badge at the bell's top right; in the sidebar the bell sits at the foot with Settings."""
     page = signed_in_spa_page
     loan_payment(spa_api, spa_books)
     page.set_viewport_size({"width": 390, "height": 800})
@@ -238,7 +238,7 @@ def test_view_entries_opens_the_list_filtered_by_the_tag(signed_in_spa_page: Pag
 
 
 def test_the_tags_page_rows_are_plain_rows_inside_one_tile(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    """As the web page: one full-width row each, 52px high, no button look, the count at the right."""
+    """One full-width row each, 52px high, no button look, the count at the right."""
     page = signed_in_spa_page
     tagged(spa_api, spa_books, "A", "alpha")
     tagged(spa_api, spa_books, "B", "beta")

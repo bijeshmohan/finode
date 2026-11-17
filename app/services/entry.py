@@ -2,8 +2,7 @@
 Expenses or Income), money to or from a person (a loan, a borrowing, paying back what is owed), or an expense or income
 that names a person as a gift, or a bill or an income shared with people (the form's Split: entry_share turns it into
 what expense_sharing and income_sharing record). Editing first releases what the entry was (a loan, a shared bill,
-shared income), and rolls all of it back when the new version is refused. The web form and /api/entries both save
-through here."""
+shared income), and rolls all of it back when the new version is refused. /api/entries saves through here."""
 
 from collections.abc import Iterable, Mapping
 from uuid import UUID

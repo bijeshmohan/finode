@@ -1,9 +1,0 @@
-{#- Expects `rows` (TransactionRow list, newest first). -#}
-{% from "partials/icons.html" import icon %}
-<div class="tx-list">
-  {% include "partials/transaction_days.html" %}
-  {% include "partials/transaction_more_row.html" %}
-</div>
-<dialog id="txn-sheet" class="sheet sheet-bottom" aria-label="Transaction details">
-  <div id="txn-sheet-body" class="sheet-body"></div>
-</dialog>

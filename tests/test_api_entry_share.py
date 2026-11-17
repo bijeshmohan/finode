@@ -172,26 +172,10 @@ def test_the_share_preview_says_what_is_wrong(client, root_accounts):
     assert (stranger.status_code, stranger.json()["detail"]) == (404, "contact not found!")
 
 
-def test_a_split_records_what_the_web_form_records(client, root_accounts):
+def test_a_split_records_the_bill_as_typed(client, root_accounts):
     bank, food, ada = made(client, root_accounts)
-    client.post("/api/entries", json=shared_bill(bank, food, ada))
-    web = client.post(
-        "/transactions/split",
-        data={
-            "mode": "split",
-            "kind": "expense",
-            "total": "900",
-            "payee": "Dinner",
-            "category_id": food["id"],
-            "account_id": bank["id"],
-            "split_method": "equal",
-            f"with_{ada['id']}": "1",
-        },
-    )
-    assert web.status_code == 200 and "HX-Redirect" in web.headers, web.text
-    assert owed(client, ada) == ("900.00", "0.00"), "450 from each"
+    saved = client.post("/api/entries", json=shared_bill(bank, food, ada, split_method="equal"))
+    assert saved.status_code == 201, saved.text
+    assert owed(client, ada) == ("450.00", "0.00"), "450 from each"
     bills = client.get("/api/shared-expenses/").json()
-    assert sorted((b["description"], b["total_amount"], b["split_method"]) for b in bills) == [
-        ("Dinner", "900.00", "equal"),
-        ("Dinner", "900.00", "equal"),
-    ]
+    assert [(b["description"], b["total_amount"], b["split_method"]) for b in bills] == [("Dinner", "900.00", "equal")]

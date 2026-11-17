@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
 # Build the React app's own image (frontend/Dockerfile, the `web` service in compose.yaml) and check what it serves:
 # every app address opens the app, a missing script is a 404 and never the page, the page and the service worker are
-# never kept long while hashed files are kept a year, the headers, the API address built in, and nothing secret. It runs
-# the container as compose.yaml does (read-only, no capabilities, no new privileges), as the user the image names.
-# Needs Docker. Usage: scripts/check-web-image.sh [API address, default https://finode.bijesh.me]
+# never kept long while hashed files are kept a year, the headers, no other address built in (the app calls /api on its
+# own address), and nothing secret. It runs the container as compose.yaml does (read-only, no capabilities, no new
+# privileges), as the user the image names. Needs Docker. Usage: scripts/check-web-image.sh
 set -euo pipefail
 
-API="${1:-https://finode.bijesh.me}"
 IMAGE="finode-web:check"
 NAME="finode-web-check-$$"
 
 cd "$(dirname "$0")/.."
 
-docker build -q -t "$IMAGE" --build-arg "VITE_API_URL=$API" -f frontend/Dockerfile . >/dev/null
+docker build -q -t "$IMAGE" frontend >/dev/null
 # Listens on this machine only, on a port Docker picks; restricted as the `web` service is in compose.yaml.
 docker run -d --rm --name "$NAME" -p 127.0.0.1::8080 \
   --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true "$IMAGE" >/dev/null
@@ -99,10 +98,12 @@ for path in / /profile/data "$script" /sw.js /assets/missing-0000.js; do
 done
 if has_line "$(head_of /)" "^server: nginx/"; then fail "the server names its version"; fi
 
-# The API address reached the bundle; nothing secret did.
-docker exec "$NAME" grep -rqF "$API" /usr/share/nginx/html/assets || fail "the app does not call $API"
+# No address of ours is built in (the app and the API share one), and nothing secret is.
+for host in finode.bijesh.me bijesh.me localhost:8000 VITE_API_URL; do
+  if docker exec "$NAME" grep -rqF "$host" /usr/share/nginx/html/assets; then fail "the app names '$host'"; fi
+done
 for secret in supabase_service_role_key SUPABASE_SERVICE_ROLE_KEY sb_secret_ FINODE_DATABASE_URL postgresql+psycopg; do
   if docker exec "$NAME" grep -rqF "$secret" /usr/share/nginx/html; then fail "the image carries '$secret'"; fi
 done
 
-echo "web image: all checks passed ($API)"
+echo "web image: all checks passed"

@@ -1,4 +1,4 @@
-/* The day sections of app/static/style.css: .tx-list, .tx-day, .tx-day-head, the tile, .tx-fold, .tx-pill, .tx-via. */
+/* The day sections: .tx-list, .tx-day, .tx-day-head, the tile, .tx-fold, .tx-pill, .tx-via. */
 .list {
   display: flex;
   flex-direction: column;

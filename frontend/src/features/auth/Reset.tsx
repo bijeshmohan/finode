@@ -1,4 +1,4 @@
-// Choose a new password from the emailed link (reset.html). Opening the link sends nothing: mail scanners open links,
+// Choose a new password from the emailed link. Opening the link sends nothing: mail scanners open links,
 // and the token must only be spent when the person submits.
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";

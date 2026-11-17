@@ -1,4 +1,4 @@
-/* An account's or a category's entries (partials/account_entries.html, category_entries.html): the running balance
+/* An account's or a category's entries: the running balance
    sits small under the figure, and a line that posts on another day says so. */
 /* inline-grid keeps the "+" of money coming in on the amount's line (its baseline is the first row's). */
 .amount {

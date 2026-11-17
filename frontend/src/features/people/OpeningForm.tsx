@@ -1,4 +1,4 @@
-// Adding or editing what a person already owed before finode (person_opening.html). Once part of it was paid back, who
+// Adding or editing what a person already owed before finode. Once part of it was paid back, who
 // owes whom stays as it is and the amount can't go below what was paid (the server says so).
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";

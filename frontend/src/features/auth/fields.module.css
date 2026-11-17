@@ -1,4 +1,4 @@
-/* .stack, label, input, button, .error, .login-notice and .switch of app/static/style.css. */
+/* .stack, label, input, button, .error, .login-notice and .switch. */
 .stack {
   display: flex;
   flex-direction: column;
@@ -81,7 +81,7 @@
   text-decoration-color: var(--faint);
   text-underline-offset: 0.2em;
 }
-/* label.check and .notice of app/static/style.css. */
+/* label.check and .notice. */
 .check {
   display: flex;
   flex-direction: row;

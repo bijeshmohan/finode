@@ -12,7 +12,7 @@ from app.models.profile import Profile
 from app.session import ACCESS_COOKIE, AuthUnavailableError, InvalidCredentialsError, SessionTokens
 from app.signup import EmailAlreadyRegisteredError, RateLimitedError, SignupRejectedError
 
-from .test_api_auth import APP, SIGN_UP, from_the_app  # noqa: F401  (an autouse fixture)
+from .test_api_auth import APP, SIGN_UP
 
 CODE = SIGN_UP["invite_code"]
 SERVICE_KEY = "sb_secret_test_key"

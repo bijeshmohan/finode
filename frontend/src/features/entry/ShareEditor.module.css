@@ -1,5 +1,5 @@
 /* The Split of the Add screen (.people-editor, .share-row, .scope-seg, .under-field, .field-pick, .sheet-extra,
-   .preview in app/static/style.css). */
+   .preview). */
 .editor {
   display: flex;
   flex-direction: column;

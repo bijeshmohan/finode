@@ -1,4 +1,4 @@
-/* dialog.sheet and dialog.sheet-bottom of app/static/style.css, with their motion. */
+/* dialog.sheet and dialog.sheet-bottom, with their motion. */
 .sheet {
   width: min(28rem, calc(100vw - 2rem));
   max-height: calc(var(--vvh, 100dvh) - 1rem);

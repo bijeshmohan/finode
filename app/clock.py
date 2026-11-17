@@ -11,9 +11,6 @@ from .config import settings
 # date arithmetic (the next month, the day before) can never run off the calendar's ends at year 1 or 9999.
 FIRST_DAY = date(1900, 1, 1)
 LAST_DAY = date(2999, 12, 31)
-# The months that can be looked at: one in from each end, so "the month before" always exists.
-FIRST_MONTH = date(1900, 2, 1)
-LAST_MONTH = date(2999, 12, 1)
 
 
 @lru_cache
@@ -34,22 +31,9 @@ def local_midnight_utc() -> datetime:
     return local_now().replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
 
 
-def local_start_utc(day: date) -> datetime:
-    """The start of a day where the people using it live, as a UTC moment."""
-    zone = _zone(settings.timezone) if settings.timezone else local_now().tzinfo
-    return datetime(day.year, day.month, day.day, tzinfo=zone).astimezone(UTC)
-
-
 def month_progress(today: date | None = None) -> int:
     """How far through its month a day is, as a whole percentage (the 15th of a 30-day month is 50)."""
     from calendar import monthrange
 
     day = today or local_today()
     return round(100 * day.day / monthrange(day.year, day.month)[1])
-
-
-def local_day(moment: datetime) -> date:
-    """The day a stored moment fell on, where the people using it live."""
-    if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=UTC)
-    return moment.astimezone(_zone(settings.timezone)).date() if settings.timezone else moment.astimezone().date()

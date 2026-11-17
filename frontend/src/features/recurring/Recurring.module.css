@@ -1,5 +1,5 @@
 /* The Recurring list and form, from .rep-row, .rep-label, .end-chip, .end-clear, .rep-hint, .origin, .tx-system and the
-   form's status card (.txn-form + .card.form-narrow) of app/static/style.css. */
+   form's status card (.txn-form + .card.form-narrow). */
 .quiet {
   color: var(--muted);
 }

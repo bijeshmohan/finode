@@ -1,7 +1,7 @@
 """What the People pages show and do: the list with each person's quiet line, a person's open amounts and activity with
 what each is called, an entry's sheet, reversing an entry the way its kind is reversed, and adding a person with an
-opening balance all or nothing. The web pages (routers/web/people.py) and the finode app's views (/api/views/people…)
-both go through here."""
+opening balance all or nothing. The finode app's views (/api/views/people…) go through
+here."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from .obligation import ObligationService
 from .settlement import SettlementService
 from .transfer import TransferService
 
-# How an amount is written in the person's currency (templating.money with their grouping).
+# How an amount is written in the person's currency (formatting.money with their grouping).
 Money = Callable[[Decimal], str]
 
 SHOWS = {"all": "All", "owed": "Owe you", "owe": "You owe"}

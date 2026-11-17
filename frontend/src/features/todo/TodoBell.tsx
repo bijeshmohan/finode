@@ -1,4 +1,4 @@
-// The to-do bell (base.html's .todo-open and partials/todo_sheet.html): a count in the top bar and the sidebar, and a
+// The to-do bell: a count in the top bar and the sidebar, and a
 // sheet of what needs a decision, each item with its fix. What counts is the server's (services/todo.py); the sheet
 // stays open after a fix and redraws from the view.
 import { useState } from "react";

@@ -1,4 +1,4 @@
-"""Tests that drive the web UI in a real browser, against the real app on a real port.
+"""Tests that drive the app in a real browser, against the real app on a real port.
 
 They need a browser. `uv run pytest` skips them when there is none. To run them:
 
@@ -21,12 +21,10 @@ import uvicorn
 from fastapi import HTTPException
 
 from app import auth, auth_flows
-from app.auth import CurrentUser, require_authenticated_user
 from app.config import settings
 from app.dependencies import get_db_session
 from app.main import app
 from app.session import ACCESS_COOKIE, InvalidCredentialsError, SessionTokens
-from app.web_auth import web_login_required
 
 from ..conftest import TEST_USER_ID
 from .spa import spa_app
@@ -90,16 +88,6 @@ def _serve(asgi_app, session) -> Generator[str]:
     app.dependency_overrides.clear()
 
 
-@pytest.fixture
-def live_server(session) -> Generator[str]:
-    """The app on a free port, signed in as the test user, with the fresh in-memory database of the test."""
-    app.dependency_overrides[require_authenticated_user] = lambda: CurrentUser(
-        id=TEST_USER_ID, email="test@example.com", claims={}
-    )
-    app.dependency_overrides[web_login_required] = lambda: None
-    yield from _serve(app, session)
-
-
 # The React app signs in for real through /api/auth; only Supabase is stood in for: a password starting "right" signs in, and
 # the session cookie it sets ("test-access") is the test user.
 SPA_TOKEN = "test-access"
@@ -126,7 +114,6 @@ def spa_server(session, monkeypatch: pytest.MonkeyPatch) -> Generator[str]:
     monkeypatch.setattr(settings, "cookie_secure", False)  # plain http on 127.0.0.1: WebKit drops a Secure cookie there
     served = _serve(spa_app(), session)
     url = next(served)
-    monkeypatch.setattr(settings, "frontend_origin", url)
     yield url
     next(served, None)
 
@@ -170,15 +157,6 @@ def _new_page(browser: Browser, base_url: str) -> tuple[BrowserContext, Page, li
         lambda error: errors.append(str(error)) if "due to access control checks" not in str(error) else None,
     )
     return context, page, errors
-
-
-@pytest.fixture
-def page(request, browser: Browser, live_server: str) -> Generator[Page]:
-    context, page, errors = _new_page(browser, live_server)
-    yield page
-    keep_evidence(request.node, page)
-    context.close()
-    assert not errors, f"JavaScript errors in the page: {errors}"
 
 
 @pytest.fixture
@@ -234,48 +212,6 @@ class Api:
         return response.json()
 
 
-def row_button(page: Page, side: str, index: int = 0):
-    """The button of a row on the Add screen (its account or category, its date and its amount)."""
-    return page.locator(f'[data-rows="{side}"] [data-row]').nth(index).locator("[data-pick].slim")
-
-
-def row_gear(page: Page, side: str, index: int = 0):
-    """The settings glyph at the right of a row that has its account."""
-    return page.locator(f'[data-rows="{side}"] [data-row]').nth(index).locator("[data-row-settings]")
-
-
-def set_row(page: Page, side: str, index: int = 0, amount: str | None = None, date: str | None = None) -> None:
-    """Open the settings of a row that already has its account, type its amount and/or day and press Done."""
-    row_gear(page, side, index).click()
-    sheet = page.locator("#row-settings")
-    if amount is not None:
-        sheet.locator("[data-config-amount]").fill(amount)
-    if date is not None:
-        sheet.locator("[data-config-date]").fill(date)
-    sheet.locator("[data-config-ok]").click()
-
-
-def add_row(
-    page: Page, side: str, label: str, index: int = 0, amount: str | None = None, date: str | None = None
-) -> None:
-    """Choose an account or category in the picker (it closes at once), then set its amount and/or day from the row."""
-    row_button(page, side, index).click()
-    page.locator("#row-picker [data-pick-option]", has_text=label).first.click()
-    if amount is not None or date is not None:
-        set_row(page, side, index, amount, date)
-
-
-@pytest.fixture
-def api(page: Page) -> Api:
-    return Api(page)
-
-
-@pytest.fixture
-def books(api: Api) -> dict:
-    """A small set of accounts, all directly under their type so pickers show plain names."""
-    return make_books(api)
-
-
 @pytest.fixture
 def spa_api(signed_in_spa_page: Page, spa_server: str) -> Api:
     """The JSON API as the React app's signed-in person: the cookie, and the app's header and origin for changes."""
@@ -284,34 +220,14 @@ def spa_api(signed_in_spa_page: Page, spa_server: str) -> Api:
 
 @pytest.fixture
 def spa_books(spa_api: Api) -> dict:
-    """The same accounts as `books`, for the React app's tests."""
-    return make_books(spa_api)
-
-
-def make_books(api: Api) -> dict:
-    roots = {a["name"]: a["id"] for a in api.get("/accounts/") if a["parent_id"] is None}
+    """A small set of accounts, all directly under their type so pickers show plain names."""
+    roots = {a["name"]: a["id"] for a in spa_api.get("/accounts/") if a["parent_id"] is None}
     return {
-        "checking": api.post("/accounts/", name="Checking", parent_id=roots["Assets"], balance="5000"),
-        "cash": api.post("/accounts/", name="Cash", parent_id=roots["Assets"]),
-        "card": api.post("/accounts/", name="Visa", parent_id=roots["Liabilities"], on_budget=True),
-        "salary": api.post("/accounts/", name="Salary", parent_id=roots["Income"]),
-        "food": api.post("/accounts/", name="Groceries", parent_id=roots["Expenses"]),
-        "rent": api.post("/accounts/", name="Rent", parent_id=roots["Expenses"]),
+        "checking": spa_api.post("/accounts/", name="Checking", parent_id=roots["Assets"], balance="5000"),
+        "cash": spa_api.post("/accounts/", name="Cash", parent_id=roots["Assets"]),
+        "card": spa_api.post("/accounts/", name="Visa", parent_id=roots["Liabilities"], on_budget=True),
+        "salary": spa_api.post("/accounts/", name="Salary", parent_id=roots["Income"]),
+        "food": spa_api.post("/accounts/", name="Groceries", parent_id=roots["Expenses"]),
+        "rent": spa_api.post("/accounts/", name="Rent", parent_id=roots["Expenses"]),
         "roots": roots,
     }
-
-
-@pytest.fixture
-def touch_page(browser: Browser, live_server: str) -> Generator[Page]:
-    """A phone: a finger instead of a mouse, so a tap blurs the field it leaves before the click arrives (as on iOS)."""
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844},
-        base_url=live_server,
-        reduced_motion="reduce",
-        has_touch=True,
-        is_mobile=True,
-    )
-    page = context.new_page()
-    page.set_default_timeout(8000)
-    yield page
-    context.close()

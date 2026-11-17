@@ -1,10 +1,11 @@
 """The Supabase session: signing in with a password, refreshing, and the HttpOnly cookies that carry it."""
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
-from fastapi import Response
+from fastapi import Request, Response
 
 from .config import settings
 
@@ -79,3 +80,12 @@ def set_auth_cookies(response: Response, tokens: SessionTokens) -> None:
 def clear_auth_cookies(response: Response) -> None:
     response.delete_cookie(ACCESS_COOKIE, path="/")
     response.delete_cookie(REFRESH_COOKIE, path="/")
+
+
+async def refreshed_cookies_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]):
+    """Write the renewed sign-in cookies when this request refreshed an expired session (auth.token_from_cookies)."""
+    response = await call_next(request)
+    tokens = getattr(request.state, "refreshed_tokens", None)
+    if tokens is not None:
+        set_auth_cookies(response, tokens)
+    return response

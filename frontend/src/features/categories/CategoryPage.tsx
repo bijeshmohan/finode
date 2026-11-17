@@ -1,4 +1,4 @@
-// A category's own page (category.html): its month (the month pill beside the way back), its subcategories with theirs
+// A category's own page: its month (the month pill beside the way back), its subcategories with theirs
 // and "Everything else" labelled with it itself, and its own entries. The menu edits, adds a subcategory, deletes or
 // restores it.
 import { useState } from "react";

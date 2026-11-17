@@ -1,4 +1,4 @@
-"""What the Add screen saves (/api/entries and the web form alike): the entry's details and its rows as the person chose
+"""What the Add screen saves (/api/entries): the entry's details and its rows as the person chose
 them. A row names an account, a category or a person; the server decides what that records (services/entry.py)."""
 
 from decimal import Decimal

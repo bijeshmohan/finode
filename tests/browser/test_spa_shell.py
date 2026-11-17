@@ -26,7 +26,7 @@ STATUS_BAR = """[...document.querySelectorAll('meta[name="theme-color"]')]
 
 
 def test_the_phones_status_bar_follows_the_device_as_the_web_pages_do(spa_page: Page):
-    """The bar above the page (theme-color) is the page's own colour in light and in dark, as base.html declares."""
+    """The bar above the page (theme-color) is the page's own colour in light and in dark."""
     page = spa_page
     for scheme, colour in (("light", "#ecf0ec"), ("dark", "#10151f")):
         page.emulate_media(color_scheme=scheme)

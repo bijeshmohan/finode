@@ -1,4 +1,4 @@
-// A card's (or loan's) bill under its balance (partials/card_bill.html): what is left to pay of the latest statement and
+// A card's (or loan's) bill under its balance: what is left to pay of the latest statement and
 // when, with Pay bill; or, without the days set, how to see it.
 import { Link } from "react-router";
 

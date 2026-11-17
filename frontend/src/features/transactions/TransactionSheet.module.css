@@ -1,5 +1,5 @@
 /* .sheet-title, .sheet-amount, .sheet-facts, .sheet-extra, .sheet-related, .sheet-by, .sheet-actions, .sheet-links,
-   .sheet-delete and .sheet-tags of app/static/style.css. */
+   .sheet-delete and .sheet-tags. */
 .title {
   display: flex;
   align-items: flex-start;

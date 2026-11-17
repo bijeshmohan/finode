@@ -1,5 +1,5 @@
 // The frame of every signed-in screen: on phones a top bar and a tab bar with the "+" docked in the middle; from 60rem a
-// sidebar instead. Taken from app/templates/base.html and the App shell rules of app/static/style.css.
+// sidebar instead.
 import { NavLink, Outlet } from "react-router";
 
 import { Icon, type IconName } from "../components/Icon";

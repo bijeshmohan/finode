@@ -12,7 +12,7 @@ from app.routers import auth as auth_router
 from app.session import InvalidCredentialsError, SessionTokens
 
 from .books import into, leg, post_account
-from .test_api_auth import APP, SIGN_UP, from_the_app, signup_on  # noqa: F401  (fixtures used by name)
+from .test_api_auth import APP, SIGN_UP, signup_on  # noqa: F401  (a fixture used by name)
 
 # ---- the counter ----------------------------------------------------------------------------------------------
 

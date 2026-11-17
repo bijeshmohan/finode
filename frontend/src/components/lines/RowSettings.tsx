@@ -1,4 +1,4 @@
-// The settings of a row, opened by the glyph at its right (#row-settings in txn_rows.html): its amount and, on an
+// The settings of a row, opened by the glyph at its right: its amount and, on an
 // account, the day it posts the line; Done keeps them, Remove takes the row away when the side has several.
 import { useState } from "react";
 

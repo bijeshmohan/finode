@@ -1,6 +1,6 @@
 """The recurring form: where it starts (a rule's rows as the Add screen shows them) and what its rows save as (a plain
-rule, one account each side with the same amount, or a split). The web form (routers/web/recurring.py) and the finode
-app (/api/recurring/form, /api/views/recurring-form) both go through here."""
+rule, one account each side with the same amount, or a split). The finode app (/api/recurring/form,
+/api/views/recurring-form) goes through here."""
 
 from __future__ import annotations
 

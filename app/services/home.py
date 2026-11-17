@@ -1,4 +1,4 @@
-"""Home's numbers, for the web page and the finode app alike: a month's budget at a glance, the month's first entries,
+"""Home's numbers, for the finode app: a month's budget at a glance, the month's first entries,
 and a new person's first steps."""
 
 import calendar

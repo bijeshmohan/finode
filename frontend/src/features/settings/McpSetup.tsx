@@ -1,4 +1,4 @@
-// How to set up an assistant with a token (partials/mcp_setup.html): the server address and the snippets for Claude
+// How to set up an assistant with a token: the server address and the snippets for Claude
 // Code, Claude Desktop and the rest, filled with the new token's secret or the placeholder YOUR_TOKEN.
 import styles from "./Settings.module.css";
 

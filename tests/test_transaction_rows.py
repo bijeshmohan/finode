@@ -1,4 +1,4 @@
-"""How a row of a list names itself (services/transaction_rows.py): the same for the web pages and the React app."""
+"""How a row of a list names itself (services/transaction_rows.py): the same on every list of the app."""
 
 from uuid import UUID
 

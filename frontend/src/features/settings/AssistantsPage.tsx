@@ -1,4 +1,4 @@
-// AI assistants (assistants.html, partials/connections.html, token_created.html): what is connected with its access,
+// AI assistants: what is connected with its access,
 // the address to sign in with Claude, a token made here (its secret shown once, kept in this page only) and the setup
 // instructions.
 import { useState } from "react";

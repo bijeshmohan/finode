@@ -1,4 +1,4 @@
-// What the Split would do, as typed so far (expense_preview.html, income_preview.html): the server's own figures, or
+// What the Split would do, as typed so far: the server's own figures, or
 // why it cannot be saved yet.
 import { messageOf } from "../../api/messages";
 import { useGrouping } from "../../app/currency";

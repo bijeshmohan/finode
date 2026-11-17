@@ -1,5 +1,4 @@
-"""JSON API for a person's data: export, import, backup, restore, Erase and Delete my account. The web pages reuse its
-file helpers and `confirmed`."""
+"""JSON API for a person's data: export, import, backup, restore, Erase and Delete my account."""
 
 import json
 from typing import Literal

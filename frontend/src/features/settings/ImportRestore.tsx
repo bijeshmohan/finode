@@ -1,4 +1,4 @@
-// The preview, then confirm, of an import or a restore (partials/import_preview.html, restore_preview.html): a file
+// The preview, then confirm, of an import or a restore: a file
 // is sent with dry_run first; what it would do is listed, and only a preview without errors offers to go ahead.
 import { type ReactNode, useState } from "react";
 import { useNavigate } from "react-router";

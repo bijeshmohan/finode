@@ -1,4 +1,4 @@
-// The People list (people.html): All · Owe you · You owe (· Archived once someone is), what is owed in all, and a row
+// The People list: All · Owe you · You owe (· Archived once someone is), what is owed in all, and a row
 // per person with their quiet line and what is owed either way. The words and totals are the server's
 // (services/people_view.py).
 import { Link, useSearchParams } from "react-router";

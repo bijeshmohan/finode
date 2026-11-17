@@ -1,4 +1,4 @@
-// One tag in its sheet (partials/tag_sheet.html): how often and when it was last used, its entries, and Rename, Merge
+// One tag in its sheet: how often and when it was last used, its entries, and Rename, Merge
 // into… (renaming onto another tag) and Delete. A change toasts, refreshes the views and closes the sheet; a refusal
 // stays in it.
 import { useId, useState } from "react";
