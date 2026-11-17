@@ -23,6 +23,7 @@ import { TransactionSheet } from "../transactions/TransactionSheet";
 import { useOpenEntry } from "../transactions/useOpenEntry";
 import styles from "../../components/Rows.module.css";
 import { type CategoryView, useCategory, useCategoryChange } from "./queries";
+import { useTabTitle } from "../../app/title";
 
 const SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -138,6 +139,7 @@ export function CategoryPage() {
   const [openId, openEntry, closeEntry] = useOpenEntry();
   const view = query.data;
   useNewEntryHere(view?.new_transaction_url ?? null);
+  useTabTitle(view?.name);
 
   if (query.isError) return <LoadError error={query.error} onRetry={() => void query.refetch()} />;
   if (!view) return <h1 className="sr-only">Category</h1>;

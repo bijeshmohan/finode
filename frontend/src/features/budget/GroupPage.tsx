@@ -22,6 +22,7 @@ import styles from "./Budget.module.css";
 import { BudgetRows } from "./BudgetRows";
 import { CategorySheet, SheetHead } from "./CategorySheet";
 import { type BudgetGroupView, type BudgetRow, useAssignGroup, useBudgetGroup } from "./queries";
+import { useTabTitle } from "../../app/title";
 
 function GroupSheet({ view, monthLabel, onClose }: { view: BudgetGroupView; monthLabel: string; onClose: () => void }) {
   const grouping = useGrouping();
@@ -81,6 +82,7 @@ export function GroupPage() {
   const query = useBudgetGroup(categoryId, params.get("month"));
   const [editing, setEditing] = useState(false);
   const [open, setOpen] = useState<BudgetRow | null>(null);
+  useTabTitle(query.data?.name);
   if (query.isError) return <LoadError error={query.error} onRetry={() => void query.refetch()} />;
   const view = query.data;
   if (!view) return <h1 className="sr-only">Budgets</h1>;

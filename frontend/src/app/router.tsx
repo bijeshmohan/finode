@@ -1,5 +1,5 @@
 // Every address the app answers. Inside the layout a session is guaranteed (SessionProvider); sign-in stands outside.
-// Pages are placeholders until their step of the rebuild; real pages are loaded lazily as they arrive.
+// A screen's `handle` names the browser tab (app/title.tsx); Home has none and is plain "finode".
 import { Navigate, Outlet, type RouteObject, useLocation } from "react-router";
 
 import { EntryRoute } from "../features/entry/EntryRoute";
@@ -34,6 +34,7 @@ import { SignIn } from "../features/auth/SignIn";
 import { SignUp } from "../features/auth/SignUp";
 import { Layout } from "./Layout";
 import { SessionProvider } from "./session";
+import { TabTitle } from "./title";
 import { ToastProvider } from "./toast";
 
 /** An old address (/login, /signup), kept so bookmarks and mails still work. */
@@ -50,11 +51,14 @@ function SignedIn() {
   );
 }
 
-/** Toasts outlive the page that raised them, the sign-in screen included ("Your account was deleted"). */
+/** Toasts outlive the page that raised them, the sign-in screen included ("Your account was deleted"); the tab's title
+ * follows every screen. */
 function WithToasts() {
   return (
     <ToastProvider>
-      <Outlet />
+      <TabTitle>
+        <Outlet />
+      </TabTitle>
     </ToastProvider>
   );
 }
@@ -63,12 +67,12 @@ export const routes: RouteObject[] = [
   {
     element: <WithToasts />,
     children: [
-      { path: "/sign-in", element: <SignIn /> },
+      { path: "/sign-in", element: <SignIn />, handle: { title: "Sign in" } },
       { path: "/login", element: <MovedTo path="/sign-in" /> },
-      { path: "/sign-up", element: <SignUp /> },
+      { path: "/sign-up", element: <SignUp />, handle: { title: "Sign up" } },
       { path: "/signup", element: <MovedTo path="/sign-up" /> },
-      { path: "/forgot", element: <Forgot /> },
-      { path: "/reset", element: <Reset /> },
+      { path: "/forgot", element: <Forgot />, handle: { title: "Forgotten password" } },
+      { path: "/reset", element: <Reset />, handle: { title: "Reset password" } },
       {
         element: <SignedIn />,
         children: [
@@ -76,39 +80,51 @@ export const routes: RouteObject[] = [
             element: <Layout />,
             children: [
               { path: "/", element: <Home /> },
-              { path: "/transactions", element: <TransactionsPage /> },
-              { path: "/transactions/new", element: <EntryRoute /> },
-              { path: "/transactions/:transactionId/edit", element: <EntryRoute /> },
-              { path: "/accounts", element: <AccountsPage /> },
-              { path: "/accounts/new", element: <AccountForm /> },
-              { path: "/accounts/new-group", element: <GroupForm /> },
-              { path: "/accounts/:accountId/edit", element: <AccountForm /> },
-              { path: "/budget", element: <BudgetPage /> },
-              { path: "/budget/move", element: <MovePage /> },
-              { path: "/budget/coming-up", element: <ComingUpPage /> },
-              { path: "/tags", element: <TagsPage /> },
-              { path: "/people", element: <PeoplePage /> },
-              { path: "/people/new", element: <PersonForm /> },
-              { path: "/people/:contactId", element: <PersonPage /> },
-              { path: "/people/:contactId/edit", element: <PersonForm /> },
-              { path: "/people/:contactId/opening", element: <OpeningForm /> },
-              { path: "/people/:contactId/opening/:transactionId/edit", element: <OpeningForm /> },
-              { path: "/recurring", element: <RecurringPage /> },
-              { path: "/recurring/new", element: <RecurringForm /> },
-              { path: "/recurring/:recurringId/edit", element: <RecurringForm /> },
+              { path: "/transactions", element: <TransactionsPage />, handle: { title: "Transactions" } },
+              { path: "/transactions/new", element: <EntryRoute />, handle: { title: "New transaction" } },
+              {
+                path: "/transactions/:transactionId/edit",
+                element: <EntryRoute />,
+                handle: { title: "Edit transaction" },
+              },
+              { path: "/accounts", element: <AccountsPage />, handle: { title: "Accounts" } },
+              { path: "/accounts/new", element: <AccountForm />, handle: { title: "Add account" } },
+              { path: "/accounts/new-group", element: <GroupForm />, handle: { title: "New group" } },
+              { path: "/accounts/:accountId/edit", element: <AccountForm />, handle: { title: "Edit account" } },
+              { path: "/budget", element: <BudgetPage />, handle: { title: "Budgets" } },
+              { path: "/budget/move", element: <MovePage />, handle: { title: "Move money" } },
+              { path: "/budget/coming-up", element: <ComingUpPage />, handle: { title: "Coming up" } },
+              { path: "/tags", element: <TagsPage />, handle: { title: "Tags" } },
+              { path: "/people", element: <PeoplePage />, handle: { title: "People" } },
+              { path: "/people/new", element: <PersonForm />, handle: { title: "Add person" } },
+              { path: "/people/:contactId", element: <PersonPage />, handle: { title: "People" } },
+              { path: "/people/:contactId/edit", element: <PersonForm />, handle: { title: "Edit person" } },
+              { path: "/people/:contactId/opening", element: <OpeningForm />, handle: { title: "Opening balance" } },
+              {
+                path: "/people/:contactId/opening/:transactionId/edit",
+                element: <OpeningForm />,
+                handle: { title: "Edit opening balance" },
+              },
+              { path: "/recurring", element: <RecurringPage />, handle: { title: "Recurring" } },
+              { path: "/recurring/new", element: <RecurringForm />, handle: { title: "New recurring transaction" } },
+              {
+                path: "/recurring/:recurringId/edit",
+                element: <RecurringForm />,
+                handle: { title: "Edit recurring transaction" },
+              },
               { path: "/recurring/:recurringId", element: <RuleAddress /> },
-              { path: "/budget/groups/:categoryId", element: <GroupPage /> },
+              { path: "/budget/groups/:categoryId", element: <GroupPage />, handle: { title: "Budgets" } },
               { path: "/budget/group/:categoryId", element: <OldGroupAddress /> },
-              { path: "/categories", element: <CategoriesPage /> },
-              { path: "/categories/new", element: <CategoryForm /> },
-              { path: "/categories/:categoryId", element: <CategoryPage /> },
-              { path: "/categories/:categoryId/edit", element: <CategoryForm /> },
-              { path: "/accounts/:accountId", element: <AccountPage /> },
-              { path: "/settings", element: <SettingsPage /> },
-              { path: "/profile/data", element: <DataPage /> },
-              { path: "/profile/assistants", element: <AssistantsPage /> },
-              { path: "/oauth/consent", element: <ConsentPage /> },
-              { path: "*", element: <NotFound /> },
+              { path: "/categories", element: <CategoriesPage />, handle: { title: "Categories" } },
+              { path: "/categories/new", element: <CategoryForm />, handle: { title: "Add category" } },
+              { path: "/categories/:categoryId", element: <CategoryPage />, handle: { title: "Categories" } },
+              { path: "/categories/:categoryId/edit", element: <CategoryForm />, handle: { title: "Edit category" } },
+              { path: "/accounts/:accountId", element: <AccountPage />, handle: { title: "Accounts" } },
+              { path: "/settings", element: <SettingsPage />, handle: { title: "Settings" } },
+              { path: "/profile/data", element: <DataPage />, handle: { title: "Your data" } },
+              { path: "/profile/assistants", element: <AssistantsPage />, handle: { title: "AI assistants" } },
+              { path: "/oauth/consent", element: <ConsentPage />, handle: { title: "Connect an app" } },
+              { path: "*", element: <NotFound />, handle: { title: "Page not found" } },
             ],
           },
         ],
