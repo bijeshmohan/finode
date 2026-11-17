@@ -43,7 +43,8 @@ export class ApiError extends Error {
 export async function data<T>(call: Promise<{ data?: T; error?: unknown; response: Response }>): Promise<T> {
   const { data: body, error, response } = await call;
   if (!response.ok) {
-    const detail = error && typeof error === "object" && "detail" in error ? error.detail : error;
+    // Only the API's own JSON says what went wrong; any other body (a bare 500, a proxy's error page) is not for people.
+    const detail = error && typeof error === "object" && "detail" in error ? error.detail : null;
     throw new ApiError(response.status, detail);
   }
   return body as T;
