@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { ApiError, data, makeClient } from "./client";
+import { messageOf } from "./messages";
 import { queryClient, retry } from "./queryClient";
 
 function stubFetch(status: number, body: unknown) {
@@ -47,6 +48,26 @@ describe("the API client", () => {
     const failed = data(client.GET("/api/profile/"));
     await expect(failed).rejects.toBeInstanceOf(ApiError);
     await expect(failed).rejects.toMatchObject({ status: 400, detail: "nope" });
+  });
+
+  it("data() never takes a body that is not the API's own JSON as the detail (a proxy's page, a bare 500)", async () => {
+    for (const [body, type] of [
+      ["Internal Server Error", "text/plain"],
+      ["<html><body>502 Bad Gateway</body></html>", "text/html"],
+    ] as const) {
+      const fetch = vi.fn(() =>
+        Promise.resolve(new Response(body, { status: 502, headers: { "Content-Type": type } })),
+      );
+      const client = makeClient({
+        baseUrl: "http://localhost",
+        fetch: fetch,
+        onUnauthorized: vi.fn(),
+      });
+      const failed = await data(client.GET("/api/profile/")).catch((e: unknown) => e);
+      expect(failed).toBeInstanceOf(ApiError);
+      expect((failed as ApiError).detail).toBeNull();
+      expect(messageOf(failed)).toBe("Something went wrong. Please try again.");
+    }
   });
 
   it("data() returns the body of a success", async () => {
