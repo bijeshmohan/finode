@@ -4283,7 +4283,7 @@
           },
           "lines": {
             "items": {
-              "$ref": "#/components/schemas/app__schemas__shared_expense__LineRead"
+              "$ref": "#/components/schemas/finode__schemas__shared_expense__LineRead"
             },
             "title": "Lines",
             "type": "array"
@@ -8793,7 +8793,7 @@
           },
           "lines": {
             "items": {
-              "$ref": "#/components/schemas/app__schemas__shared_expense__LineRead"
+              "$ref": "#/components/schemas/finode__schemas__shared_expense__LineRead"
             },
             "title": "Lines",
             "type": "array"
@@ -9759,7 +9759,7 @@
           },
           "from_lines": {
             "items": {
-              "$ref": "#/components/schemas/app__schemas__views__LineRead"
+              "$ref": "#/components/schemas/finode__schemas__views__LineRead"
             },
             "title": "From Lines",
             "type": "array"
@@ -9833,7 +9833,7 @@
           },
           "to_lines": {
             "items": {
-              "$ref": "#/components/schemas/app__schemas__views__LineRead"
+              "$ref": "#/components/schemas/finode__schemas__views__LineRead"
             },
             "title": "To Lines",
             "type": "array"
@@ -10694,7 +10694,7 @@
         "title": "ValidationError",
         "type": "object"
       },
-      "app__schemas__shared_expense__LineRead": {
+      "finode__schemas__shared_expense__LineRead": {
         "description": "One line of the ledger entry that confirming will record (or recorded).",
         "properties": {
           "account_id": {
@@ -10732,7 +10732,7 @@
         "title": "LineRead",
         "type": "object"
       },
-      "app__schemas__views__LineRead": {
+      "finode__schemas__views__LineRead": {
         "description": "One side's line in a transaction's details.",
         "properties": {
           "amount": {

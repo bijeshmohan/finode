@@ -16,24 +16,32 @@ jobs:
   static:
     name: Lint and types
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+          cache-dependency-glob: backend/uv.lock
       - run: uv sync --frozen
-      - run: uv run ruff check app tests migrations scripts
-      - run: uv run ruff format --check app tests migrations scripts
+      - run: uv run ruff check finode tests migrations scripts
+      - run: uv run ruff format --check finode tests migrations scripts
       - run: uv run pyrefly check
 
   test:
     name: Tests
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+          cache-dependency-glob: backend/uv.lock
       - run: uv sync --frozen
       - run: uv run pytest -q --cov --cov-report=term-missing:skip-covered
 
@@ -45,7 +53,9 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+          cache-dependency-glob: backend/uv.lock
       - run: uv sync --frozen
+        working-directory: backend
       - uses: actions/setup-node@v5
         with:
           node-version-file: frontend/.nvmrc
@@ -55,7 +65,9 @@ jobs:
       - run: npm ci && npm run build
         working-directory: frontend
       - run: uv run playwright install --with-deps chromium
-      - run: uv run pytest tests/browser -q
+        working-directory: backend
+      - run: uv run pytest tests/e2e -q
+        working-directory: backend
 
   frontend:
     name: Frontend
@@ -65,10 +77,6 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-      - run: uv sync --frozen
       - uses: actions/setup-node@v5
         with:
           node-version-file: frontend/.nvmrc
@@ -82,4 +90,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - run: docker build -t finode .
+      - run: docker build -t finode backend
+      - run: docker build -t finode-web frontend

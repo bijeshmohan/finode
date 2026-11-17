@@ -4,30 +4,32 @@ The rules the code follows, and the steps for the common changes. `AGENTS.md` in
 
 ## Commands
 
+Python commands run in `backend/`; `make` targets run from the repository root and cover both halves.
+
 | Task | Command |
 |---|---|
 | Apply migrations | `uv run alembic upgrade head` |
 | Dev server (auto-reload) | `uv run fastapi dev` (http://localhost:8000) |
 | Unit tests | `uv run pytest` (`make test`) |
-| Lint and format check | `uv run ruff check app tests migrations scripts` and `uv run ruff format --check …` (`make lint`) |
+| Lint and format check | `uv run ruff check finode tests migrations scripts` and `uv run ruff format --check …` (`make lint`) |
 | Fix and format | `make format` |
 | Type check | `uv run pyrefly check` (`make typecheck`) |
-| Everything CI runs | `make check` (lint, types, tests); `make help` lists every target |
+| Everything CI runs | `make check` (lint, types, tests and the app's `npm run check`); `make help` lists every target |
 | Coverage | `make coverage` |
-| Git hook | `make hooks` (installs pre-commit: ruff, ruff format, pyrefly and file hygiene on each commit) |
+| Git hook | `make hooks` (installs pre-commit: ruff, ruff format, pyrefly, the app's ESLint and Prettier, and file hygiene on each commit) |
 | Browser tests | `scripts/browser-tests.sh` (needs Docker); `FINODE_BROWSER=webkit …` for WebKit |
 | New migration | `uv run alembic revision --autogenerate -m "description"` (always read it before applying) |
-| Add a dependency | `uv add <pkg>` (do not edit `pyproject.toml` by hand) |
+| Add a dependency | `uv add <pkg>` in `backend/` (do not edit `pyproject.toml` by hand) |
 | Deploy | `docker compose up -d --build` |
 
-Python 3.14 or newer is required (`.python-version` pins it for uv and pyenv).
+Python 3.14 or newer is required (`backend/.python-version` pins it for uv and pyenv).
 
 ## Code quality tools
 
-All of it is configured in `pyproject.toml` and runs the same on a laptop, in the pre-commit hook and in CI (`.github/workflows/ci.yml`: lint and types, the unit tests with coverage, the browser tests, the Docker build). Dependabot keeps the dependencies, the actions and the base image current.
+All of it is configured in `backend/pyproject.toml` and runs the same on a laptop, in the pre-commit hook and in CI (`.github/workflows/ci.yml`: lint and types, the unit tests with coverage, the browser tests, the Docker build). Dependabot keeps the dependencies, the actions and the base image current.
 
-- **ruff** lints and formats (line length 120). The rule sets are pycodestyle, pyflakes, isort, pyupgrade, bugbear, comprehensions, simplify, pie, ruff-specific, bandit (security), no stray `print` and pytest style; `tests/` also allows `assert`, short names and fake secrets, and `migrations/` allows its fixed-name SQL. A `# noqa: CODE` needs a reason after it. The whole-codebase format commit is listed in `.git-blame-ignore-revs` (run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once so `git blame` skips it).
-- **pyrefly** (Meta's type checker) checks `app/` in under a second; it reads pydantic models natively. We tried mypy first: it was clean too but took about 12 seconds from a cold start, and `ty` (Astral) is still 0.x and flagged 89 things that are not bugs. SQLModel types a column as its Python value and declares `__tablename__` in a way the checker reads as an override, so the model and repository layers switch off the few error codes that causes (see the comment in `pyproject.toml`); everywhere else it is clean and should stay clean. Prefer a real fix over an ignore; when one is right, use `# pyrefly: ignore[code]` and say why.
+- **ruff** lints and formats (line length 120). The rule sets are pycodestyle, pyflakes, isort, pyupgrade, bugbear, comprehensions, simplify, pie, ruff-specific, bandit (security), no stray `print` and pytest style; `tests/` also allows `assert`, short names and fake secrets, and `backend/migrations/` allows its fixed-name SQL. A `# noqa: CODE` needs a reason after it. The whole-codebase format commit is listed in `.git-blame-ignore-revs` (run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once so `git blame` skips it).
+- **pyrefly** (Meta's type checker) checks `backend/finode/` in under a second; it reads pydantic models natively. We tried mypy first: it was clean too but took about 12 seconds from a cold start, and `ty` (Astral) is still 0.x and flagged 89 things that are not bugs. SQLModel types a column as its Python value and declares `__tablename__` in a way the checker reads as an override, so the model and repository layers switch off the few error codes that causes (see the comment in `pyproject.toml`); everywhere else it is clean and should stay clean. Prefer a real fix over an ignore; when one is right, use `# pyrefly: ignore[code]` and say why.
 - **pytest-cov** measures coverage (`make coverage`); there is no threshold yet.
 - **pre-commit** also trims whitespace, checks YAML and TOML, refuses merge-conflict markers, big files and private keys.
 
@@ -35,45 +37,45 @@ Habits the linter enforces: `raise ... from None` (or `from e`) inside `except`,
 
 ## Code conventions
 
-- **Imports inside `app/` are relative** (`from ..models.account import Account`).
+- **Imports inside `backend/finode/` are relative** (`from ..models.account import Account`).
 - **Routers never touch the database.** They call services or repositories and turn `None` into `HTTPException(404)`. A web route must not duplicate a ledger rule.
 - **Every repository query is filtered by the user** (`self.uid`). A query without it is a bug the isolation audit exists to catch.
 - **Today is `clock.local_today()`**, never `date.today()`.
 - **Money is a `Decimal`.** Amounts are stored as `Numeric(24,8)` and read back without padding zeros. Do not format money with `:.2f`; use the `money` filter or `normalize_amount`.
-- **Config goes in `app/config.py`**, not into constants.
+- **Config goes in `backend/finode/config.py`**, not into constants.
 - **A page must not query once per row or per account.** Load postings and transactions in bulk (`postings_for_transactions`, `read_many`, `AccountService._postings_by_account`). A read that several services repeat goes through `repositories.cache.remembered`, which the session forgets on any write; its results are shared, so copy a list before sorting it in place.
 - **Comments say why**, not what. A module docstring says what the module is for.
 
 ## How to add a screen
 
-1. Build what the screen shows on the server: a view in `app/routers/views.py` (`/api/views/…`) from a `services/*_view.py`, so rows, totals and words are worked out once.
-2. **Classify the route in `tests/test_isolation.py`** (`test_every_route_is_covered` fails until you do) and hold it under a ceiling in `tests/test_query_counts.py`.
+1. Build what the screen shows on the server: a view in `backend/finode/routers/views.py` (`/api/views/…`) from a `services/*_view.py`, so rows, totals and words are worked out once.
+2. **Classify the route in `backend/tests/guards/test_isolation.py`** (`test_every_route_is_covered` fails until you do) and hold it under a ceiling in `backend/tests/guards/test_query_counts.py`.
 3. `npm run gen:api` in `frontend/`, then the screen in `frontend/src/features/<area>/` (its queries under the `["views"]` key), and its route in `src/app/router.tsx`.
 4. Reuse the shared parts in `src/components/` (`Row`, `Tile`, `Sheet`, `Chips`, `MonthPill`, `Figure`, `EmptyState`); amounts are strings, formatted with `lib/money.ts`; today is `useToday()`.
 5. A form ends in one full-width primary button with no Cancel; a screen opened from several places takes `back` through `lib/safeNext.ts`. Destructive actions live on the screen or sheet, never on a row, and ask first.
-6. Vitest beside the component; a browser test (`tests/browser/`) for what needs a real browser.
+6. Vitest beside the component; a browser test (`backend/tests/e2e/`) for what needs a real browser.
 
 ## How to add a route to the JSON API
 
-The API covers everything the app and the assistants can do (see [The JSON API](api.md) for the list and what is left out on purpose), so a new feature gets its route too: a handler in `app/routers/`, a schema in `app/schemas/`, a test (`tests/test_api_parity.py` is the pattern), the classification in the isolation audit (a route with an id is swept automatically; name the id for what it is (`category_id`, `history_id`, `deletion_id`…) so the audit knows it), and a row in `docs/developer/api.md`.
+The API covers everything the app and the assistants can do (see [The JSON API](api.md) for the list and what is left out on purpose), so a new feature gets its route too: a handler in `backend/finode/routers/`, a schema in `backend/finode/schemas/`, a test (`backend/tests/api/test_api_parity.py` is the pattern), the classification in the isolation audit (a route with an id is swept automatically; name the id for what it is (`category_id`, `history_id`, `deletion_id`…) so the audit knows it), and a row in `docs/developer/api.md`.
 
 ## How to add an MCP tool
 
-Write the function in `app/mcp_server/tools.py`, using `with services() as s:` to reach the services. Take account *paths* and resolve them with `AccountIndex.find`; return amounts as strings. Add it to `READ_TOOLS`, or to `WRITE_TOOLS` with the right annotation (`WRITE`, `IDEMPOTENT_WRITE`, `DESTRUCTIVE`). Update `INSTRUCTIONS` if a ledger rule changed, and add a test beside `tests/test_mcp_tools.py`.
+Write the function in `backend/finode/mcp_server/tools.py`, using `with services() as s:` to reach the services. Take account *paths* and resolve them with `AccountIndex.find`; return amounts as strings. Add it to `READ_TOOLS`, or to `WRITE_TOOLS` with the right annotation (`WRITE`, `IDEMPOTENT_WRITE`, `DESTRUCTIVE`). Update `INSTRUCTIONS` if a ledger rule changed, and add a test beside `backend/tests/mcp/test_mcp_tools.py`.
 
 ## How to change the schema
 
-1. Change the model in `app/models/`.
+1. Change the model in `backend/finode/models/`.
 2. `uv run alembic revision --autogenerate -m "…"` and **read** the result. SQLite (tests) and Postgres (production) differ; use batch operations where needed.
 3. If existing data could break the change, make the migration refuse to run and change nothing, as the two-levels and single-currency migrations do.
-4. Add the field to the backup (`schemas/backup.py`, `services/backup.py`) and to `tests/test_backup.py`.
+4. Add the field to the backup (`schemas/backup.py`, `services/backup.py`) and to `backend/tests/data/test_backup.py`.
 5. A new table with a `user` column is erased automatically by `EraseService`; a table without one will not be.
-6. A migration test (`tests/test_migration_*.py`) for anything that moves data.
+6. A migration test (`backend/tests/migrations/test_migration_*.py`) for anything that moves data.
 7. **Take a backup before deploying a migration:** `docker compose run --rm -e BACKUP_ONCE=1 backup`.
 
 ## How to add a setting
 
-- **For the whole installation:** a field on `Settings` in `app/config.py` (`FINODE_<NAME>`), and a line in the README's configuration list.
+- **For the whole installation:** a field on `Settings` in `backend/finode/config.py` (`FINODE_<NAME>`), and a line in the README's configuration list.
 - **For one person:** a typed column on `profiles`, a migration, a field on `ProfileUpdate`, and a row on the Settings screen (`frontend/src/features/settings/SettingsPage.tsx`, saved through `PATCH /api/profile/`). Do not add a key-value or JSON store, and do not use Supabase `user_metadata` (users can write it directly).
 - A rarely used feature goes in a menu or a row where it belongs; there is no Advanced switch.
 
@@ -83,7 +85,7 @@ Write the function in `app/mcp_server/tools.py`, using `with services() as s:` t
 - Prefer testing a rule at the service (`svc` fixture) and the page at the route (`client`).
 - Any new code path that writes transactions needs a test that `trial_balance().balanced`.
 - If your test changes the person's currency, build fresh services afterwards: a service instance caches it.
-- The browser tests start the real app on a free port; keep the Playwright version in `pyproject.toml` and `scripts/browser-tests.sh` the same.
+- The browser tests start the real app on a free port; keep the Playwright version in `backend/pyproject.toml` and `scripts/browser-tests.sh` the same.
 
 ## Git and release habits (this repository)
 

@@ -1,14 +1,14 @@
-# Install once with:  uv run pre-commit install
-# Run on everything:  uv run pre-commit run --all-files
-# ruff and pyrefly come from the project's own lock file (uv run), so the hooks and CI always agree.
+# Install once with:  make hooks
+# Run on everything:  uv run --project backend pre-commit run --all-files
+# ruff and pyrefly come from the API's own lock file (backend/uv.lock), so the hooks and CI always agree.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: ^(app/static/htmx\.min\.js|docs/guide/img/)
+        exclude: ^docs/guide/img/
       - id: end-of-file-fixer
-        exclude: ^(app/static/htmx\.min\.js|docs/guide/img/|app/static/fonts/)
+        exclude: ^(docs/guide/img/|frontend/src/styles/fonts/)
       - id: check-yaml
       - id: check-toml
       - id: check-merge-conflict
@@ -20,19 +20,23 @@ repos:
     hooks:
       - id: ruff-check
         name: ruff check
-        entry: uv run ruff check --fix
+        # From backend/, so ruff reads backend/pyproject.toml with its paths (the file names lose their backend/ prefix).
+        entry: bash -c 'cd backend && uv run ruff check --fix "${@#backend/}"' --
         language: system
         types: [python]
+        files: ^backend/
       - id: ruff-format
         name: ruff format
-        entry: uv run ruff format
+        entry: bash -c 'cd backend && uv run ruff format "${@#backend/}"' --
         language: system
         types: [python]
+        files: ^backend/
       - id: pyrefly
         name: pyrefly
-        entry: uv run pyrefly check
+        entry: bash -c 'cd backend && uv run pyrefly check'
         language: system
         types: [python]
+        files: ^backend/
         pass_filenames: false
       - id: frontend-lint
         name: frontend lint (eslint, prettier)

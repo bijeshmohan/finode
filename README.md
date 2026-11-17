@@ -14,13 +14,16 @@ This README keeps the setup, deployment and configuration notes.
 
 ## Setup
 
-Requires Python 3.14+.
+Requires Python 3.14+ and [uv](https://docs.astral.sh/uv/). The API lives in `backend/`:
 
 ```bash
+cd backend
 uv sync                           # install dependencies
 uv run alembic upgrade head       # create / migrate the database
 uv run fastapi dev                # start the API
 ```
+
+(`make install`, `make migrate` and `make run` do the same from the repository root.)
 
 The API runs at http://localhost:8000 with auto-reload. OpenAPI docs at `/docs` once you set `FINODE_API_DOCS=true` (off by default, because they are public).
 
@@ -131,8 +134,8 @@ To be able to go back, tag the running images first
 going back is then `docker tag finode:pre-trial finode:latest && docker compose up -d --no-build app`
 (and `web`).
 
-The API's image (see `Dockerfile`) installs dependencies from `uv.lock`, runs as
-an unprivileged user and has a health check on `/api/auth/options`. `.dockerignore` keeps `.env`,
+The API's image (`backend/Dockerfile`, built from `backend/`) installs dependencies from `uv.lock`, runs as
+an unprivileged user and has a health check on `/api/auth/options`. `backend/.dockerignore` keeps `.env`,
 local databases and tests out of it.
 
 ### Forgot password
@@ -171,41 +174,49 @@ users' ids first or the foreign keys fail.
 
 ## Tests and code quality
 
+From the repository root:
+
 ```bash
-uv run pytest                  # the API's tests (about 1,300, a few minutes)
-scripts/browser-tests.sh       # the app's browser tests in Docker, after building it (FINODE_BROWSER=webkit for Safari's engine)
-uv run ruff check app tests migrations scripts && uv run ruff format --check app tests migrations scripts
-uv run pyrefly check           # type checks app/ (under a second)
-make check                     # lint + types + tests + the app's npm check; `make help` lists every target
-make hooks                     # install the pre-commit hook (ruff, pyrefly, file hygiene)
+make test                      # the API's tests (about 1,300, a few minutes)
+make test-browser              # the app's browser tests in Docker, after building it (FINODE_BROWSER=webkit for Safari's engine)
+make lint                      # ruff over backend/ (make format fixes what it can)
+make typecheck                 # pyrefly over backend/finode/ (under a second)
+make frontend-check            # the app: ESLint, Prettier, tsc, Vitest, build, npm audit
+make check                     # all of the above but the browser tests; `make help` lists every target
+make hooks                     # install the pre-commit hook (ruff, pyrefly, ESLint, Prettier, file hygiene)
 ```
 
-CI (`.github/workflows/ci.yml`) runs lint, types, the tests with coverage, the browser tests and the Docker build on every push and pull request. See [docs/developer/conventions.md](docs/developer/conventions.md) for the rules and tool settings.
+CI (`.github/workflows/ci.yml`) runs lint, types, the tests with coverage, the browser tests, the app's checks and both image builds on every push and pull request. See [docs/developer/conventions.md](docs/developer/conventions.md) for the rules and tool settings.
 
 ## Project layout
 
 ```
-app/
-├── main.py            FastAPI app + router registration
-├── config.py          pydantic-settings (env-driven)
-├── dependencies.py    engine, session, repositories and services
-├── auth.py            Supabase JWT verification, the app's cookie session
-├── session.py         email/password sign-in and the session cookies
-├── models/            SQLModel ORM tables
-├── schemas/           Pydantic request/response shapes
-├── repositories/      tenant-scoped persistence over a Session
-├── services/          ledger rules, balances, reports
-├── routers/           the JSON API (views.py: one call per screen of the app)
-└── mcp_server/        the MCP server for AI assistants
-
-frontend/              the finode app (React + TypeScript + Vite)
-migrations/            Alembic migrations
-tests/                 pytest suite
+backend/                 the API (Python, uv)
+├── finode/              the application package
+│   ├── main.py          FastAPI app + router registration
+│   ├── config.py        pydantic-settings (FINODE_* variables, the root .env)
+│   ├── dependencies.py  engine, session, repositories and services per request
+│   ├── auth/            who is calling: Supabase JWTs, the session cookies, sign-up, resets, OAuth consent
+│   ├── models/          SQLModel tables
+│   ├── schemas/         Pydantic request/response shapes
+│   ├── repositories/    tenant-scoped persistence over a Session
+│   ├── services/        ledger rules, balances, budget, reports
+│   ├── routers/         the JSON API (views.py: one call per screen of the app)
+│   └── mcp_server/      the MCP server for AI assistants
+├── migrations/          Alembic migrations
+├── tests/               pytest, by area (api, auth, budget, data, guards, ledger, mcp, migrations, people; e2e: browser)
+├── scripts/             export_openapi.py (the schema the app's types come from)
+├── pyproject.toml, uv.lock, alembic.ini, Dockerfile
+frontend/                the app (React + TypeScript + Vite, npm; its own Dockerfile and nginx config)
+docs/                    user guide, architecture, developer reference
+scripts/                 browser tests in Docker, the web image check, the nightly database dump
+compose.yaml, .env       production: the API, the app, migrations and backups behind Traefik
+Makefile                 every task for both halves (`make help`)
 ```
 
 ## Configuration
 
-Environment variables (or a `.env` file at the project root) override defaults:
+Environment variables (or a `.env` file at the repository root, the one compose reads) override defaults:
 
 - `FINODE_DATABASE_URL` — default `sqlite:///./finode.db`
 - `FINODE_DATABASE_ECHO` — default `true`
@@ -222,8 +233,9 @@ ignored by the app, so one `.env` serves both.
 ## Schema changes
 
 ```bash
+cd backend
 uv run alembic revision --autogenerate -m "describe the change"
-# review the generated file under migrations/versions/
+# review the generated file under backend/migrations/versions/
 uv run alembic upgrade head
 ```
 

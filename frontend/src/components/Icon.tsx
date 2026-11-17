@@ -1,4 +1,4 @@
-// The stroke icons, drawn from icons.json (their one source; tests/test_icons.py keeps the markup plain SVG).
+// The stroke icons, drawn from icons.json (their one source; frontend/src/components/icons.test.ts keeps the markup plain SVG).
 import icons from "./icons.json";
 
 export type IconName = keyof typeof icons;

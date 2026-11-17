@@ -1,5 +1,5 @@
 // Every address the app answers. Inside the layout a session is guaranteed (SessionProvider); sign-in stands outside.
-// A screen's `handle` names the browser tab (app/title.tsx); Home has none and is plain "finode".
+// A screen's `handle` names the browser tab (backend/finode/title.tsx); Home has none and is plain "finode".
 import { Navigate, Outlet, type RouteObject, useLocation } from "react-router";
 
 import { EntryRoute } from "../features/entry/EntryRoute";

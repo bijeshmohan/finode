@@ -2,7 +2,7 @@
 
 finode uses **envelope budgeting** (the YNAB idea): every unit of money in your budget accounts gets a job. The budget sits **on top of the ledger without changing it**.
 
-All of it lives in `app/services/budget.py` (`BudgetService`).
+All of it lives in `backend/finode/services/budget.py` (`BudgetService`).
 
 ## What is stored, and what is not
 

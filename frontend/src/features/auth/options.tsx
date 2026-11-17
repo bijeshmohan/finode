@@ -1,4 +1,4 @@
-// A screen that depends on what the server offers (app/options.ts).
+// A screen that depends on what the server offers (backend/finode/options.ts).
 import type { ReactNode } from "react";
 
 import { type AuthOptions, useAuthOptions } from "../../app/options";

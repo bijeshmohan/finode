@@ -15,8 +15,8 @@ flowchart TD
         A["JSON API<br/>routers/*  (/api)"]
         M["MCP server<br/>mcp_server/tools.py  (/mcp)"]
     end
-    S["Services<br/>app/services: rules and orchestration"]
-    R["Repositories<br/>app/repositories: queries, always scoped to one user"]
+    S["Services<br/>backend/finode/services: rules and orchestration"]
+    R["Repositories<br/>backend/finode/repositories: queries, always scoped to one user"]
     D[("Database<br/>SQLite in tests, Postgres on Supabase")]
     W["finode app<br/>frontend/ (React)"] --> A
     A --> S
@@ -62,11 +62,11 @@ sequenceDiagram
     F-->>B: 201 with what was recorded; the app refreshes its views
 ```
 
-`app/dependencies.py` is the place where a request becomes "this user": it opens a database session, resolves the user from the cookie or bearer token, and constructs repositories and services bound to that user id. Handlers receive ready-made services (`Budget`, `Reports`, `DBSession`, …) as typed parameters.
+`backend/finode/dependencies.py` is the place where a request becomes "this user": it opens a database session, resolves the user from the cookie or bearer token, and constructs repositories and services bound to that user id. Handlers receive ready-made services (`Budget`, `Reports`, `DBSession`, …) as typed parameters.
 
 ## Start-up and background work
 
-`app/main.py` wires everything:
+`backend/finode/main.py` wires everything:
 
 - mounts the JSON routers under `/api` and `/mcp` as a plain ASGI route (every other path is the app's, served by its own container);
 - registers small middlewares: sending a refreshed login cookie, refusing to be framed, and compressing answers;
@@ -93,11 +93,11 @@ See [Data and operations](data-and-ops.md) for deployment details and [MCP and a
 
 ## Cross-cutting rules worth knowing
 
-- **Isolation.** Every table carries a `user_id` column and every query filters on it. `tests/test_isolation.py` is the guard: it classifies every route and tries to reach person A's data as person B.
+- **Isolation.** Every table carries a `user_id` column and every query filters on it. `backend/tests/guards/test_isolation.py` is the guard: it classifies every route and tries to reach person A's data as person B.
 - **One currency per person.** Stored amounts are plain numbers; the currency (`profiles.currency`) only decides how they are labelled and how many decimals are allowed.
 - **Derived, not stored.** Balances, the budget's available amounts and Ready to assign are computed from postings and the plan on demand, so editing the ledger cannot leave them stale.
 - **Today.** Code asks `clock.local_today()`, never `date.today()`, so "today" follows `FINODE_TIMEZONE`.
-- **Queries per screen.** Each query is a ~15 ms round trip to the hosted database, so a view must not query once per row, and what several services ask for repeatedly (accounts, postings, the profile, the budget plan) is loaded once per request by the session's read memory (`repositories/cache.py`; it forgets on every write). `tests/test_query_counts.py` fails when the statement count grows with the data or a view exceeds its ceiling.
+- **Queries per screen.** Each query is a ~15 ms round trip to the hosted database, so a view must not query once per row, and what several services ask for repeatedly (accounts, postings, the profile, the budget plan) is loaded once per request by the session's read memory (`repositories/cache.py`; it forgets on every write). `backend/tests/guards/test_query_counts.py` fails when the statement count grows with the data or a view exceeds its ceiling.
 - **Compression.** The API's JSON is gzip-compressed (`GZipMiddleware`); the app's files are compressed by nginx.
 
 Next: [The ledger](ledger.md).

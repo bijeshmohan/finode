@@ -1,5 +1,5 @@
-// The shared cases (tests/format_cases.json): pytest holds app/formatting.py's `money` to them, Vitest holds these helpers.
-import cases from "../../../tests/format_cases.json";
+// The shared cases (backend/tests/format_cases.json): pytest holds backend/finode/formatting.py's `money` to them, Vitest holds these helpers.
+import cases from "../../../backend/tests/format_cases.json";
 
 import type { Grouping } from "./amount";
 

@@ -1,0 +1,201 @@
+"""Erasing your books, and deleting your account: what goes, what stays, and that nobody else is touched."""
+
+import json
+from uuid import UUID
+
+import pytest
+from sqlmodel import select
+
+from finode.auth.session import ACCESS_COOKIE, AuthUnavailableError
+from finode.config import settings
+from finode.models.account import Account
+from finode.models.api_token import ApiToken
+from finode.models.contact import Contact, ContactAccount
+from finode.models.oauth_grant import OAuthGrant
+from finode.models.profile import Profile
+from finode.models.tag import Tag, TransactionTag
+from finode.models.transaction import Posting, Transaction
+from finode.repositories.api_token import ApiTokenRepository
+from finode.repositories.oauth_grant import OAuthGrantRepository
+from finode.routers import data as data_router
+from finode.schemas.api_token import ApiTokenCreate
+from finode.services.api_token import ApiTokenService
+from finode.services.erase import EraseService
+from finode.services.oauth_grant import OAuthGrantService
+from tests.books import post_account
+from tests.conftest import TEST_USER_ID
+from tests.data.test_backup import rich  # noqa: F401
+from tests.guards.test_isolation import B_USER, books_of, signed_in_as
+
+
+def rows(session, model, user=TEST_USER_ID):
+    return session.exec(select(model).where(model.user_id == user)).all()
+
+
+@pytest.fixture
+def both(client, session, rich):
+    """A has a full ledger, an assistant token and a connected app; B has a little."""
+    ApiTokenService(ApiTokenRepository(session, TEST_USER_ID)).create(ApiTokenCreate(name="Laptop", scope="write"))
+    OAuthGrantService(OAuthGrantRepository(session, TEST_USER_ID)).allow("client-a", "A-Assistant", "write")
+    client.patch("/api/profile/", json={"first_name": "Ada", "last_name": "L"})
+    with signed_in_as(B_USER):
+        roots = {a["name"]: a["id"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
+        mine = post_account(client, {"name": "Mine", "parent_id": roots["Assets"], "balance": "700"}).json()
+        client.patch("/api/profile/", json={"first_name": "Bea"})
+        ApiTokenService(ApiTokenRepository(session, B_USER)).create(ApiTokenCreate(name="B-Phone"))
+    return mine
+
+
+def test_erasing_the_books_empties_them_and_keeps_the_person(client, session, both):
+    before_b = books_of(client, B_USER)
+    removed = EraseService(session, TEST_USER_ID).erase_books()
+    assert {
+        "accounts",
+        "transactions",
+        "postings",
+        "recurring_transactions",
+        "budget_allocations",
+        "tags",
+        "transaction_tags",
+        "contacts",
+        "contact_accounts",
+    } <= set(removed)
+    for model in (Account, Transaction, Posting, Tag, TransactionTag, Contact, ContactAccount):
+        assert rows(session, model) == [], model
+    # What belongs to the person, not the books, stays.
+    [profile] = rows(session, Profile)
+    assert profile.first_name == "Ada"
+    assert len(rows(session, ApiToken)) == 1 and len(rows(session, OAuthGrant)) == 1
+    assert books_of(client, B_USER) == before_b, "nobody else's books were touched"
+
+
+def test_deleting_everything_leaves_nothing_of_the_person(client, session, both):
+    before_b = books_of(client, B_USER)
+    EraseService(session, TEST_USER_ID).erase_everything()
+    for model in (
+        Account,
+        Transaction,
+        Posting,
+        Tag,
+        TransactionTag,
+        Contact,
+        ContactAccount,
+        Profile,
+        ApiToken,
+        OAuthGrant,
+    ):
+        assert rows(session, model) == [], model
+    assert books_of(client, B_USER) == before_b
+    assert len(rows(session, Profile, B_USER)) == 1 and len(rows(session, ApiToken, B_USER)) == 1
+
+
+def test_after_erasing_a_backup_restores_everything(client, session, both):
+    backup = client.get("/api/backup").json()
+    EraseService(session, TEST_USER_ID).erase_books()
+    assert client.get("/api/backup").json()["transactions"] == []
+    done = client.post("/api/restore", files={"file": ("b.json", json.dumps(backup), "application/json")})
+    assert done.status_code == 200, done.text
+    again = client.get("/api/backup").json()
+    assert len(again["transactions"]) == len(backup["transactions"]) and len(again["accounts"]) == len(
+        backup["accounts"]
+    )
+    assert client.get("/api/reports/trial-balance").json()["balanced"]
+    assert {c["name"] for c in client.get("/api/contacts/", params={"include_archived": True}).json()} == {
+        "Alice",
+        "Bob",
+    }
+
+
+# ---- the pages -----------------------------------------------------------------------------------------------
+
+
+def test_the_data_page_offers_both_and_says_what_each_does(client, both, monkeypatch):
+    monkeypatch.setattr(settings, "supabase_service_role_key", None)
+    options = client.get("/api/data-options").json()
+    assert options["confirm_word"] == "test@example.com" and options["can_delete_login"] is False
+    monkeypatch.setattr(settings, "supabase_service_role_key", "sb_secret_x")
+    monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co")
+    assert client.get("/api/data-options").json()["can_delete_login"] is True
+
+
+def test_erasing_needs_the_email_typed(client, session, both):
+    wrong = client.post("/api/erase", json={"confirm": "nope"})
+    assert wrong.status_code == 400 and wrong.json()["detail"] == "Type test@example.com to confirm."
+    assert rows(session, Account), "nothing was erased"
+    assert client.post("/api/erase", json={"confirm": " Test@Example.com "}).status_code == 204
+    assert rows(session, Account) == [] and len(rows(session, Profile)) == 1
+
+
+def test_deleting_the_account_erases_everything_and_signs_out(client, session, both, monkeypatch):
+    deleted = []
+    monkeypatch.setattr(settings, "supabase_service_role_key", "sb_secret_x")
+    monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co")
+    monkeypatch.setattr(data_router, "delete_user", lambda user_id: deleted.append(user_id))
+    wrong = client.post("/api/delete-account", json={"confirm": "x"})
+    assert wrong.status_code == 400 and deleted == [] and rows(session, Account)
+    done = client.post("/api/delete-account", json={"confirm": "test@example.com"})
+    assert done.status_code == 204 and deleted == [TEST_USER_ID]
+    cookies = done.headers.get_list("set-cookie")
+    assert any(c.startswith(f"{ACCESS_COOKIE}=") and "Max-Age=0" in c for c in cookies), "the sign-in cookie is cleared"
+    for model in (Account, Profile, ApiToken, OAuthGrant):
+        assert rows(session, model) == [], model
+
+
+def test_if_the_login_cannot_be_removed_the_person_is_told(client, session, both, monkeypatch):
+    monkeypatch.setattr(settings, "supabase_service_role_key", "sb_secret_x")
+    monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co")
+
+    def broken(user_id):
+        raise AuthUnavailableError("down")
+
+    monkeypatch.setattr(data_router, "delete_user", broken)
+    told = client.post("/api/delete-account", json={"confirm": "test@example.com"})
+    assert told.status_code == 503 and "Your data was erased, but removing your login failed" in told.json()["detail"]
+    assert rows(session, Account) == [], "the books are gone; the person can try again"
+
+
+def test_without_the_service_key_nothing_is_erased_by_deleting(client, session, both, monkeypatch):
+    monkeypatch.setattr(settings, "supabase_service_role_key", None)
+    refused = client.post("/api/delete-account", json={"confirm": "test@example.com"})
+    assert refused.status_code == 503 and "is not set up here" in refused.json()["detail"]
+    assert rows(session, Account), "nothing was erased: the option is unavailable"
+
+
+def test_deleting_an_account_frees_a_place_for_the_next_person(client, session, both, monkeypatch):
+    monkeypatch.setattr(settings, "max_users", 2)
+    count = lambda: len(session.exec(select(Profile)).all())
+    assert count() == 2
+    monkeypatch.setattr(settings, "supabase_service_role_key", "sb_secret_x")
+    monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co")
+    monkeypatch.setattr(data_router, "delete_user", lambda user_id: None)
+    assert client.post("/api/delete-account", json={"confirm": "test@example.com"}).status_code == 204
+    assert count() == 1
+
+
+def test_supabase_delete_call(monkeypatch):
+    from finode.auth import signup
+
+    sent = {}
+
+    class Reply:
+        def __init__(self, code):
+            self.status_code = code
+
+    def fake(url, headers, timeout):
+        sent.update(url=url, headers=headers)
+        return Reply(204)
+
+    monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co/")
+    monkeypatch.setattr(settings, "supabase_service_role_key", "sb_secret_x")
+    monkeypatch.setattr(signup.httpx, "delete", fake)
+    signup.delete_user(UUID(int=7))
+    assert (
+        sent["url"] == f"https://proj.supabase.co/auth/v1/admin/users/{UUID(int=7)}"
+        and sent["headers"]["apikey"] == "sb_secret_x"
+    )
+    monkeypatch.setattr(signup.httpx, "delete", lambda *a, **k: Reply(500))
+    with pytest.raises(AuthUnavailableError):
+        signup.delete_user(UUID(int=7))
+    monkeypatch.setattr(settings, "supabase_service_role_key", None)
+    with pytest.raises(AuthUnavailableError):
+        signup.delete_user(UUID(int=7))

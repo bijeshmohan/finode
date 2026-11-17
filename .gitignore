@@ -99,10 +99,11 @@ secrets/
 .temp/
 backups/
 
-# What a failed browser test leaves behind (tests/browser/conftest.py)
-tests/browser/failures/
+# What a failed browser test leaves behind (backend/tests/e2e/conftest.py)
+backend/tests/e2e/failures/
 
 # The React app (frontend/)
 frontend/node_modules/
 frontend/dist/
+frontend/*.tsbuildinfo
 frontend/src/**/*.module.css.d.ts

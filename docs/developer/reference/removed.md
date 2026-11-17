@@ -20,11 +20,11 @@ finode keeps **no history of what happened to a transaction or an account**, at 
 
 ## The server-rendered pages (removed 2026-11-17)
 
-The Jinja2/htmx pages (`app/templates`, `app/static`, `app/routers/web`, the flash messages, the web sign-in and
+The Jinja2/htmx pages (`backend/finode/templates`, `backend/finode/static`, `backend/finode/routers/web`, the flash messages, the web sign-in and
 `templating.py`) were removed when the finode app took `finode.bijesh.me`, at the owner's request ("I want
 the old web UI gone! No dead code"). Every screen they had is in the app (`docs/developer/reference/ui-pages.md`); the
 JSON API was already complete, so nothing the books can do went with them. What the API and the assistants needed from
-the templating layer lives in `app/formatting.py` (`money`, `grouping_for`, `group_digits`). The app and the API now
+the templating layer lives in `backend/finode/formatting.py` (`money`, `grouping_for`, `group_digits`). The app and the API now
 share one address (see "Docker" in `data-and-ops.md`): CORS, `FINODE_FRONTEND_ORIGIN`, `WEB_DOMAIN`, `VITE_API_URL` and
 `app.<domain>` went too. Their tests were ported to the API, the views or the app's browser tests, or removed with a
 reason; that record is the step-10 triage of the React frontend plan.

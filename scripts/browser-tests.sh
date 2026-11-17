@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Run the browser tests (tests/browser) with the browser in a container and the tests on this machine.
+# Run the browser tests (backend/tests/e2e) with the browser in a container and the tests on this machine.
 # Needs Docker. Extra arguments go to pytest, e.g. `scripts/browser-tests.sh -k accounts`;
 # `FINODE_BROWSER=webkit scripts/browser-tests.sh` runs them in WebKit, which is closest to iOS Safari.
 set -euo pipefail
 
-# Keep this in step with the playwright version pinned in pyproject.toml.
+# Keep this in step with the playwright version pinned in backend/pyproject.toml.
 VERSION="1.64.0"
 IMAGE="mcr.microsoft.com/playwright/python:v${VERSION}-noble"
 PORT="${BROWSER_PORT:-3333}"
@@ -12,7 +12,7 @@ NAME="finode-browser-$$"
 
 cd "$(dirname "$0")/.."
 
-# The React app's browser tests drive the built app (tests/browser/server.py): build it first.
+# The React app's browser tests drive the built app (backend/tests/e2e/server.py): build it first.
 if [ ! -d frontend/node_modules ]; then npm --prefix frontend ci; fi
 npm --prefix frontend run build >/dev/null
 
@@ -26,4 +26,5 @@ for _ in $(seq 1 90); do
   sleep 1
 done
 
-FINODE_BROWSER_WS="ws://127.0.0.1:${PORT}/" uv run pytest tests/browser "$@"
+cd backend
+FINODE_BROWSER_WS="ws://127.0.0.1:${PORT}/" uv run pytest tests/e2e "$@"

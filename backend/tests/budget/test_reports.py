@@ -1,0 +1,75 @@
+from datetime import date
+
+import pytest
+from fastapi.testclient import TestClient
+
+from tests.books import leg, post_account
+from tests.svc import plain
+
+
+def _transfer(client: TestClient, debit: dict, credit: dict, amount: str, on: str):
+    response = client.post(
+        "/api/transactions/",
+        json={
+            "date": on,
+            "postings": [
+                leg(debit, "debit", amount),
+                leg(credit, "credit", amount),
+            ],
+        },
+    )
+    assert response.status_code == 201
+
+
+def test_summary_empty(client: TestClient, svc):
+    data = plain(svc.reports.summary())
+    assert data["net_worth"] == "0.00"
+    assert data["income"] == "0.00"
+    assert data["expenses"] == "0.00"
+    assert data["period_end"] == date.today().isoformat()
+    assert data["period_start"] == date.today().replace(day=1).isoformat()
+
+
+def test_summary_net_worth_and_period_totals(
+    client: TestClient,
+    root_accounts: dict[str, str],
+    income_account: dict,
+    expense_account: dict,
+    svc,
+):
+    bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "1000.00"}).json()
+    card = post_account(client, {"name": "card", "parent_id": root_accounts["Liabilities"], "balance": "200.00"}).json()
+    _transfer(client, bank, income_account, "500.00", "2026-03-10")
+    _transfer(client, expense_account, bank, "120.00", "2026-03-12")
+    _transfer(client, expense_account, card, "30.00", "2026-04-01")
+
+    march = plain(svc.reports.summary(date(2026, 3, 1), date(2026, 3, 31)))
+    assert march["income"] == "500.00"
+    assert march["expenses"] == "120.00"
+    assert march["net_income"] == "380.00"
+    # assets: 1000 + 500 - 120, liabilities: 200 + 30
+    assert march["assets"] == "1380.00"
+    assert march["liabilities"] == "230.00"
+    assert march["net_worth"] == "1150.00"
+
+    april = plain(svc.reports.summary(date(2026, 4, 1), date(2026, 4, 30)))
+    assert april["income"] == "0.00"
+    assert april["expenses"] == "30.00"
+
+
+def test_summary_rejects_inverted_period(svc):
+    with pytest.raises(ValueError, match="period start must not be after period end!"):
+        svc.reports.summary(date(2026, 5, 1), date(2026, 4, 1))
+
+
+def test_the_spending_breakdown_adds_up_what_was_recorded(client, root_accounts, svc):
+    """Moved from test_web_assistants.py (step 10); the entry is recorded through the API."""
+    bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    made = client.post("/api/transactions/", json={"postings": [leg(food, "debit", "70"), leg(bank, "credit", "70")]})
+    assert made.status_code == 201, made.text
+    report = plain(svc.reports.breakdown("Expenses"))
+    assert report["root"] == "Expenses" and report["total"] == "70.00"
+    assert report["lines"] == [{"account": "Food", "amount": "70.00"}]
+    with pytest.raises(ValueError):
+        svc.reports.breakdown("Expenses", depth=0)

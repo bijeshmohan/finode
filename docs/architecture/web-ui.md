@@ -12,7 +12,7 @@ finode's one UI is **the finode app**: React + TypeScript, built with Vite, in `
 | One folder per area | `frontend/src/features/` (`home`, `transactions`, `entry`, `accounts`, `categories`, `budget`, `todo`, `people`, `recurring`, `tags`, `settings`, `consent`, `auth`) |
 | Writing amounts and days | `frontend/src/lib/` (`money.ts`, `amount.ts`, `dates.ts`, `split.ts`) |
 | Colours, the base look, the font | `frontend/src/styles/` (`tokens.css`, `base.css`, `fonts/`) |
-| What each screen shows | the server: `app/routers/views.py` (`/api/views/…`) built by `app/services/*_view.py` and `transaction_rows.py` |
+| What each screen shows | the server: `backend/finode/routers/views.py` (`/api/views/…`) built by `backend/finode/services/*_view.py` and `transaction_rows.py` |
 
 ## The screens
 
@@ -66,6 +66,6 @@ sequenceDiagram
 
 ## Tests for the app
 
-Vitest tests sit beside each component and run in `npm run check`. What needs a real browser is in `tests/browser/` (Playwright): `tests/browser/server.py` serves the built app and the API on one address with an in-memory database, only Supabase stood in for; the fixtures are `page`, `signed_in_page`, `api` and `books`. Run them with `scripts/browser-tests.sh` (`FINODE_BROWSER=webkit` for the closest to iOS Safari).
+Vitest tests sit beside each component and run in `npm run check`. What needs a real browser is in `backend/tests/e2e/` (Playwright): `backend/tests/e2e/server.py` serves the built app and the API on one address with an in-memory database, only Supabase stood in for; the fixtures are `page`, `signed_in_page`, `api` and `books`. Run them with `scripts/browser-tests.sh` (`FINODE_BROWSER=webkit` for the closest to iOS Safari).
 
 Next: [The design system](design.md).

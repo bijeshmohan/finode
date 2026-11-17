@@ -84,14 +84,14 @@ The browser tests run with reduced motion so measured positions never catch a sc
 
 ## Offline and failure
 
-`app/Offline.tsx` shows "You're offline…" while the device has no connection. A save that cannot reach the server or that the server fails says so in plain words, and the form keeps what was typed; the server's own words show only when it gave them as JSON. There is no offline queue.
+`backend/finode/Offline.tsx` shows "You're offline…" while the device has no connection. A save that cannot reach the server or that the server fails says so in plain words, and the form keeps what was typed; the server's own words show only when it gave them as JSON. There is no offline queue.
 
 ## Adding to the design
 
 1. Reuse a part from the table above; if none fits, ask whether the page needs the new thing at all.
 2. Use tokens, and define any new token in all three blocks of `tokens.css`.
 3. Keep tap targets at `--tap` and text inputs at 16px.
-4. Put anything that needs a real browser under a browser test in `tests/browser/` (run Chromium and WebKit; WebKit is the closest to iOS Safari); the rest is Vitest beside the component.
+4. Put anything that needs a real browser under a browser test in `backend/tests/e2e/` (run Chromium and WebKit; WebKit is the closest to iOS Safari); the rest is Vitest beside the component.
 5. Update this page and `docs/developer/reference/ui-look.md` when a part changes.
 
 Next: [MCP and authentication](mcp-and-auth.md).

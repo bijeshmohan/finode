@@ -1,4 +1,4 @@
-// Days in the app's words (tests/format_cases.json holds the cases). Every function takes the
+// Days in the app's words (backend/tests/format_cases.json holds the cases). Every function takes the
 // day and `today` as ISO strings (today from /api/auth/session, in FINODE_TIMEZONE), never the device's clock, and
 // works on the numbers so the device's time zone cannot move a day.
 
