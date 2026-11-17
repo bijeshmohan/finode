@@ -61,7 +61,6 @@ class EntryStart:
     comment: str = ""
     tags: list[str] = field(default_factory=list)
     related: TransactionRow | None = None
-    copy_of: TransactionRead | None = None
 
 
 def _amount(text: str) -> str:
@@ -103,7 +102,6 @@ def new_start(
             payee=again.payee or "",
             comment=again.comment or "",
             tags=list(again.tags or []),
-            copy_of=again,
         )
     linked = None
     if related is not None:
