@@ -172,3 +172,16 @@ def test_the_frontend_origin_setting_forgives_a_trailing_slash():
 
     assert Settings(frontend_origin="https://app.example.com/").frontend_origin == "https://app.example.com"
     assert Settings(frontend_origin="").frontend_origin is None
+
+
+def test_an_entry_says_whether_the_app_or_a_script_made_it(client, root_accounts):
+    """The app signs in with its cookie session and records "web" (the app); a request with its own bearer token is a
+    script and records "api" (step 10: every write now comes through /api, so the path no longer tells them apart)."""
+    from .books import leg, post_account
+
+    bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10"}).json()
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    body = {"postings": [leg(food, "debit", "1"), leg(bank, "credit", "1")]}
+    assert client.post("/api/transactions/", json=body).json()["created_via"] == "web"
+    scripted = client.post("/api/transactions/", json=body, headers={"Authorization": "Bearer some-supabase-jwt"})
+    assert scripted.status_code == 201 and scripted.json()["created_via"] == "api"

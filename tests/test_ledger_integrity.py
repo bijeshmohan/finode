@@ -224,7 +224,7 @@ def test_splitting_adds_a_posting_and_merging_removes_one(client, account, expen
 
 def test_a_deleted_transaction_is_gone_for_good_and_only_who_made_it_is_kept(client, account, expense_account):
     made = post(client, account, expense_account, "10", payee="Shop")
-    assert made["created_via"] == "api" and made["updated_via"] == "api"
+    assert made["created_via"] == "web" and made["updated_via"] == "web", "made in the app (its cookie session)"
     client.delete(f"/api/transactions/{made['id']}")
 
     assert client.get(f"/api/transactions/{made['id']}").status_code == 404

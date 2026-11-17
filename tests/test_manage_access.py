@@ -14,37 +14,15 @@ def test_the_scope_helpers():
     assert TokenScope.LABELS["manage"] == "read, write & manage accounts"
 
 
-def test_a_token_can_be_made_with_and_moved_between_every_level(client, session):
-    made = client.post("/profile/assistants", data={"name": "Boss", "scope": "manage"})
-    assert made.status_code == 200 and "read, write &amp; manage accounts" in made.text
-    from app.repositories.api_token import ApiTokenRepository
-
-    token = ApiTokenRepository(session, TEST_USER_ID).list()[0]
+def test_a_token_can_be_made_with_and_moved_between_every_level(client):
+    made = client.post("/api/assistants/tokens", json={"name": "Boss", "scope": "manage"})
+    assert made.status_code == 201 and made.json()["scope"] == "manage", made.text
+    token = made.json()["id"]
     for scope in ("write", "read", "manage"):
-        assert client.post(f"/profile/assistants/{token.id}/access", data={"scope": scope}).headers["HX-Redirect"]
-        session.expire_all()
-        assert ApiTokenRepository(session, TEST_USER_ID).list()[0].scope == scope
-    assert client.post(f"/profile/assistants/{token.id}/access", data={"scope": "root"}).status_code == 400
-
-
-def test_each_level_offers_the_other_two(client, session):
-    for scope, offers in (
-        ("read", ["Allow changes", "Allow account changes"]),
-        ("write", ["Make read only", "Allow account changes"]),
-        ("manage", ["Make read only", "Stop account changes"]),
-    ):
-        client.post("/profile/assistants", data={"name": f"t-{scope}", "scope": scope})
-        page = client.get("/profile/assistants").text
-        row = page[page.index(f"t-{scope}") :]
-        row = row[: row.index("</li>")]
-        assert all(label in row for label in offers), (scope, offers)
-        client.post(f"/profile/assistants/{_tkid(session, f't-{scope}')}/revoke")
-
-
-def _tkid(session, name):
-    from app.repositories.api_token import ApiTokenRepository
-
-    return next(t.id for t in ApiTokenRepository(session, TEST_USER_ID).list() if t.name == name)
+        moved = client.post(f"/api/assistants/tokens/{token}/access", json={"scope": scope})
+        assert moved.status_code == 200, moved.text
+        assert [t["scope"] for t in client.get("/api/assistants/").json()["tokens"]] == [scope]
+    assert client.post(f"/api/assistants/tokens/{token}/access", json={"scope": "root"}).status_code == 400
 
 
 @pytest.mark.anyio

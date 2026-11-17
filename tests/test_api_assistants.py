@@ -119,3 +119,29 @@ def test_unknown_ids(client: TestClient):
         assert client.post(path).status_code == 404, path
     for path in (f"/api/assistants/tokens/{missing}/access", f"/api/assistants/apps/{missing}/access"):
         assert client.post(path, json={"scope": "read"}).status_code == 404, path
+
+
+# Ported from test_mcp_oauth.py and test_web_assistants.py (the old pages), step 10.
+
+
+@pytest.mark.parametrize("access", ["read", "write", "manage"])
+def test_each_access_level_on_the_consent_screen_records_itself(client: TestClient, supabase: dict, access: str):
+    answer = client.post("/api/oauth/consent/auth-1", json={"decision": "allow", "access": access})
+    assert answer.status_code == 200, answer.text
+    assert [a["scope"] for a in client.get("/api/assistants/").json()["apps"]] == [access]
+
+
+def test_only_an_assistant_is_named_on_an_entry(client: TestClient, root_accounts):
+    from .books import post_account
+
+    bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "100"}).json()
+    food = client.post("/api/categories/", json={"name": "Food", "kind": "spending"}).json()
+    rows = [
+        {"choice": bank["id"], "side": "credit", "amount": "7"},
+        {"choice": food["id"], "side": "debit", "amount": "7"},
+    ]
+    saved = client.post("/api/entries", json={"kind": "expense", "rows": rows})
+    assert saved.status_code == 201, saved.text
+    made = client.get(f"/api/transactions/{saved.json()['transaction_id']}").json()
+    assert made["created_via"] == "web", "the person's own entry, made in the app"
+    assert all(r["by_assistant"] is None for r in client.get("/api/views/transactions").json()["rows"])
