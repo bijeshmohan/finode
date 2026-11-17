@@ -15,7 +15,7 @@ API_PREFIXES = ("/api/", "/mcp/", "/.well-known/")
 DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 
 
-def spa_app(dist: Path = DIST) -> ASGIApp:
+def app_and_api(dist: Path = DIST) -> ASGIApp:
     """The API's paths go to the API (as Traefik sends them); any other path is a file of the build, or index.html (the
     app routes it itself)."""
     index = dist / "index.html"

@@ -49,14 +49,14 @@ def make_token(page: Page, name: str, access: str = "Read") -> str:
 
 
 def test_a_token_shows_its_secret_once_works_and_stops_when_revoked(
-    signed_in_spa_page: Page, spa_server: str, session, monkeypatch: pytest.MonkeyPatch
+    signed_in_page: Page, server: str, session, monkeypatch: pytest.MonkeyPatch
 ):
     from contextlib import nullcontext
 
     from app.mcp_server import context
 
     monkeypatch.setattr(context, "session_factory", lambda: nullcontext(session))  # /mcp reads the test's books
-    page = signed_in_spa_page
+    page = signed_in_page
     secret = make_token(page, "Cursor")
     assert secret
     expect(page.locator("main")).to_contain_text(f"Bearer {secret}")
@@ -72,8 +72,8 @@ def test_a_token_shows_its_secret_once_works_and_stops_when_revoked(
     assert mcp_status(page, secret) == 401, "a revoked token stops at once"
 
 
-def test_changing_a_tokens_access(signed_in_spa_page: Page):
-    page = signed_in_spa_page
+def test_changing_a_tokens_access(signed_in_page: Page):
+    page = signed_in_page
     make_token(page, "Claude Desktop")
     page.once("dialog", lambda dialog: dialog.accept())
     item(page, "Claude Desktop").get_by_role("button", name="Allow changes").click()
@@ -111,8 +111,8 @@ def back_at_the_app(page: Page) -> None:
     page.route(f"{CALLBACK}**", lambda route: route.fulfill(status=200, body="back at the app"))
 
 
-def test_allowing_an_app_records_it_and_sends_the_browser_back(signed_in_spa_page: Page, supabase: dict):
-    page = signed_in_spa_page
+def test_allowing_an_app_records_it_and_sends_the_browser_back(signed_in_page: Page, supabase: dict):
+    page = signed_in_page
     back_at_the_app(page)
     page.goto("/oauth/consent?authorization_id=auth-1")
     expect(page.get_by_role("heading", name="Connect Claude?")).to_be_visible()
@@ -124,8 +124,7 @@ def test_allowing_an_app_records_it_and_sends_the_browser_back(signed_in_spa_pag
     expect(item(page, "Claude")).to_contain_text("read & write")
 
 
-def test_a_signed_out_arrival_signs_in_and_comes_back(spa_page: Page, supabase: dict):
-    page = spa_page
+def test_a_signed_out_arrival_signs_in_and_comes_back(page: Page, supabase: dict):
     page.goto("/oauth/consent?authorization_id=auth-1")
     page.wait_for_url(re.compile(r"/sign-in\?next="))
     page.get_by_label("Email").fill("a@b.co")
@@ -135,8 +134,8 @@ def test_a_signed_out_arrival_signs_in_and_comes_back(spa_page: Page, supabase: 
     expect(page).to_have_url(re.compile(r"/oauth/consent\?authorization_id=auth-1$"))
 
 
-def test_denying_sends_the_browser_back_and_records_nothing(signed_in_spa_page: Page, supabase: dict):
-    page = signed_in_spa_page
+def test_denying_sends_the_browser_back_and_records_nothing(signed_in_page: Page, supabase: dict):
+    page = signed_in_page
     back_at_the_app(page)
     page.goto("/oauth/consent?authorization_id=auth-1")
     page.get_by_role("button", name="Deny").click()

@@ -22,23 +22,21 @@ def row(page: Page, name: str):
     return page.get_by_role("link", name=re.compile(f"^{name}"))
 
 
-def test_the_tab_bar_has_categories_and_no_transactions(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_the_tab_bar_has_categories_and_no_transactions(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/")
     bar = page.get_by_role("navigation", name="Tab bar")
     expect(bar.get_by_role("link", name="Categories")).to_be_visible()
     expect(bar.get_by_role("link", name="Transactions")).to_have_count(0)
 
 
-def test_categories_are_ranked_and_a_category_opens_its_page_with_what_is_inside(
-    signed_in_spa_page: Page, spa_api: Api, spa_books
-):
-    page = signed_in_spa_page
-    food = spa_books["food"]
-    spa_api.post("/accounts/", name="Delivery", parent_id=food["id"])  # Groceries is a group now
-    delivery = next(c for c in spa_api.get("/categories/") if c["name"] == "Delivery")
-    spend(spa_api, spa_books, delivery, "120")
-    spend(spa_api, spa_books, spa_books["rent"], "900")
+def test_categories_are_ranked_and_a_category_opens_its_page_with_what_is_inside(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    food = books["food"]
+    api.post("/accounts/", name="Delivery", parent_id=food["id"])  # Groceries is a group now
+    delivery = next(c for c in api.get("/categories/") if c["name"] == "Delivery")
+    spend(api, books, delivery, "120")
+    spend(api, books, books["rent"], "900")
     page.goto("/categories")
     expect(row(page, "Rent")).to_be_visible()
     names = page.locator("main a[href^='/categories/']:not([href*='new'])").evaluate_all(
@@ -58,13 +56,13 @@ def test_categories_are_ranked_and_a_category_opens_its_page_with_what_is_inside
     expect(page.get_by_role("heading", name="Transactions")).to_be_visible()
 
 
-def test_the_month_total_and_the_income_tab(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    spend(spa_api, spa_books, spa_books["rent"], "900")
-    spa_api.post(
+def test_the_month_total_and_the_income_tab(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    spend(api, books, books["rent"], "900")
+    api.post(
         "/transactions/",
         date=date.today().isoformat(),
-        postings=[leg(spa_books["checking"], "debit", "5000"), leg(spa_books["salary"], "credit", "5000")],
+        postings=[leg(books["checking"], "debit", "5000"), leg(books["salary"], "credit", "5000")],
     )
     page.goto("/categories")
     expect(page.get_by_text("₹900.00", exact=True)).to_be_visible()
@@ -73,20 +71,18 @@ def test_the_month_total_and_the_income_tab(signed_in_spa_page: Page, spa_api: A
     expect(row(page, "Salary")).to_be_visible()
 
 
-def test_every_category_is_listed_even_with_nothing_in_the_month(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    spend(spa_api, spa_books, spa_books["rent"], "900")
+def test_every_category_is_listed_even_with_nothing_in_the_month(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    spend(api, books, books["rent"], "900")
     page.goto("/categories")
     expect(row(page, "Groceries")).to_contain_text("Nothing yet")
     expect(page.get_by_role("button", name="Load more")).to_have_count(0)
 
 
-def test_a_category_opens_its_page_and_adding_a_transaction_comes_back_to_it(
-    signed_in_spa_page: Page, spa_api: Api, spa_books
-):
-    page = signed_in_spa_page
-    rent = spa_books["rent"]["id"]
-    spend(spa_api, spa_books, spa_books["rent"], "900")
+def test_a_category_opens_its_page_and_adding_a_transaction_comes_back_to_it(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    rent = books["rent"]["id"]
+    spend(api, books, books["rent"], "900")
     page.goto("/categories")
     row(page, "Rent").click()
     page.wait_for_url(re.compile(rf"/categories/{rent}"))
@@ -98,9 +94,9 @@ def test_a_category_opens_its_page_and_adding_a_transaction_comes_back_to_it(
     expect(page.get_by_role("link", name="See in Budgets")).to_be_visible()
 
 
-def test_there_is_room_between_the_figure_and_the_first_row(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    spend(spa_api, spa_books, spa_books["rent"], "900")
+def test_there_is_room_between_the_figure_and_the_first_row(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    spend(api, books, books["rent"], "900")
     page.goto("/categories")
     figure = page.get_by_text("₹900.00", exact=True).bounding_box()
     first = row(page, "Rent").bounding_box()
@@ -109,9 +105,9 @@ def test_there_is_room_between_the_figure_and_the_first_row(signed_in_spa_page: 
     assert gap >= 14, f"the list starts {gap}px under the figure"
 
 
-def test_the_month_pill_sits_in_the_title_row_as_on_transactions(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    spend(spa_api, spa_books, spa_books["rent"], "900")
+def test_the_month_pill_sits_in_the_title_row_as_on_transactions(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    spend(api, books, books["rent"], "900")
     spots = {}
     for path in ("/categories", "/transactions"):
         page.goto(path)
@@ -127,8 +123,8 @@ def test_the_month_pill_sits_in_the_title_row_as_on_transactions(signed_in_spa_p
     assert chips and chips["width"] > page.viewport_size["width"] - 60, "the switcher spans the page"
 
 
-def test_the_month_in_the_pill_goes_straight_to_that_month(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_the_month_in_the_pill_goes_straight_to_that_month(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/categories")
     month = page.get_by_label("Choose a month")
     assert month.get_attribute("type") == "month" and month.get_attribute("max") == date.today().strftime("%Y-%m")
@@ -137,8 +133,8 @@ def test_the_month_in_the_pill_goes_straight_to_that_month(signed_in_spa_page: P
     expect(page.get_by_text("Spent in February")).to_be_visible()
 
 
-def test_the_head_is_the_same_on_accounts_and_categories(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_the_head_is_the_same_on_accounts_and_categories(signed_in_page: Page, books):
+    page = signed_in_page
     spots = {}
     for path, label in (("/accounts", "Net worth"), ("/categories", "Spent so far")):
         page.goto(path)
@@ -149,9 +145,9 @@ def test_the_head_is_the_same_on_accounts_and_categories(signed_in_spa_page: Pag
     assert len(set(spots.values())) == 1, f"the titles line up and the labels match: {spots}"
 
 
-def test_under_on_the_category_form_can_be_none(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    group = spa_api.post("/categories/", name="Food", kind="spending")
+def test_under_on_the_category_form_can_be_none(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    group = api.post("/categories/", name="Food", kind="spending")
     page.goto(f"/categories/new?parent={group['id']}")
     under = page.get_by_role("button", name=re.compile("^Under"))
     expect(under).to_have_text("Food")
@@ -161,5 +157,5 @@ def test_under_on_the_category_form_can_be_none(signed_in_spa_page: Page, spa_ap
     page.get_by_label("Name").fill("Pets")
     page.get_by_role("button", name="Add category").click()
     page.wait_for_url(re.compile(r"/categories/[0-9a-f-]{36}$"))
-    pets = next(c for c in spa_api.get("/categories/") if c["name"] == "Pets")
+    pets = next(c for c in api.get("/categories/") if c["name"] == "Pets")
     assert pets["parent_id"] is None

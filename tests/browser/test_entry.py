@@ -7,7 +7,7 @@ from playwright.sync_api import Page, expect
 
 from ..books import leg
 from .conftest import Api
-from .test_spa_home import MUTED
+from .test_home import MUTED
 
 
 def side(page: Page, title: str):
@@ -28,8 +28,8 @@ def offered(page: Page, title: str) -> list[str]:
     return found
 
 
-def test_the_kind_buttons_narrow_the_pickers(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_the_kind_buttons_narrow_the_pickers(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/transactions/new")
     assert (offered(page, "Paid from"), offered(page, "Spent on")) == (["Assets", "Liabilities"], ["Expenses"])
     page.get_by_role("button", name="Income", exact=True).click()
@@ -41,8 +41,8 @@ def test_the_kind_buttons_narrow_the_pickers(signed_in_spa_page: Page, spa_books
     assert len(offered(page, "From")) == 5, "no kind offers every account"
 
 
-def test_the_order_and_the_default(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_the_order_and_the_default(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/transactions/new")
     kinds = page.get_by_role("group", name=re.compile("What kind of entry")).get_by_role("button")
     expect(kinds).to_have_count(3)
@@ -50,8 +50,8 @@ def test_the_order_and_the_default(signed_in_spa_page: Page, spa_books):
     expect(page.get_by_role("button", name="Expense", exact=True)).to_have_attribute("aria-pressed", "true")
 
 
-def test_a_choice_survives_a_kind_that_still_offers_it(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_a_choice_survives_a_kind_that_still_offers_it(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/transactions/new")
     choose(page, "Paid from", "Checking")
     page.get_by_role("button", name="Transfer", exact=True).click()
@@ -60,8 +60,8 @@ def test_a_choice_survives_a_kind_that_still_offers_it(signed_in_spa_page: Page,
     expect(side(page, "Earned from")).not_to_contain_text("Checking"), "an asset is not an income source"
 
 
-def test_saving_an_expense(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
+def test_saving_an_expense(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
     page.goto("/transactions/new")
     page.get_by_label("Amount", exact=True).fill("250")
     choose(page, "Paid from", "Checking")
@@ -70,12 +70,12 @@ def test_saving_an_expense(signed_in_spa_page: Page, spa_books, spa_api: Api):
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url(re.compile(r"/transactions(\?|$)"))
     expect(page.get_by_role("button", name=re.compile("^DMart"))).to_be_visible()
-    [entry] = [t for t in spa_api.get("/transactions/") if t["payee"] == "DMart"]
+    [entry] = [t for t in api.get("/transactions/") if t["payee"] == "DMart"]
     assert {(p["side"], p["amount"]) for p in entry["postings"]} == {("debit", "250.00"), ("credit", "250.00")}
 
 
-def test_swapping_from_and_to_keeps_a_transfer_and_an_expense_has_no_swap(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_swapping_from_and_to_keeps_a_transfer_and_an_expense_has_no_swap(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/transactions/new")
     expect(page.get_by_role("button", name="Swap From and To")).to_have_count(0)
     page.get_by_role("button", name="Transfer", exact=True).click()
@@ -87,12 +87,12 @@ def test_swapping_from_and_to_keeps_a_transfer_and_an_expense_has_no_swap(signed
     expect(page.get_by_role("button", name="Transfer", exact=True)).to_have_attribute("aria-pressed", "true")
 
 
-def test_editing_keeps_what_was_recorded(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    entry = spa_api.post(
+def test_editing_keeps_what_was_recorded(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    entry = api.post(
         "/transactions/",
         payee="Old",
-        postings=[leg(spa_books["food"], "debit", "40"), leg(spa_books["checking"], "credit", "40")],
+        postings=[leg(books["food"], "debit", "40"), leg(books["checking"], "credit", "40")],
     )
     page.goto(f"/transactions/{entry['id']}/edit")
     expect(page.get_by_role("button", name="Expense", exact=True)).to_have_attribute("aria-pressed", "true")
@@ -100,15 +100,15 @@ def test_editing_keeps_what_was_recorded(signed_in_spa_page: Page, spa_books, sp
     page.get_by_label("Amount", exact=True).fill("55")
     page.get_by_role("button", name="Save changes").click()
     page.wait_for_url(re.compile(r"/transactions(\?|$)"))
-    assert {p["amount"] for p in spa_api.get(f"/transactions/{entry['id']}")["postings"]} == {"55.00"}
+    assert {p["amount"] for p in api.get(f"/transactions/{entry['id']}")["postings"]} == {"55.00"}
 
 
-def test_deleting_from_the_edit_screen_goes_back_to_the_list(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    entry = spa_api.post(
+def test_deleting_from_the_edit_screen_goes_back_to_the_list(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    entry = api.post(
         "/transactions/",
         payee="Gone",
-        postings=[leg(spa_books["food"], "debit", "40"), leg(spa_books["checking"], "credit", "40")],
+        postings=[leg(books["food"], "debit", "40"), leg(books["checking"], "credit", "40")],
     )
     page.goto(f"/transactions/{entry['id']}/edit")
     page.once("dialog", lambda dialog: dialog.accept())
@@ -130,11 +130,9 @@ def chips(page: Page):
     return page.get_by_role("group", name="People you pay").get_by_role("button")
 
 
-def test_a_payee_chip_fills_the_payee_only_and_moves_on_to_the_amount(
-    signed_in_spa_page: Page, spa_books, spa_api: Api
-):
-    page = signed_in_spa_page
-    history(spa_api, spa_books)
+def test_a_payee_chip_fills_the_payee_only_and_moves_on_to_the_amount(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    history(api, books)
     page.goto("/transactions/new")
     expect(chips(page)).to_have_count(0)
     page.get_by_placeholder("Payee or Merchant?").fill("sw")
@@ -145,10 +143,10 @@ def test_a_payee_chip_fills_the_payee_only_and_moves_on_to_the_amount(
     expect(page.get_by_label("Amount", exact=True)).to_be_focused()
 
 
-def test_the_chips_narrow_as_you_type(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    history(spa_api, spa_books, "Swiggy")
-    history(spa_api, spa_books, "DMart", "checking")
+def test_the_chips_narrow_as_you_type(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    history(api, books, "Swiggy")
+    history(api, books, "DMart", "checking")
     page.goto("/transactions/new")
     page.get_by_placeholder("Payee or Merchant?").fill("dm")
     expect(chips(page)).to_have_count(1)
@@ -157,15 +155,11 @@ def test_the_chips_narrow_as_you_type(signed_in_spa_page: Page, spa_books, spa_a
     expect(chips(page)).to_have_count(0)
 
 
-def test_the_amount_is_focused_on_a_computer_but_not_on_a_phone(
-    signed_in_spa_page: Page, spa_books, browser, spa_server
-):
-    page = signed_in_spa_page
+def test_the_amount_is_focused_on_a_computer_but_not_on_a_phone(signed_in_page: Page, books, browser, server):
+    page = signed_in_page
     page.goto("/transactions/new")
     expect(page.get_by_label("Amount", exact=True)).to_be_focused()  # the test page has a mouse
-    phone = browser.new_context(
-        viewport={"width": 390, "height": 844}, base_url=spa_server, has_touch=True, is_mobile=True
-    )
+    phone = browser.new_context(viewport={"width": 390, "height": 844}, base_url=server, has_touch=True, is_mobile=True)
     try:
         phone.add_cookies(page.context.cookies())
         mobile = phone.new_page()
@@ -176,16 +170,16 @@ def test_the_amount_is_focused_on_a_computer_but_not_on_a_phone(
         phone.close()
 
 
-def test_an_amount_cannot_be_typed_with_two_decimal_points_or_letters(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_an_amount_cannot_be_typed_with_two_decimal_points_or_letters(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/transactions/new")
     amount = page.get_by_label("Amount", exact=True)
     amount.press_sequentially("12a.3.45")
     expect(amount).to_have_value("12.34")
 
 
-def test_the_amount_is_grouped_as_it_is_typed_and_the_cursor_stays(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
+def test_the_amount_is_grouped_as_it_is_typed_and_the_cursor_stays(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
     page.goto("/transactions/new")
     amount = page.get_by_label("Amount", exact=True)
     amount.press_sequentially("1234567")
@@ -193,12 +187,12 @@ def test_the_amount_is_grouped_as_it_is_typed_and_the_cursor_stays(signed_in_spa
     assert amount.evaluate("e => e.selectionStart") == len(amount.input_value())
 
 
-def test_add_related_opens_the_form_linked_and_saves_the_link(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    first = spa_api.post(
+def test_add_related_opens_the_form_linked_and_saves_the_link(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    first = api.post(
         "/transactions/",
         payee="Amazon",
-        postings=[leg(spa_books["food"], "debit", "4998"), leg(spa_books["card"], "credit", "4998")],
+        postings=[leg(books["food"], "debit", "4998"), leg(books["card"], "credit", "4998")],
     )
     page.goto(f"/transactions/new?related={first['id']}")
     expect(page.get_by_text("Related to")).to_be_visible()
@@ -209,12 +203,12 @@ def test_add_related_opens_the_form_linked_and_saves_the_link(signed_in_spa_page
     choose(page, "To", "Visa")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url(re.compile(r"/transactions(\?|$)"))
-    assert any(t.get("related_id") == first["id"] for t in spa_api.get("/transactions/"))
+    assert any(t.get("related_id") == first["id"] for t in api.get("/transactions/"))
 
 
-def test_the_picker_relates_an_entry_and_the_chip_removes_it(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    history(spa_api, spa_books, "Amazon")
+def test_the_picker_relates_an_entry_and_the_chip_removes_it(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    history(api, books, "Amazon")
     page.goto("/transactions/new")
     page.get_by_role("button", name="Related").click()
     page.get_by_label("Search transactions").fill("ama")
@@ -224,14 +218,14 @@ def test_the_picker_relates_an_entry_and_the_chip_removes_it(signed_in_spa_page:
     expect(page.get_by_role("button", name="Related")).to_be_visible()
 
 
-def test_the_date_is_a_chip_that_names_the_day(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_the_date_is_a_chip_that_names_the_day(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/transactions/new")
     expect(page.get_by_label("Date").locator("xpath=..")).to_contain_text(re.compile(r"^Today, \d{1,2} \w{3}"))
 
 
-def test_an_account_is_chosen_in_a_sheet_and_the_other_side_is_greyed(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_an_account_is_chosen_in_a_sheet_and_the_other_side_is_greyed(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/transactions/new")
     page.get_by_role("button", name="Transfer", exact=True).click()
     choose(page, "From", "Checking")
@@ -241,8 +235,8 @@ def test_an_account_is_chosen_in_a_sheet_and_the_other_side_is_greyed(signed_in_
     expect(sheet.get_by_role("button", name=re.compile("Cash"))).to_be_enabled()
 
 
-def test_the_chosen_account_is_bold(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_the_chosen_account_is_bold(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/transactions/new")
     choose(page, "Paid from", "Checking")
     side(page, "Paid from").click()
@@ -251,8 +245,8 @@ def test_the_chosen_account_is_bold(signed_in_spa_page: Page, spa_books):
     assert int(chosen.evaluate("e => getComputedStyle(e).fontWeight")) >= 600
 
 
-def test_pressing_an_option_keeps_the_search_focused_so_the_sheet_does_not_move(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_pressing_an_option_keeps_the_search_focused_so_the_sheet_does_not_move(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/transactions/new")
     side(page, "Paid from").click()
     search = page.get_by_role("dialog", name="Paid from").get_by_label("Search")
@@ -266,9 +260,9 @@ def test_pressing_an_option_keeps_the_search_focused_so_the_sheet_does_not_move(
     page.mouse.up()
 
 
-def test_the_category_line_shows_only_when_money_leaves_the_budget(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    loan = spa_api.post("/accounts/", name="Home Loan", parent_id=spa_books["roots"]["Liabilities"], on_budget=False)
+def test_the_category_line_shows_only_when_money_leaves_the_budget(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    loan = api.post("/accounts/", name="Home Loan", parent_id=books["roots"]["Liabilities"], on_budget=False)
     assert loan
     page.goto("/transactions/new")
     page.get_by_role("button", name="Transfer", exact=True).click()
@@ -282,8 +276,8 @@ def test_the_category_line_shows_only_when_money_leaves_the_budget(signed_in_spa
     expect(category).to_contain_text("Rent")
 
 
-def test_choosing_tags_and_making_a_new_one(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
+def test_choosing_tags_and_making_a_new_one(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
     page.goto("/transactions/new")
     page.get_by_label("Amount", exact=True).fill("12")
     choose(page, "Paid from", "Checking")
@@ -296,17 +290,17 @@ def test_choosing_tags_and_making_a_new_one(signed_in_spa_page: Page, spa_books,
     expect(page.get_by_role("button", name="Change the tags")).to_have_text("#goa-trip")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url(re.compile(r"/transactions(\?|$)"))
-    newest = spa_api.get("/transactions/")[0]
+    newest = api.get("/transactions/")[0]
     assert newest["tags"] == ["goa-trip"] and newest["comment"] == "lunch #work"
 
 
-def test_editing_an_entry_shows_its_tags_and_saves_the_changes(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    entry = spa_api.post(
+def test_editing_an_entry_shows_its_tags_and_saves_the_changes(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    entry = api.post(
         "/transactions/",
         payee="Cafe",
         tags=["work"],
-        postings=[leg(spa_books["food"], "debit", "40"), leg(spa_books["checking"], "credit", "40")],
+        postings=[leg(books["food"], "debit", "40"), leg(books["checking"], "credit", "40")],
     )
     page.goto(f"/transactions/{entry['id']}/edit")
     expect(page.get_by_role("button", name="Change the tags")).to_have_text("#work")
@@ -315,15 +309,15 @@ def test_editing_an_entry_shows_its_tags_and_saves_the_changes(signed_in_spa_pag
     page.get_by_role("button", name="Done").click()
     page.get_by_role("button", name="Save changes").click()
     page.wait_for_url(re.compile(r"/transactions(\?|$)"))
-    assert spa_api.get(f"/transactions/{entry['id']}")["tags"] == []
+    assert api.get(f"/transactions/{entry['id']}")["tags"] == []
 
 
-def test_repeat_and_edit_from_the_sheet(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    spa_api.post(
+def test_repeat_and_edit_from_the_sheet(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    api.post(
         "/transactions/",
         payee="DMart",
-        postings=[leg(spa_books["food"], "debit", "1286"), leg(spa_books["checking"], "credit", "1286")],
+        postings=[leg(books["food"], "debit", "1286"), leg(books["checking"], "credit", "1286")],
     )
     page.goto("/transactions")
     page.get_by_role("button", name=re.compile("^DMart")).click()
@@ -334,15 +328,15 @@ def test_repeat_and_edit_from_the_sheet(signed_in_spa_page: Page, spa_books, spa
     expect(side(page, "Paid from")).to_contain_text("Checking")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url(re.compile(r"/transactions(\?|$)"))
-    assert len([t for t in spa_api.get("/transactions/") if t["payee"] == "DMart"]) == 2
+    assert len([t for t in api.get("/transactions/") if t["payee"] == "DMart"]) == 2
     page.get_by_role("button", name=re.compile("^DMart")).first.click()
     page.get_by_role("dialog", name="Transaction details").get_by_role("link", name="Edit", exact=True).click()
     page.wait_for_url(re.compile(r"/edit$"))
     expect(page.get_by_placeholder("Payee or Merchant?")).to_have_value("DMart")
 
 
-def test_a_new_account_can_be_made_from_the_sheet(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
+def test_a_new_account_can_be_made_from_the_sheet(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
     page.goto("/transactions/new")
     side(page, "Paid from").click()
     page.get_by_role("dialog", name="Paid from").get_by_role("button", name="＋ New account").click()
@@ -352,11 +346,11 @@ def test_a_new_account_can_be_made_from_the_sheet(signed_in_spa_page: Page, spa_
     sheet.get_by_role("button", name="Add account").click()
     expect(sheet).to_have_count(0)
     expect(side(page, "Paid from")).to_contain_text("Kotak")
-    assert any(a["name"] == "Kotak" for a in spa_api.get("/accounts/"))
+    assert any(a["name"] == "Kotak" for a in api.get("/accounts/"))
 
 
-def test_adding_a_category_from_the_picker(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
+def test_adding_a_category_from_the_picker(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
     page.goto("/transactions/new")
     side(page, "Spent on").click()
     page.get_by_role("dialog", name="Spent on").get_by_role("button", name="＋ New category").click()
@@ -365,12 +359,12 @@ def test_adding_a_category_from_the_picker(signed_in_spa_page: Page, spa_books, 
     sheet.get_by_role("button", name="Add category").click()
     expect(sheet).to_have_count(0)
     expect(side(page, "Spent on")).to_contain_text("Coffee")
-    assert any(c["name"] == "Coffee" for c in spa_api.get("/categories/"))
+    assert any(c["name"] == "Coffee" for c in api.get("/categories/"))
 
 
-def test_the_amount_is_a_bare_figure_with_the_rupee_sign_against_it(signed_in_spa_page: Page, spa_books):
+def test_the_amount_is_a_bare_figure_with_the_rupee_sign_against_it(signed_in_page: Page, books):
     """No box and no ring around the Add screen's amount; the sign muted and right against the digits."""
-    app = signed_in_spa_page
+    app = signed_in_page
     app.goto("/transactions/new")
     field = app.get_by_label("Amount", exact=True)
     field.focus()
@@ -391,8 +385,8 @@ GLYPH = """(e) => { const b = getComputedStyle(e, '::before');
   return {content: b.content, dashed: b.borderTopStyle, mask: b.maskImage || b.webkitMaskImage, weight: getComputedStyle(e).fontWeight}; }"""
 
 
-def test_the_rows_read_a_plus_until_chosen_then_a_glyph(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_the_rows_read_a_plus_until_chosen_then_a_glyph(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/transactions/new")
     for title in ("Paid from", "Spent on"):
         empty = side(page, title).evaluate(GLYPH)

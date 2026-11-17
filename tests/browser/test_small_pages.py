@@ -36,8 +36,8 @@ def loan_payment(api: Api, books: dict) -> dict:
 # ---- the bell ---------------------------------------------------------------------------------------------------
 
 
-def test_the_bell_has_no_count_when_nothing_needs_you(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_the_bell_has_no_count_when_nothing_needs_you(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/")
     expect(bell(page)).to_be_visible()
     expect(bell(page)).to_have_text("")
@@ -46,10 +46,10 @@ def test_the_bell_has_no_count_when_nothing_needs_you(signed_in_spa_page: Page, 
 
 
 def test_a_payment_with_no_category_is_fixed_from_the_sheet_and_the_count_follows(
-    signed_in_spa_page: Page, spa_api: Api, spa_books
+    signed_in_page: Page, api: Api, books
 ):
-    page = signed_in_spa_page
-    emi = loan_payment(spa_api, spa_books)
+    page = signed_in_page
+    emi = loan_payment(api, books)
     page.goto("/accounts")
     expect(bell(page)).to_have_text("1")
     bell(page).click()
@@ -58,39 +58,39 @@ def test_a_payment_with_no_category_is_fixed_from_the_sheet_and_the_count_follow
     sheet.get_by_label("Category for EMI payment").select_option(emi["id"])
     expect(sheet).to_contain_text("Nothing needs you.")
     expect(bell(page)).to_have_text("")
-    entry = next(t for t in spa_api.get("/transactions/") if t["payee"] == "EMI payment")
+    entry = next(t for t in api.get("/transactions/") if t["payee"] == "EMI payment")
     assert emi["id"] in {p["category_id"] for p in entry["postings"]}
 
 
-def test_an_account_left_out_is_added_from_the_sheet(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    card = spa_api.post("/accounts/", name="Old card", parent_id=spa_books["roots"]["Liabilities"], on_budget=False)
-    spa_api.post("/transactions/", postings=[leg(spa_books["food"], "debit", "75"), leg(card, "credit", "75")])
+def test_an_account_left_out_is_added_from_the_sheet(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    card = api.post("/accounts/", name="Old card", parent_id=books["roots"]["Liabilities"], on_budget=False)
+    api.post("/transactions/", postings=[leg(books["food"], "debit", "75"), leg(card, "credit", "75")])
     page.goto("/")
     bell(page).click()
     sheet = todo_sheet(page)
     expect(sheet).to_contain_text("Liabilities:Old card is not in the budget")
     sheet.get_by_role("button", name="Add to budget").click()
     expect(sheet).to_contain_text("Nothing needs you.")
-    assert spa_api.get(f"/accounts/{card['id']}")["on_budget"] is True
+    assert api.get(f"/accounts/{card['id']}")["on_budget"] is True
 
 
-def test_a_bill_due_soon_is_in_the_bell_and_pay_bill_opens_the_form(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
+def test_a_bill_due_soon_is_in_the_bell_and_pay_bill_opens_the_form(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
     today = local_today()
     statement = today - timedelta(days=10)
-    card = spa_api.post(
+    card = api.post(
         "/accounts/",
         name="Amex",
-        parent_id=spa_books["roots"]["Liabilities"],
+        parent_id=books["roots"]["Liabilities"],
         statement_day=statement.day,
         due_day=(today + timedelta(days=2)).day,
         on_budget=True,  # so its spending (this month from the 16th on) is no "left out" to-do of its own
     )
-    spa_api.post(
+    api.post(
         "/transactions/",
         date=str(statement - timedelta(days=5)),
-        postings=[leg(spa_books["food"], "debit", "300"), leg(card, "credit", "300")],
+        postings=[leg(books["food"], "debit", "300"), leg(card, "credit", "300")],
     )
     page.goto("/")
     expect(bell(page)).to_have_text("1")
@@ -102,10 +102,10 @@ def test_a_bill_due_soon_is_in_the_bell_and_pay_bill_opens_the_form(signed_in_sp
     expect(todo_sheet(page)).to_have_count(0)
 
 
-def test_the_bell_sits_where_the_web_page_puts_it(signed_in_spa_page: Page, spa_api: Api, spa_books):
+def test_the_bell_sits_where_the_web_page_puts_it(signed_in_page: Page, api: Api, books):
     """The badge at the bell's top right; in the sidebar the bell sits at the foot with Settings."""
-    page = signed_in_spa_page
-    loan_payment(spa_api, spa_books)
+    page = signed_in_page
+    loan_payment(api, books)
     page.set_viewport_size({"width": 390, "height": 800})
     page.goto("/")
     expect(bell(page)).to_have_text("1")
@@ -127,32 +127,32 @@ def test_the_bell_sits_where_the_web_page_puts_it(signed_in_spa_page: Page, spa_
 
 
 @pytest.fixture
-def ahead(spa_books, spa_api: Api):
+def ahead(books, api: Api):
     """Two payments later this month: an entry and, from the rule's own start, an occurrence. Skipped near the month's end."""
     today = local_today()
     last = calendar.monthrange(today.year, today.month)[1]
     if today.day >= last - 1:
         pytest.skip("needs two days left in the month")
-    spa_api.post(
+    api.post(
         "/transactions/",
         payee="Cab",
         date=str(today + timedelta(days=1)),
-        postings=[leg(spa_books["food"], "debit", "70"), leg(spa_books["checking"], "credit", "70")],
+        postings=[leg(books["food"], "debit", "70"), leg(books["checking"], "credit", "70")],
     )
-    spa_api.post(
+    api.post(
         "/recurring/",
         payee="Landlord",
-        from_account_id=spa_books["checking"]["id"],
-        to_account_id=spa_books["roots"]["Expenses"],
-        category_id=spa_books["rent"]["id"],
+        from_account_id=books["checking"]["id"],
+        to_account_id=books["roots"]["Expenses"],
+        category_id=books["rent"]["id"],
         amount="1500",
         frequency="monthly",
         start_date=str(today + timedelta(days=2)),
     )
 
 
-def test_coming_up_opens_from_the_sum_and_lists_what_is_ahead(signed_in_spa_page: Page, spa_books, ahead):
-    page = signed_in_spa_page
+def test_coming_up_opens_from_the_sum_and_lists_what_is_ahead(signed_in_page: Page, books, ahead):
+    page = signed_in_page
     page.goto("/budget")
     page.get_by_label("How what is ready to assign is worked out").click()
     note = page.get_by_role("link", name=re.compile("2 payments coming up by"))
@@ -169,8 +169,8 @@ def test_coming_up_opens_from_the_sum_and_lists_what_is_ahead(signed_in_spa_page
     page.wait_for_url(re.compile(r"/transactions/.+/edit\?back=/budget/coming-up"))
 
 
-def test_nothing_is_said_when_nothing_is_coming_up(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_nothing_is_said_when_nothing_is_coming_up(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/budget/coming-up")
     expect(page.locator("main")).to_contain_text("Nothing is coming up before")
     page.goto("/budget")
@@ -195,10 +195,10 @@ def tag_row(page: Page, name: str):
     return page.locator("main").get_by_role("button", name=re.compile(f"^#{name}"))
 
 
-def test_the_tags_page_renames_merges_and_deletes(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    tagged(spa_api, spa_books, "A", "alpha")
-    tagged(spa_api, spa_books, "B", "beta")
+def test_the_tags_page_renames_merges_and_deletes(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    tagged(api, books, "A", "alpha")
+    tagged(api, books, "B", "beta")
     page.goto("/tags")
     expect(tag_row(page, "")).to_have_count(2)
     tag_row(page, "alpha").click()
@@ -222,13 +222,13 @@ def test_the_tags_page_renames_merges_and_deletes(signed_in_spa_page: Page, spa_
     tag_row(page, "beta").click()
     page.get_by_role("dialog", name="#beta").get_by_role("button", name="Delete tag").click()
     expect(page.get_by_text("No tags yet")).to_be_visible()
-    assert spa_api.get("/tags/") == []
+    assert api.get("/tags/") == []
 
 
-def test_view_entries_opens_the_list_filtered_by_the_tag(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    tagged(spa_api, spa_books, "Beach shack", "goa")
-    tagged(spa_api, spa_books, "Corner shop", "home")
+def test_view_entries_opens_the_list_filtered_by_the_tag(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    tagged(api, books, "Beach shack", "goa")
+    tagged(api, books, "Corner shop", "home")
     page.goto("/tags")
     tag_row(page, "goa").click()
     page.get_by_role("dialog", name="#goa").get_by_role("link", name="View entries").click()
@@ -237,11 +237,11 @@ def test_view_entries_opens_the_list_filtered_by_the_tag(signed_in_spa_page: Pag
     expect(page.locator("main")).not_to_contain_text("Corner shop")
 
 
-def test_the_tags_page_rows_are_plain_rows_inside_one_tile(signed_in_spa_page: Page, spa_api: Api, spa_books):
+def test_the_tags_page_rows_are_plain_rows_inside_one_tile(signed_in_page: Page, api: Api, books):
     """One full-width row each, 52px high, no button look, the count at the right."""
-    page = signed_in_spa_page
-    tagged(spa_api, spa_books, "A", "alpha")
-    tagged(spa_api, spa_books, "B", "beta")
+    page = signed_in_page
+    tagged(api, books, "A", "alpha")
+    tagged(api, books, "B", "beta")
     page.set_viewport_size({"width": 390, "height": 844})
     page.goto("/tags")
     rows = tag_row(page, "")

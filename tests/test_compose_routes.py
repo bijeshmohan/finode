@@ -49,7 +49,7 @@ def test_the_web_router_takes_the_rest_of_the_same_address():
 
 
 def test_the_browser_tests_server_splits_the_paths_as_traefik_does():
-    from .browser.spa import API_PATHS, API_PREFIXES
+    from .browser.server import API_PATHS, API_PREFIXES
 
     rule = labels("app")["traefik.http.routers.finode.rule"]
     for path in (*API_PATHS, *(p + "x" for p in API_PREFIXES), "/", "/accounts", "/apiary", "/mcpx", "/assets/x.js"):

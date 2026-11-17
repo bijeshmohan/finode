@@ -49,8 +49,8 @@ def a_rule(api: Api, books: dict, **extra) -> dict:
     )
 
 
-def test_a_split_rule_from_the_form(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
+def test_a_split_rule_from_the_form(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
     page.goto("/recurring/new")
     page.get_by_label("Amount", exact=True).fill("1000")
     pick(page, "Paid from", 0, "Checking")
@@ -62,50 +62,50 @@ def test_a_split_rule_from_the_form(signed_in_spa_page: Page, spa_api: Api, spa_
     page.get_by_placeholder("Payee or Merchant?").fill("Landlord")
     save(page)
     expect(page.locator("main").get_by_role("link", name=re.compile("^Landlord"))).to_be_visible()
-    [rule] = spa_api.get("/recurring/")
+    [rule] = api.get("/recurring/")
     assert rule["from_account_id"] is None and len(rule["postings"]) == 3, "more than one account on a side is a split"
 
 
-def test_a_plain_rule_stays_plain(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
+def test_a_plain_rule_stays_plain(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
     page.goto("/recurring/new")
     page.get_by_label("Amount", exact=True).fill("500")
     pick(page, "Paid from", 0, "Checking")
     pick(page, "Spent on", 0, "Rent")
     page.get_by_label("Starts").fill("2999-01-01")
     save(page)
-    [rule] = spa_api.get("/recurring/")
-    assert rule["from_account_id"] == spa_books["checking"]["id"] and rule["postings"] == []
-    assert rule["category_id"] == spa_books["rent"]["id"]
+    [rule] = api.get("/recurring/")
+    assert rule["from_account_id"] == books["checking"]["id"] and rule["postings"] == []
+    assert rule["category_id"] == books["rent"]["id"]
 
 
-def test_editing_a_rule_keeps_it_and_saves_the_change(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    rule = a_rule(spa_api, spa_books)
+def test_editing_a_rule_keeps_it_and_saves_the_change(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    rule = a_rule(api, books)
     page.goto(f"/recurring/{rule['id']}/edit")
     expect(page.get_by_label("Amount", exact=True)).to_have_value("900.00")
     expect(page.get_by_text(re.compile(r"^Every month · next on 1 Jan 2999"))).to_be_visible()
     page.get_by_label("Every how many").fill("2")
     page.get_by_role("button", name="Save changes").click()
     page.wait_for_url(re.compile(r"/recurring$"))
-    changed = spa_api.get(f"/recurring/{rule['id']}")
+    changed = api.get(f"/recurring/{rule['id']}")
     assert changed["every"] == 2 and changed["postings"] == [] and changed["amount"] == "900.00"
 
 
-def test_skipping_the_next_occurrence_from_the_edit_page(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    rule = a_rule(spa_api, spa_books)
+def test_skipping_the_next_occurrence_from_the_edit_page(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    rule = a_rule(api, books)
     page.goto(f"/recurring/{rule['id']}/edit")
     page.once("dialog", lambda dialog: dialog.accept())
     page.get_by_role("button", name="Skip 1 Jan 2999").click()
     page.wait_for_url(re.compile(r"/recurring$"))
     expect(page.get_by_text("Nothing was recorded for that one")).to_be_visible()
-    assert spa_api.get(f"/recurring/{rule['id']}")["next_date"] == "2999-02-01"
+    assert api.get(f"/recurring/{rule['id']}")["next_date"] == "2999-02-01"
 
 
-def test_pausing_and_resuming(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    rule = a_rule(spa_api, spa_books)
+def test_pausing_and_resuming(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    rule = a_rule(api, books)
     page.goto(f"/recurring/{rule['id']}/edit")
     page.get_by_role("button", name="Pause", exact=True).click()
     page.wait_for_url(re.compile(r"/recurring$"))
@@ -115,11 +115,11 @@ def test_pausing_and_resuming(signed_in_spa_page: Page, spa_api: Api, spa_books)
     page.get_by_role("button", name="Resume").click()
     page.wait_for_url(re.compile(r"/recurring$"))
     expect(page.locator("main").get_by_role("link", name=re.compile("^Landlord"))).to_contain_text("next 1 Jan 2999")
-    assert spa_api.get(f"/recurring/{rule['id']}")["active"] is True
+    assert api.get(f"/recurring/{rule['id']}")["active"] is True
 
 
-def test_a_rule_gets_tags_from_the_form_like_a_new_transaction(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
+def test_a_rule_gets_tags_from_the_form_like_a_new_transaction(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
     page.goto("/recurring/new")
     page.get_by_label("Amount", exact=True).fill("500")
     pick(page, "Paid from", 0, "Checking")
@@ -131,14 +131,14 @@ def test_a_rule_gets_tags_from_the_form_like_a_new_transaction(signed_in_spa_pag
     page.get_by_role("button", name="Done").click()
     expect(page.get_by_role("button", name="Change the tags")).to_have_text("#home-rent")
     save(page)
-    [rule] = spa_api.get("/recurring/")
+    [rule] = api.get("/recurring/")
     assert rule["tags"] == ["home-rent"]
     page.goto(f"/recurring/{rule['id']}/edit")
     expect(page.get_by_role("button", name="Change the tags")).to_have_text("#home-rent")
 
 
-def test_the_repeat_row_names_its_unit_and_the_end_date_chip_clears(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_the_repeat_row_names_its_unit_and_the_end_date_chip_clears(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/recurring/new")
     unit = page.get_by_label("Unit").locator("option:checked")
     expect(unit).to_have_text("month")
@@ -156,10 +156,10 @@ def test_the_repeat_row_names_its_unit_and_the_end_date_chip_clears(signed_in_sp
     assert page.get_by_label("Ends (optional)").input_value() == ""
 
 
-def test_the_recurring_list_is_flat_rows_in_a_tile(signed_in_spa_page: Page, spa_api: Api, spa_books):
+def test_the_recurring_list_is_flat_rows_in_a_tile(signed_in_page: Page, api: Api, books):
     """Rows are as tall as the Transactions rows (not padded twice) and the date has no weekday."""
-    page = signed_in_spa_page
-    a_rule(spa_api, spa_books)
+    page = signed_in_page
+    a_rule(api, books)
     page.set_viewport_size({"width": 390, "height": 844})
     page.goto("/recurring")
     row = page.locator("main").get_by_role("link", name=re.compile("^Landlord"))
@@ -167,17 +167,17 @@ def test_the_recurring_list_is_flat_rows_in_a_tile(signed_in_spa_page: Page, spa
     box = row.bounding_box()
     assert box and box["height"] < 80, "one title line and one quiet line, no extra padding"
     expect(row).to_contain_text("next 1 Jan 2999")
-    spa_api.post(
+    api.post(
         "/transactions/",
-        postings=[leg(spa_books["food"], "debit", "40"), leg(spa_books["checking"], "credit", "40")],
+        postings=[leg(books["food"], "debit", "40"), leg(books["checking"], "credit", "40")],
     )
     page.goto("/transactions")
     entry = page.locator("main li").first.bounding_box()
     assert entry and abs(entry["height"] - box["height"]) <= 2, "as tall as a Transactions row"
 
 
-def test_the_past_start_hint_shows_only_for_a_past_start(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_the_past_start_hint_shows_only_for_a_past_start(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/recurring/new")
     hint = page.get_by_text("A start date in the past is recorded right away for every missed date.")
     expect(hint).to_have_count(0)
@@ -187,8 +187,8 @@ def test_the_past_start_hint_shows_only_for_a_past_start(signed_in_spa_page: Pag
     expect(hint).to_have_count(0)
 
 
-def test_a_rules_row_settings_take_no_date(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_a_rules_row_settings_take_no_date(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/recurring/new")
     page.get_by_label("Amount", exact=True).fill("100")
     pick(page, "Paid from", 0, "Checking")
@@ -198,13 +198,13 @@ def test_a_rules_row_settings_take_no_date(signed_in_spa_page: Page, spa_books):
     expect(sheet.get_by_label("Date")).to_have_count(0)
 
 
-def test_the_bells_open_rule_reaches_the_form(signed_in_spa_page: Page, spa_api: Api, spa_books, session):
+def test_the_bells_open_rule_reaches_the_form(signed_in_page: Page, api: Api, books, session):
     from sqlmodel import select
 
     from app.models.recurring import RecurringTransaction
 
-    page = signed_in_spa_page
-    rule = a_rule(spa_api, spa_books)
+    page = signed_in_page
+    rule = a_rule(api, books)
     found = session.exec(select(RecurringTransaction)).one()
     found.last_error = "Checking can no longer be posted to"
     session.add(found)
@@ -216,13 +216,13 @@ def test_the_bells_open_rule_reaches_the_form(signed_in_spa_page: Page, spa_api:
     expect(page.get_by_role("alert")).to_contain_text("Couldn't record Checking can no longer be posted to.")
 
 
-def test_deleting_a_rule_goes_back_to_the_list(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    rule = a_rule(spa_api, spa_books)
+def test_deleting_a_rule_goes_back_to_the_list(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    rule = a_rule(api, books)
     page.goto(f"/recurring/{rule['id']}/edit")
     page.once("dialog", lambda dialog: dialog.accept())
     page.get_by_role("button", name="Delete", exact=True).click()
     page.wait_for_url(re.compile(r"/recurring$"))
     expect(page.get_by_text("Recurring transaction deleted. What it recorded is kept.")).to_be_visible()
     expect(page.get_by_text("Nothing on repeat yet")).to_be_visible()
-    assert spa_api.get("/recurring/") == []
+    assert api.get("/recurring/") == []

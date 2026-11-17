@@ -29,9 +29,9 @@ def last_button(page: Page, name: str):
     return page.locator("main").get_by_role("button", name=name, exact=True).last
 
 
-def test_erasing_the_books(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    assert [a for a in spa_api.get("/accounts/") if a["parent_id"]], "there are accounts to erase"
+def test_erasing_the_books(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    assert [a for a in api.get("/accounts/") if a["parent_id"]], "there are accounts to erase"
     page.goto("/profile/data")
     open_row(page, "Erase my books")
     field = page.get_by_label(re.compile("to confirm"))
@@ -39,23 +39,23 @@ def test_erasing_the_books(signed_in_spa_page: Page, spa_api: Api, spa_books):
     field.fill("nobody@example.com")
     last_button(page, "Erase my books").click()
     expect(page.get_by_role("alert")).to_have_text("Type test@example.com to confirm.")
-    assert [a for a in spa_api.get("/accounts/") if a["parent_id"]], "a wrong confirmation erases nothing"
+    assert [a for a in api.get("/accounts/") if a["parent_id"]], "a wrong confirmation erases nothing"
     page.once("dialog", lambda dialog: dialog.accept())
     field.fill("test@example.com")
     last_button(page, "Erase my books").click()
     page.wait_for_url(re.compile(r"/$"))
     expect(page.get_by_text("Your books were erased")).to_be_visible()
-    assert [a["name"] for a in spa_api.get("/accounts/") if a["parent_id"]] == [], "only the five types are left"
+    assert [a["name"] for a in api.get("/accounts/") if a["parent_id"]] == [], "only the five types are left"
 
 
-def test_deleting_the_account(signed_in_spa_page: Page, spa_books, monkeypatch):
+def test_deleting_the_account(signed_in_page: Page, books, monkeypatch):
     from app.config import settings
 
     removed = []
     monkeypatch.setattr(settings, "supabase_service_role_key", "sb_secret_x")
     monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co")
     monkeypatch.setattr(data_router, "delete_user", lambda user_id: removed.append(user_id))
-    page = signed_in_spa_page
+    page = signed_in_page
     page.goto("/profile/data")
     open_row(page, "Delete my account")
     page.once("dialog", lambda dialog: dialog.accept())
@@ -67,8 +67,8 @@ def test_deleting_the_account(signed_in_spa_page: Page, spa_books, monkeypatch):
     assert "sb_secret_x" not in page.content(), "the service key never reaches the browser"
 
 
-def test_importing_a_ledger_file(signed_in_spa_page: Page, spa_api: Api, tmp_path: Path):
-    page = signed_in_spa_page
+def test_importing_a_ledger_file(signed_in_page: Page, api: Api, tmp_path: Path):
+    page = signed_in_page
     journal = tmp_path / "books.ledger"
     journal.write_text(JOURNAL)
     page.goto("/profile/data")
@@ -80,18 +80,18 @@ def test_importing_a_ledger_file(signed_in_spa_page: Page, spa_api: Api, tmp_pat
     page.get_by_role("button", name="Import 2 transactions").click()
     page.wait_for_url(re.compile(r"/$"))
     expect(page.get_by_text("Import complete")).to_be_visible()
-    hdfc = next(a for a in spa_api.get("/accounts/") if a["name"] == "HDFC")
+    hdfc = next(a for a in api.get("/accounts/") if a["name"] == "HDFC")
     assert hdfc["balance"] == "8749.50"
 
 
 def test_a_backup_downloads_and_restores_into_empty_books(
-    signed_in_spa_page: Page, spa_api: Api, spa_books, spa_server: str, tmp_path: Path
+    signed_in_page: Page, api: Api, books, server: str, tmp_path: Path
 ):
-    page = signed_in_spa_page
-    spa_api.post(
+    page = signed_in_page
+    api.post(
         "/transactions/",
         payee="Kept",
-        postings=[leg(spa_books["food"], "debit", "40"), leg(spa_books["checking"], "credit", "40")],
+        postings=[leg(books["food"], "debit", "40"), leg(books["checking"], "credit", "40")],
     )
     page.goto("/profile/data")
     open_row(page, "Backup")
@@ -103,7 +103,7 @@ def test_a_backup_downloads_and_restores_into_empty_books(
     erased = page.request.post(
         "/api/erase",
         data={"confirm": "test@example.com"},
-        headers={"X-Finode": "1", "Origin": spa_server},
+        headers={"X-Finode": "1", "Origin": server},
     )
     assert erased.status == 204, erased.text()
     page.reload()
@@ -114,11 +114,11 @@ def test_a_backup_downloads_and_restores_into_empty_books(
     page.get_by_role("button", name="Restore everything").click()
     page.wait_for_url(re.compile(r"/$"))
     expect(page.get_by_text("Backup restored")).to_be_visible()
-    assert any(t["payee"] == "Kept" for t in spa_api.get("/transactions/"))
+    assert any(t["payee"] == "Kept" for t in api.get("/transactions/"))
 
 
-def test_the_exports_download_files(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_the_exports_download_files(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/profile/data")
     open_row(page, "Export")
     for name, ending in (("Export ledger file", ".ledger"), ("Export CSV", ".csv")):
