@@ -28,8 +28,7 @@ PAGE_SIZE = 25
 # How many entries dated ahead the transactions page lists under "upcoming".
 UPCOMING_LIMIT = 100
 KIND_FILTERS = {"expense": "expense", "income": "income", "transfer": "transfer"}
-HOME_FIRST = 8  # Home starts with this many entries (a day is finished) and "Show more" brings this many each time
-HOME_MORE = 10
+HOME_FIRST = 8  # Home starts with this many entries (a day is finished); "Show more" sizes are the app's
 RowKind = Literal["expense", "income", "transfer"]
 FilterKey = Literal["account", "category", "merchant", "tag"]
 OPENING_BALANCES = "Opening Balances"

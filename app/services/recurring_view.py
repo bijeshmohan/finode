@@ -23,7 +23,6 @@ Status = Literal["active", "paused", "ended", "error"]
 @dataclass
 class RuleRow:
     rule: RecurringRead
-    from_name: str
     to_name: str
     amount: Decimal  # what leaves (a split: its total)
     schedule: str
@@ -82,7 +81,6 @@ def rule_row(rule: RecurringRead, names: dict[UUID, str]) -> RuleRow:
         total = sum((p.amount for p in rule.postings if p.side == PostingSide.DEBIT), Decimal(0))
         return RuleRow(
             rule,
-            on(PostingSide.CREDIT),
             on(PostingSide.DEBIT),
             total,
             describe(rule.frequency, rule.every),
@@ -90,7 +88,6 @@ def rule_row(rule: RecurringRead, names: dict[UUID, str]) -> RuleRow:
         )
     return RuleRow(
         rule=rule,
-        from_name=side_name(names, rule.from_account_id, rule.category_id),
         to_name=side_name(names, rule.to_account_id, rule.category_id),
         amount=rule.amount or Decimal(0),
         schedule=describe(rule.frequency, rule.every),

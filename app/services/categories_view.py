@@ -17,7 +17,6 @@ from .transaction_rows import RegisterRow, category_register_row
 
 # The chips on the Categories page, and the kind each one shows.
 TABS = {"expense": "spending", "income": "earning"}
-KIND_TABS = {kind: tab for tab, kind in TABS.items()}
 ZERO = Decimal("0.00")
 
 
