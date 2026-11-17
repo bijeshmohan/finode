@@ -27,7 +27,7 @@ from app.main import app
 from app.session import ACCESS_COOKIE, InvalidCredentialsError, SessionTokens
 
 from ..conftest import TEST_USER_ID
-from .spa import spa_app
+from .server import app_and_api
 
 try:
     from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
@@ -90,11 +90,11 @@ def _serve(asgi_app, session) -> Generator[str]:
 
 # The React app signs in for real through /api/auth; only Supabase is stood in for: a password starting "right" signs in, and
 # the session cookie it sets ("test-access") is the test user.
-SPA_TOKEN = "test-access"
+TOKEN = "test-access"
 
 
 def _fake_jwt(token: str) -> dict:
-    if token == SPA_TOKEN:
+    if token == TOKEN:
         return {"sub": str(TEST_USER_ID), "email": "test@example.com"}
     raise HTTPException(status_code=401, detail="invalid authentication token")
 
@@ -102,17 +102,17 @@ def _fake_jwt(token: str) -> dict:
 def _fake_sign_in(email: str, password: str) -> SessionTokens:
     if not password.startswith("right"):
         raise InvalidCredentialsError()
-    return SessionTokens(SPA_TOKEN, "test-refresh", 3600)
+    return SessionTokens(TOKEN, "test-refresh", 3600)
 
 
 @pytest.fixture
-def spa_server(session, monkeypatch: pytest.MonkeyPatch) -> Generator[str]:
+def server(session, monkeypatch: pytest.MonkeyPatch) -> Generator[str]:
     """The built React app and the API on one free port, signed out, with the test's in-memory database."""
     monkeypatch.setattr(auth, "verify_supabase_jwt", _fake_jwt)
     monkeypatch.setattr(auth_flows, "sign_in", _fake_sign_in)
     monkeypatch.setattr(settings, "recurring_interval_minutes", 0)
     monkeypatch.setattr(settings, "cookie_secure", False)  # plain http on 127.0.0.1: WebKit drops a Secure cookie there
-    served = _serve(spa_app(), session)
+    served = _serve(app_and_api(), session)
     url = next(served)
     yield url
     next(served, None)
@@ -160,9 +160,9 @@ def _new_page(browser: Browser, base_url: str) -> tuple[BrowserContext, Page, li
 
 
 @pytest.fixture
-def spa_page(request, browser: Browser, spa_server: str) -> Generator[Page]:
+def page(request, browser: Browser, server: str) -> Generator[Page]:
     """The React app in a phone-sized browser, signed out."""
-    context, page, errors = _new_page(browser, spa_server)
+    context, page, errors = _new_page(browser, server)
     yield page
     keep_evidence(request.node, page)
     context.close()
@@ -170,10 +170,10 @@ def spa_page(request, browser: Browser, spa_server: str) -> Generator[Page]:
 
 
 @pytest.fixture
-def signed_in_spa_page(spa_page: Page, spa_server: str) -> Page:
+def signed_in_page(page: Page, server: str) -> Page:
     """The React app, signed in as the test user (the session cookie a real sign-in sets)."""
-    spa_page.context.add_cookies([{"name": ACCESS_COOKIE, "value": SPA_TOKEN, "url": spa_server}])
-    return spa_page
+    page.context.add_cookies([{"name": ACCESS_COOKIE, "value": TOKEN, "url": server}])
+    return page
 
 
 class Api:
@@ -213,21 +213,21 @@ class Api:
 
 
 @pytest.fixture
-def spa_api(signed_in_spa_page: Page, spa_server: str) -> Api:
+def api(signed_in_page: Page, server: str) -> Api:
     """The JSON API as the React app's signed-in person: the cookie, and the app's header and origin for changes."""
-    return Api(signed_in_spa_page, headers={"X-Finode": "1", "Origin": spa_server})
+    return Api(signed_in_page, headers={"X-Finode": "1", "Origin": server})
 
 
 @pytest.fixture
-def spa_books(spa_api: Api) -> dict:
+def books(api: Api) -> dict:
     """A small set of accounts, all directly under their type so pickers show plain names."""
-    roots = {a["name"]: a["id"] for a in spa_api.get("/accounts/") if a["parent_id"] is None}
+    roots = {a["name"]: a["id"] for a in api.get("/accounts/") if a["parent_id"] is None}
     return {
-        "checking": spa_api.post("/accounts/", name="Checking", parent_id=roots["Assets"], balance="5000"),
-        "cash": spa_api.post("/accounts/", name="Cash", parent_id=roots["Assets"]),
-        "card": spa_api.post("/accounts/", name="Visa", parent_id=roots["Liabilities"], on_budget=True),
-        "salary": spa_api.post("/accounts/", name="Salary", parent_id=roots["Income"]),
-        "food": spa_api.post("/accounts/", name="Groceries", parent_id=roots["Expenses"]),
-        "rent": spa_api.post("/accounts/", name="Rent", parent_id=roots["Expenses"]),
+        "checking": api.post("/accounts/", name="Checking", parent_id=roots["Assets"], balance="5000"),
+        "cash": api.post("/accounts/", name="Cash", parent_id=roots["Assets"]),
+        "card": api.post("/accounts/", name="Visa", parent_id=roots["Liabilities"], on_budget=True),
+        "salary": api.post("/accounts/", name="Salary", parent_id=roots["Income"]),
+        "food": api.post("/accounts/", name="Groceries", parent_id=roots["Expenses"]),
+        "rent": api.post("/accounts/", name="Rent", parent_id=roots["Expenses"]),
         "roots": roots,
     }

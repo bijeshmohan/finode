@@ -12,7 +12,7 @@ NAME="finode-browser-$$"
 
 cd "$(dirname "$0")/.."
 
-# The React app's browser tests drive the built app (tests/browser/spa.py): build it first.
+# The React app's browser tests drive the built app (tests/browser/server.py): build it first.
 if [ ! -d frontend/node_modules ]; then npm --prefix frontend ci; fi
 npm --prefix frontend run build >/dev/null
 

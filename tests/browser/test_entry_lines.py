@@ -10,7 +10,7 @@ from app.clock import local_today
 
 from ..books import leg
 from .conftest import Api
-from .test_spa_entry import choose
+from .test_entry import choose
 
 
 def section(page: Page, title: str):
@@ -41,8 +41,8 @@ def card(api: Api, books, name="Regalia Gold"):
     return api.post("/accounts/", name=name, parent_id=books["roots"]["Liabilities"], statement_day=16, due_day=5)
 
 
-def test_typing_less_adds_a_row_with_the_remainder_and_removing_it_brings_it_back(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_typing_less_adds_a_row_with_the_remainder_and_removing_it_brings_it_back(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/transactions/new")
     page.get_by_label("Amount", exact=True).fill("1000")
     choose(page, "Paid from", "Checking")
@@ -55,10 +55,8 @@ def test_typing_less_adds_a_row_with_the_remainder_and_removing_it_brings_it_bac
     expect(rows(page, "Spent on")).to_have_count(1)
 
 
-def test_a_row_is_removed_from_its_own_sheet_and_one_category_is_the_whole_amount_again(
-    signed_in_spa_page: Page, spa_books
-):
-    page = signed_in_spa_page
+def test_a_row_is_removed_from_its_own_sheet_and_one_category_is_the_whole_amount_again(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/transactions/new")
     page.get_by_label("Amount", exact=True).fill("1000")
     choose(page, "Paid from", "Checking")
@@ -71,8 +69,8 @@ def test_a_row_is_removed_from_its_own_sheet_and_one_category_is_the_whole_amoun
     expect(rows(page, "Spent on").first).to_have_text(re.compile(r"Rent$"))
 
 
-def test_the_settings_sheet_has_two_cells_a_done_pill_and_a_red_remove_below_it(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_the_settings_sheet_has_two_cells_a_done_pill_and_a_red_remove_below_it(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/transactions/new")
     page.get_by_label("Amount", exact=True).fill("1250")
     choose(page, "Paid from", "Checking")
@@ -102,8 +100,8 @@ def test_the_settings_sheet_has_two_cells_a_done_pill_and_a_red_remove_below_it(
     assert remove.evaluate("el => getComputedStyle(el).color") == red, "red, from the token"
 
 
-def test_a_row_shows_its_amount_only_when_it_differs_from_the_total(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_a_row_shows_its_amount_only_when_it_differs_from_the_total(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/transactions/new")
     page.get_by_label("Amount", exact=True).fill("500")
     choose(page, "Paid from", "Checking")
@@ -112,9 +110,9 @@ def test_a_row_shows_its_amount_only_when_it_differs_from_the_total(signed_in_sp
     expect(rows(page, "Paid from").first).to_contain_text("200.00")
 
 
-def test_a_later_date_is_stored_and_shown_on_the_row(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    regalia = card(spa_api, spa_books)
+def test_a_later_date_is_stored_and_shown_on_the_row(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    regalia = card(api, books)
     later = str(local_today() + timedelta(days=2))
     page.goto("/transactions/new")
     page.get_by_label("Amount", exact=True).fill("180")
@@ -125,15 +123,15 @@ def test_a_later_date_is_stored_and_shown_on_the_row(signed_in_spa_page: Page, s
     choose(page, "Spent on", "Groceries")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url(re.compile(r"/transactions(\?|$)"))
-    [entry] = spa_api.get("/transactions/")[:1]
+    [entry] = api.get("/transactions/")[:1]
     line = next(p for p in entry["postings"] if p["account_id"] == regalia["id"])
     assert line["posted_on"] == later
     assert all(p["posted_on"] is None for p in entry["postings"] if p["account_id"] != regalia["id"])
 
 
-def test_a_split_across_two_cards_has_a_date_for_each(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    regalia, neu = card(spa_api, spa_books), card(spa_api, spa_books, "NEUCARD")
+def test_a_split_across_two_cards_has_a_date_for_each(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    regalia, neu = card(api, books), card(api, books, "NEUCARD")
     later = str(local_today() + timedelta(days=3))
     page.goto("/transactions/new")
     page.get_by_label("Amount", exact=True).fill("1250")
@@ -145,39 +143,39 @@ def test_a_split_across_two_cards_has_a_date_for_each(signed_in_spa_page: Page, 
     choose(page, "Spent on", "Groceries")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_url(re.compile(r"/transactions(\?|$)"))
-    [entry] = spa_api.get("/transactions/")[:1]
+    [entry] = api.get("/transactions/")[:1]
     days = {p["account_id"]: p["posted_on"] for p in entry["postings"] if p["side"] == "credit"}
     assert days == {regalia["id"]: later, neu["id"]: None}
 
 
-def test_editing_shows_a_posting_date_and_keeps_it(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    regalia = card(spa_api, spa_books)
+def test_editing_shows_a_posting_date_and_keeps_it(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    regalia = card(api, books)
     on, later = str(local_today() - timedelta(days=5)), str(local_today() - timedelta(days=2))
-    entry = spa_api.post(
+    entry = api.post(
         "/transactions/",
         date=on,
         payee="IGST",
-        postings=[leg(spa_books["food"], "debit", "180"), {**leg(regalia, "credit", "180"), "posted_on": later}],
+        postings=[leg(books["food"], "debit", "180"), {**leg(regalia, "credit", "180"), "posted_on": later}],
     )
     page.goto(f"/transactions/{entry['id']}/edit")
     expect(rows(page, "Paid from").first).to_contain_text("Posts")
     page.get_by_placeholder("Payee or Merchant?").fill("IGST on fuel")
     page.get_by_role("button", name="Save changes").click()
     page.wait_for_url(re.compile(r"/transactions(\?|$)"))
-    kept = spa_api.get(f"/transactions/{entry['id']}")
+    kept = api.get(f"/transactions/{entry['id']}")
     assert next(p for p in kept["postings"] if p["account_id"] == regalia["id"])["posted_on"] == later
 
 
-def test_an_entry_with_several_lines_opens_with_them(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    entry = spa_api.post(
+def test_an_entry_with_several_lines_opens_with_them(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    entry = api.post(
         "/transactions/",
         payee="DMart",
         postings=[
-            leg(spa_books["food"], "debit", "600"),
-            leg(spa_books["rent"], "debit", "400"),
-            leg(spa_books["checking"], "credit", "1000"),
+            leg(books["food"], "debit", "600"),
+            leg(books["rent"], "debit", "400"),
+            leg(books["checking"], "credit", "1000"),
         ],
     )
     page.goto(f"/transactions/{entry['id']}/edit")
@@ -185,15 +183,15 @@ def test_an_entry_with_several_lines_opens_with_them(signed_in_spa_page: Page, s
     expect(rows(page, "Spent on").nth(0)).to_contain_text("600.00")
     page.get_by_role("button", name="Save changes").click()
     page.wait_for_url(re.compile(r"/transactions(\?|$)"))
-    amounts = sorted(p["amount"] for p in spa_api.get(f"/transactions/{entry['id']}")["postings"])
+    amounts = sorted(p["amount"] for p in api.get(f"/transactions/{entry['id']}")["postings"])
     assert amounts == ["1000.00", "400.00", "600.00"]
 
 
 def test_moving_the_entry_past_a_posting_date_puts_the_line_back_on_the_entrys_day(
-    signed_in_spa_page: Page, spa_books, spa_api: Api
+    signed_in_page: Page, books, api: Api
 ):
-    page = signed_in_spa_page
-    card(spa_api, spa_books)
+    page = signed_in_page
+    card(api, books)
     page.goto("/transactions/new")
     page.get_by_label("Amount", exact=True).fill("180")
     choose(page, "Paid from", "Regalia Gold")

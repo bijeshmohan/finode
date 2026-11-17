@@ -36,9 +36,9 @@ def nested(api: Api, books):
     return banks, savings
 
 
-def test_every_kind_is_a_row_of_cards_under_its_heading(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    nested(spa_api, spa_books)
+def test_every_kind_is_a_row_of_cards_under_its_heading(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    nested(api, books)
     page.goto("/accounts")
     expect(kind(page, "Banks")).to_contain_text("2 accounts")
     assert {"HDFC", "SBI", "Rainy", "Checking", "Cash"} <= set(cards(page))
@@ -47,15 +47,13 @@ def test_every_kind_is_a_row_of_cards_under_its_heading(signed_in_spa_page: Page
     expect(page.locator("main h2").first).to_have_text("Banks")
 
 
-def test_a_long_row_scrolls_sideways_on_its_own_and_the_page_does_not(
-    signed_in_spa_page: Page, spa_api: Api, spa_books
-):
-    page = signed_in_spa_page
-    long = spa_api.post("/accounts/", name="Wallets", parent_id=spa_books["roots"]["Assets"])
+def test_a_long_row_scrolls_sideways_on_its_own_and_the_page_does_not(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    long = api.post("/accounts/", name="Wallets", parent_id=books["roots"]["Assets"])
     for number in range(8):
-        spa_api.post("/accounts/", name=f"Wallet {number}", parent_id=long["id"])
-    short = spa_api.post("/accounts/", name="Funds", parent_id=spa_books["roots"]["Assets"])
-    spa_api.post("/accounts/", name="Fund A", parent_id=short["id"])
+        api.post("/accounts/", name=f"Wallet {number}", parent_id=long["id"])
+    short = api.post("/accounts/", name="Funds", parent_id=books["roots"]["Assets"])
+    api.post("/accounts/", name="Fund A", parent_id=short["id"])
     page.goto("/accounts")
     wallets, funds = kind(page, "Wallets"), kind(page, "Funds")
     expect(wallets).to_contain_text("8 accounts")
@@ -68,11 +66,9 @@ def test_a_long_row_scrolls_sideways_on_its_own_and_the_page_does_not(
     assert funds_rail.evaluate("el => el.scrollLeft") == 0
 
 
-def test_the_kinds_have_room_between_them_and_a_heading_larger_than_a_cards_name(
-    signed_in_spa_page: Page, spa_api: Api, spa_books
-):
-    page = signed_in_spa_page
-    nested(spa_api, spa_books)
+def test_the_kinds_have_room_between_them_and_a_heading_larger_than_a_cards_name(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    nested(api, books)
     page.goto("/accounts")
     expect(kind(page, "Banks")).to_be_visible()
     size = page.locator("main h2").first.evaluate("e => parseFloat(getComputedStyle(e).fontSize)")
@@ -84,11 +80,9 @@ def test_the_kinds_have_room_between_them_and_a_heading_larger_than_a_cards_name
     assert gaps and min(gaps) >= 24, f"space between kinds: {gaps}"
 
 
-def test_a_card_opens_the_account_and_the_add_card_opens_the_form_on_that_kind(
-    signed_in_spa_page: Page, spa_api: Api, spa_books
-):
-    page = signed_in_spa_page
-    banks, _ = nested(spa_api, spa_books)
+def test_a_card_opens_the_account_and_the_add_card_opens_the_form_on_that_kind(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    banks, _ = nested(api, books)
     page.goto("/accounts")
     expect(kind(page, "Banks").get_by_role("link", name="Add account")).to_have_attribute(
         "href", f"/accounts/new?parent={banks['id']}"
@@ -98,13 +92,11 @@ def test_a_card_opens_the_account_and_the_add_card_opens_the_form_on_that_kind(
     expect(page.get_by_role("heading", level=1, name="HDFC")).to_be_visible()
 
 
-def test_every_open_account_shows_and_only_closed_ones_are_tucked_away(
-    signed_in_spa_page: Page, spa_api: Api, spa_books, session
-):
-    page = signed_in_spa_page
-    old = spa_api.post("/accounts/", name="Old Wallet", parent_id=spa_books["roots"]["Assets"])
-    closed = spa_api.post("/accounts/", name="Old Card", parent_id=spa_books["roots"]["Liabilities"])
-    spa_api.post(f"/accounts/{closed['id']}/close")
+def test_every_open_account_shows_and_only_closed_ones_are_tucked_away(signed_in_page: Page, api: Api, books, session):
+    page = signed_in_page
+    old = api.post("/accounts/", name="Old Wallet", parent_id=books["roots"]["Assets"])
+    closed = api.post("/accounts/", name="Old Card", parent_id=books["roots"]["Liabilities"])
+    api.post(f"/accounts/{closed['id']}/close")
     table = Account.__table__
     session.exec(
         table.update().where(table.c.id == UUID(old["id"])).values(created=datetime.now(UTC) - timedelta(days=30))
@@ -118,9 +110,9 @@ def test_every_open_account_shows_and_only_closed_ones_are_tucked_away(
     expect(page.get_by_role("button", name="Load more")).to_have_count(0)
 
 
-def test_closing_an_account_from_its_page(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
-    page.goto(f"/accounts/{spa_books['cash']['id']}")
+def test_closing_an_account_from_its_page(signed_in_page: Page, books):
+    page = signed_in_page
+    page.goto(f"/accounts/{books['cash']['id']}")
     page.once("dialog", lambda dialog: dialog.accept())
     page.get_by_label("More actions").click()
     page.get_by_role("button", name="Close account").click()
@@ -132,9 +124,9 @@ def test_closing_an_account_from_its_page(signed_in_spa_page: Page, spa_books):
     expect(page.get_by_role("link", name=re.compile("^Cash"))).to_be_visible()
 
 
-def test_the_cards_of_a_row_are_the_same_size(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    nested(spa_api, spa_books)
+def test_the_cards_of_a_row_are_the_same_size(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    nested(api, books)
     page.goto("/accounts")
     expect(kind(page, "Banks")).to_be_visible()
     sizes = page.locator("main section a[href^='/accounts/']:not([href*='new'])").evaluate_all(
@@ -143,25 +135,25 @@ def test_the_cards_of_a_row_are_the_same_size(signed_in_spa_page: Page, spa_api:
     assert len(sizes) >= 4 and len(set(sizes)) == 1, sizes
 
 
-def test_edit_on_an_account_is_in_its_menu(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
-    page.goto(f"/accounts/{spa_books['checking']['id']}")
+def test_edit_on_an_account_is_in_its_menu(signed_in_page: Page, books):
+    page = signed_in_page
+    page.goto(f"/accounts/{books['checking']['id']}")
     page.get_by_label("More actions").click()
     expect(page.get_by_role("link", name="Edit", exact=True)).to_have_attribute(
-        "href", f"/accounts/{spa_books['checking']['id']}/edit"
+        "href", f"/accounts/{books['checking']['id']}/edit"
     )
 
 
-def test_load_more_loads_the_next_chunk_in_place(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
+def test_load_more_loads_the_next_chunk_in_place(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
     for i in range(70):
-        spa_api.post(
+        api.post(
             "/transactions/",
             payee=f"Shop {i:02d}",
             date=str(date.today() - timedelta(days=1 + i)),
-            postings=[leg(spa_books["food"], "debit", "5"), leg(spa_books["checking"], "credit", "5")],
+            postings=[leg(books["food"], "debit", "5"), leg(books["checking"], "credit", "5")],
         )
-    page.goto(f"/accounts/{spa_books['checking']['id']}")
+    page.goto(f"/accounts/{books['checking']['id']}")
     rows = page.get_by_role("button", name=re.compile(r"^Shop \d\d"))
     expect(rows.first).to_be_visible()
     first = rows.count()
@@ -175,10 +167,10 @@ def test_load_more_loads_the_next_chunk_in_place(signed_in_spa_page: Page, spa_a
     assert rows.count() == 70, "every entry once"
 
 
-def test_going_back_from_an_account_lands_on_the_accounts_page(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    group = spa_api.post("/accounts/", name="Cards", parent_id=spa_books["roots"]["Liabilities"])
-    spa_api.post("/accounts/", name="Visa Gold", parent_id=group["id"], balance="50")
+def test_going_back_from_an_account_lands_on_the_accounts_page(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    group = api.post("/accounts/", name="Cards", parent_id=books["roots"]["Liabilities"])
+    api.post("/accounts/", name="Visa Gold", parent_id=group["id"], balance="50")
     page.goto("/accounts")
     page.get_by_role("link", name=re.compile("Visa Gold")).click()
     page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
@@ -187,9 +179,9 @@ def test_going_back_from_an_account_lands_on_the_accounts_page(signed_in_spa_pag
     page.wait_for_url(re.compile(r"/accounts$"))
 
 
-def test_saving_an_entry_started_from_an_accounts_page_comes_back_to_it(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
-    account = spa_books["checking"]["id"]
+def test_saving_an_entry_started_from_an_accounts_page_comes_back_to_it(signed_in_page: Page, books):
+    page = signed_in_page
+    account = books["checking"]["id"]
     page.goto(f"/accounts/{account}")
     expect(page.get_by_role("heading", level=1, name="Checking")).to_be_visible()
     page.get_by_role("navigation", name="Tab bar").get_by_role("link", name="New transaction").click()
@@ -203,15 +195,15 @@ def test_saving_an_entry_started_from_an_accounts_page_comes_back_to_it(signed_i
 
 
 def test_a_groups_heading_opens_its_page_with_its_accounts_in_a_row_and_their_transactions(
-    signed_in_spa_page: Page, spa_api: Api, spa_books
+    signed_in_page: Page, api: Api, books
 ):
-    page = signed_in_spa_page
-    banks, _ = nested(spa_api, spa_books)
-    hdfc = next(a for a in spa_api.get("/accounts/") if a["name"] == "HDFC")
-    spa_api.post(
+    page = signed_in_page
+    banks, _ = nested(api, books)
+    hdfc = next(a for a in api.get("/accounts/") if a["name"] == "HDFC")
+    api.post(
         "/transactions/",
         payee="Gadget Store",
-        postings=[leg(spa_books["cash"], "debit", "10"), leg(hdfc, "credit", "10")],
+        postings=[leg(books["cash"], "debit", "10"), leg(hdfc, "credit", "10")],
     )
     page.goto("/accounts")
     kind(page, "Banks").get_by_role("link", name="Banks", exact=True).click()
@@ -228,10 +220,10 @@ def test_a_groups_heading_opens_its_page_with_its_accounts_in_a_row_and_their_tr
     expect(page.get_by_role("heading", level=1, name="SBI")).to_be_visible()
 
 
-def test_the_pin_button_lists_the_account_in_a_pinned_row_at_the_top(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    nested(spa_api, spa_books)
-    hdfc = next(a for a in spa_api.get("/accounts/") if a["name"] == "HDFC")
+def test_the_pin_button_lists_the_account_in_a_pinned_row_at_the_top(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    nested(api, books)
+    hdfc = next(a for a in api.get("/accounts/") if a["name"] == "HDFC")
     page.goto(f"/accounts/{hdfc['id']}")
     page.get_by_role("button", name="Pin to top").click()
     expect(page.get_by_role("button", name="Unpin")).to_be_visible()
@@ -244,11 +236,11 @@ def test_the_pin_button_lists_the_account_in_a_pinned_row_at_the_top(signed_in_s
     expect(page.locator("main h2").first).not_to_have_text("Pinned")
 
 
-def test_the_description_opens_from_the_i_and_gives_way_to_the_menu(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    checking = spa_books["checking"]
+def test_the_description_opens_from_the_i_and_gives_way_to_the_menu(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    checking = books["checking"]
     response = page.request.patch(
-        f"/api/accounts/{checking['id']}", data={"details": "The salary account"}, headers=spa_api.headers
+        f"/api/accounts/{checking['id']}", data={"details": "The salary account"}, headers=api.headers
     )
     assert response.ok, response.text()
     page.goto(f"/accounts/{checking['id']}")
@@ -264,23 +256,21 @@ def test_the_description_opens_from_the_i_and_gives_way_to_the_menu(signed_in_sp
     expect(page.get_by_role("button", name="Close account")).to_be_hidden()
 
 
-def test_no_description_means_no_i(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
-    page.goto(f"/accounts/{spa_books['cash']['id']}")
+def test_no_description_means_no_i(signed_in_page: Page, books):
+    page = signed_in_page
+    page.goto(f"/accounts/{books['cash']['id']}")
     expect(page.get_by_role("heading", level=1, name="Cash")).to_be_visible()
     expect(page.get_by_label("About Cash")).to_have_count(0)
 
 
-def test_pay_bill_opens_the_form_with_the_card_and_the_amount(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    card = spa_api.post(
-        "/accounts/", name="Amex", parent_id=spa_books["roots"]["Liabilities"], statement_day=1, due_day=20
-    )
-    spa_api.post(
+def test_pay_bill_opens_the_form_with_the_card_and_the_amount(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    card = api.post("/accounts/", name="Amex", parent_id=books["roots"]["Liabilities"], statement_day=1, due_day=20)
+    api.post(
         "/transactions/",
         payee="Flights",
         date=str(local_today() - timedelta(days=75)),
-        postings=[leg(spa_books["food"], "debit", "1250"), leg(card, "credit", "1250")],
+        postings=[leg(books["food"], "debit", "1250"), leg(card, "credit", "1250")],
     )
     page.goto(f"/accounts/{card['id']}")
     expect(page.get_by_role("region", name="Bill")).to_contain_text("1,250.00")
@@ -296,10 +286,8 @@ def with_groups(monkeypatch):
     monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
 
 
-def test_an_empty_page_shows_the_five_shelves_and_each_adds_an_account_of_its_kind(
-    with_groups, signed_in_spa_page: Page
-):
-    page = signed_in_spa_page
+def test_an_empty_page_shows_the_five_shelves_and_each_adds_an_account_of_its_kind(with_groups, signed_in_page: Page):
+    page = signed_in_page
     page.goto("/accounts")
     expect(page.locator("main h2")).to_have_text(["Bank Accounts", "Cash", "Credit Cards", "Investments", "Loans"])
     expect(kind(page, "Bank Accounts").get_by_role("link", name="Add account")).to_have_attribute(
@@ -314,12 +302,12 @@ def chip(page: Page, name: str):
     return page.get_by_role("group", name="Kind of account").get_by_role("button", name=name, exact=True)
 
 
-def test_the_new_account_form_asks_about_the_budget_by_its_kind(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    banks = spa_api.post("/accounts/", name="Banks", parent_id=spa_books["roots"]["Assets"])
-    spa_api.post("/accounts/", name="HDFC", parent_id=banks["id"])
-    loans = spa_api.post("/accounts/", name="Loans", parent_id=spa_books["roots"]["Liabilities"])
-    spa_api.post("/accounts/", name="Old loan", parent_id=loans["id"])
+def test_the_new_account_form_asks_about_the_budget_by_its_kind(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    banks = api.post("/accounts/", name="Banks", parent_id=books["roots"]["Assets"])
+    api.post("/accounts/", name="HDFC", parent_id=banks["id"])
+    loans = api.post("/accounts/", name="Loans", parent_id=books["roots"]["Liabilities"])
+    api.post("/accounts/", name="Old loan", parent_id=loans["id"])
     page.goto("/accounts/new")
     box = page.get_by_role("checkbox", name=re.compile("Part of the budget"))
     expect(chip(page, "Banks")).to_be_visible()
@@ -335,13 +323,13 @@ def test_the_new_account_form_asks_about_the_budget_by_its_kind(signed_in_spa_pa
     page.get_by_label("Name").fill("Car loan")
     page.get_by_role("button", name="Add account").click()
     page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
-    loan = next(a for a in spa_api.get("/accounts/") if a["name"] == "Car loan")
+    loan = next(a for a in api.get("/accounts/") if a["name"] == "Car loan")
     assert loan["on_budget"] is False and loan["parent_id"] == loans["id"]
 
 
-def test_the_budget_box_works_when_the_form_opens_on_a_type_or_a_kind(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
-    for url in ("/accounts/new?root=assets", f"/accounts/new?parent={spa_books['checking']['id']}"):
+def test_the_budget_box_works_when_the_form_opens_on_a_type_or_a_kind(signed_in_page: Page, books):
+    page = signed_in_page
+    for url in ("/accounts/new?root=assets", f"/accounts/new?parent={books['checking']['id']}"):
         page.goto(url)
         box = page.get_by_role("checkbox", name=re.compile("Part of the budget"))
         expect(box).to_be_checked()
@@ -350,9 +338,9 @@ def test_the_budget_box_works_when_the_form_opens_on_a_type_or_a_kind(signed_in_
 
 
 def test_a_group_is_made_from_the_foot_of_the_page_and_its_accounts_start_as_it_says(
-    signed_in_spa_page: Page, spa_api: Api, spa_books
+    signed_in_page: Page, api: Api, books
 ):
-    page = signed_in_spa_page
+    page = signed_in_page
     page.goto("/accounts")
     page.get_by_role("link", name="New group").click()
     expect(page).to_have_url(re.compile(r"/accounts/new-group$"))
@@ -371,15 +359,15 @@ def test_a_group_is_made_from_the_foot_of_the_page_and_its_accounts_start_as_it_
     page.get_by_label("Name").fill("Mom's wallet")
     page.get_by_role("button", name="Add account").click()
     expect(page.get_by_role("heading", level=1, name="Mom's wallet")).to_be_visible()
-    assert next(a for a in spa_api.get("/accounts/") if a["name"] == "Mom's wallet")["on_budget"] is True
+    assert next(a for a in api.get("/accounts/") if a["name"] == "Mom's wallet")["on_budget"] is True
 
 
-def test_the_days_are_asked_only_for_a_card_or_loan(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    cards_group = spa_api.post("/accounts/", name="Cards", parent_id=spa_books["roots"]["Liabilities"])
-    spa_api.post("/accounts/", name="Visa Gold", parent_id=cards_group["id"])
-    banks = spa_api.post("/accounts/", name="Banks", parent_id=spa_books["roots"]["Assets"])
-    spa_api.post("/accounts/", name="HDFC", parent_id=banks["id"])
+def test_the_days_are_asked_only_for_a_card_or_loan(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    cards_group = api.post("/accounts/", name="Cards", parent_id=books["roots"]["Liabilities"])
+    api.post("/accounts/", name="Visa Gold", parent_id=cards_group["id"])
+    banks = api.post("/accounts/", name="Banks", parent_id=books["roots"]["Assets"])
+    api.post("/accounts/", name="HDFC", parent_id=banks["id"])
     page.goto("/accounts/new")
     days = page.get_by_label("Statement day")
     expect(chip(page, "Cards")).to_be_visible()
@@ -397,19 +385,19 @@ def test_the_days_are_asked_only_for_a_card_or_loan(signed_in_spa_page: Page, sp
     expect(page.get_by_role("region", name="Bill")).to_contain_text("Nothing due")
 
 
-def test_a_new_account_without_a_kind_is_told_to_choose_one(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_a_new_account_without_a_kind_is_told_to_choose_one(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/accounts/new")
     page.get_by_label("Name").fill("Nowhere")
     page.get_by_role("button", name="Add account").click()
     expect(page.get_by_role("alert")).to_contain_text("kind")
 
 
-def test_a_groups_own_page_adds_inside_it(with_groups, signed_in_spa_page: Page, spa_api: Api):
-    page = signed_in_spa_page
+def test_a_groups_own_page_adds_inside_it(with_groups, signed_in_page: Page, api: Api):
+    page = signed_in_page
     page.goto("/accounts")
     expect(page.locator("main h2").first).to_have_text("Bank Accounts")
-    group = next(a for a in spa_api.get("/accounts/") if a["name"] == "Investments")
+    group = next(a for a in api.get("/accounts/") if a["name"] == "Investments")
     page.goto(f"/accounts/{group['id']}")
     page.get_by_role("link", name="Add account").click()
     page.wait_for_url(re.compile(r"/accounts/new\?parent="))
@@ -417,8 +405,8 @@ def test_a_groups_own_page_adds_inside_it(with_groups, signed_in_spa_page: Page,
     expect(page.get_by_role("checkbox", name=re.compile("Part of the budget"))).not_to_be_checked()
 
 
-def test_the_budget_line_follows_the_group_chosen(with_groups, signed_in_spa_page: Page):
-    page = signed_in_spa_page
+def test_the_budget_line_follows_the_group_chosen(with_groups, signed_in_page: Page):
+    page = signed_in_page
     page.goto("/accounts/new")
     box = page.get_by_role("checkbox", name=re.compile("Part of the budget"))
     chip(page, "Bank Accounts").click()

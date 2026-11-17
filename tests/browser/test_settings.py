@@ -13,11 +13,11 @@ def row(page: Page, title: str):
     return page.locator("main").get_by_role("button", name=re.compile(f"^{title}"))
 
 
-def test_saving_the_currency_shows_the_new_one(signed_in_spa_page: Page, spa_api: Api, spa_books):
-    page = signed_in_spa_page
-    spa_api.post(
+def test_saving_the_currency_shows_the_new_one(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    api.post(
         "/transactions/",
-        postings=[leg(spa_books["food"], "debit", "40"), leg(spa_books["checking"], "credit", "40")],
+        postings=[leg(books["food"], "debit", "40"), leg(books["checking"], "credit", "40")],
     )
     page.goto("/settings")
     expect(row(page, "Currency")).to_contain_text("INR")
@@ -31,17 +31,17 @@ def test_saving_the_currency_shows_the_new_one(signed_in_spa_page: Page, spa_api
     expect(page.locator("main")).not_to_contain_text("₹")
 
 
-def test_a_touched_row_is_not_painted_grey(signed_in_spa_page: Page, spa_books):
+def test_a_touched_row_is_not_painted_grey(signed_in_page: Page, books):
     """A tap or the start of a scroll leaves :hover on in touch browsers: rows must not turn into a grey rectangle."""
-    page = signed_in_spa_page
+    page = signed_in_page
     page.goto("/settings")
     for target in (row(page, "Currency"), page.locator("main").get_by_role("link", name="Tags")):
         target.hover()
         assert target.evaluate("e => getComputedStyle(e).backgroundColor") in ("rgba(0, 0, 0, 0)", "transparent")
 
 
-def test_values_sit_beside_the_chevron_and_sign_out_is_a_red_row(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_values_sit_beside_the_chevron_and_sign_out_is_a_red_row(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/settings")
     for title in ("Currency", "Appearance"):
         value = row(page, title).locator("span").nth(1).bounding_box()
@@ -58,8 +58,8 @@ def test_values_sit_beside_the_chevron_and_sign_out_is_a_red_row(signed_in_spa_p
     assert box and box["width"] > 200, "a full row, not a small pill"
 
 
-def test_the_theme_is_kept_in_this_browser_and_set_before_the_app_runs(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_the_theme_is_kept_in_this_browser_and_set_before_the_app_runs(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/settings")
     row(page, "Appearance").click()
     page.get_by_role("group", name="Theme").get_by_role("button", name="Dark").click()
@@ -76,8 +76,8 @@ def test_the_theme_is_kept_in_this_browser_and_set_before_the_app_runs(signed_in
     assert page.evaluate("document.documentElement.hasAttribute('data-theme')") is False
 
 
-def test_signing_out_lands_on_sign_in_and_pages_then_ask_to_sign_in(signed_in_spa_page: Page, spa_books):
-    page = signed_in_spa_page
+def test_signing_out_lands_on_sign_in_and_pages_then_ask_to_sign_in(signed_in_page: Page, books):
+    page = signed_in_page
     page.goto("/settings")
     page.get_by_role("button", name="Sign out").click()
     page.wait_for_url(re.compile(r"/sign-in"))

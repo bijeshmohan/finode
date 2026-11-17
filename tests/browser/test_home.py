@@ -17,19 +17,19 @@ def shop(api: Api, books, payee: str, on: str | None = None):
     )
 
 
-def test_the_sheet_opens_from_home_too(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    shop(spa_api, spa_books, "Swiggy")
+def test_the_sheet_opens_from_home_too(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    shop(api, books, "Swiggy")
     page.goto("/")
     page.get_by_role("button", name=re.compile("^Swiggy")).click()
     expect(page.get_by_role("dialog", name="Transaction details")).to_contain_text("Paid from")
     assert page.url.split("?")[0].rstrip("/").count("/") == 2, "still on Home"
 
 
-def test_home_starts_short_and_show_more_finishes_the_month(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
+def test_home_starts_short_and_show_more_finishes_the_month(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
     for i in range(14):
-        shop(spa_api, spa_books, f"Shop {i:02d}", f"2026-01-{i + 1:02d}")
+        shop(api, books, f"Shop {i:02d}", f"2026-01-{i + 1:02d}")
     page.goto("/?month=2026-01")
     shops = page.get_by_role("button", name=re.compile(r"^Shop "))
     expect(shops).to_have_count(8)
@@ -40,11 +40,9 @@ def test_home_starts_short_and_show_more_finishes_the_month(signed_in_spa_page: 
     expect(page.get_by_role("dialog", name="Transaction details")).to_be_visible()
 
 
-def test_home_is_centred_beside_the_sidebar_and_its_day_label_lines_up(
-    signed_in_spa_page: Page, spa_books, spa_api: Api
-):
-    page = signed_in_spa_page
-    shop(spa_api, spa_books, "Lunch")
+def test_home_is_centred_beside_the_sidebar_and_its_day_label_lines_up(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    shop(api, books, "Lunch")
     page.set_viewport_size({"width": 1280, "height": 800})
     page.goto("/")
     expect(page.get_by_role("heading", name="Transactions")).to_be_visible()
@@ -59,10 +57,10 @@ def test_home_is_centred_beside_the_sidebar_and_its_day_label_lines_up(
     assert heading and day and abs(heading["x"] - day["x"]) <= 1, "the day label starts where the heading does"
 
 
-def test_deleting_on_home_after_show_more_leaves_no_duplicates(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
+def test_deleting_on_home_after_show_more_leaves_no_duplicates(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
     for i in range(14):
-        shop(spa_api, spa_books, f"Shop {i:02d}", f"2026-01-{i + 1:02d}")
+        shop(api, books, f"Shop {i:02d}", f"2026-01-{i + 1:02d}")
     page.goto("/?month=2026-01")
     shops = page.get_by_role("button", name=re.compile(r"^Shop "))
     page.get_by_role("button", name=re.compile("Show 6 more")).click()
@@ -84,10 +82,10 @@ SIGN = """(el) => {
 }"""
 
 
-def test_the_rupee_sign_sits_apart_from_the_figure(signed_in_spa_page: Page, spa_books, spa_api: Api):
+def test_the_rupee_sign_sits_apart_from_the_figure(signed_in_page: Page, books, api: Api):
     """Smaller (0.62 of the digits), muted and raised in front of the digits."""
-    shop(spa_api, spa_books, "Swiggy")
-    page = signed_in_spa_page
+    shop(api, books, "Swiggy")
+    page = signed_in_page
     page.goto("/")
     sign = page.locator("main").get_by_text("₹", exact=True).first
     measured = sign.evaluate(SIGN)

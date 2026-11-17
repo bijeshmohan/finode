@@ -35,9 +35,9 @@ def sheet(page: Page):
     return page.get_by_role("dialog", name="Transaction details")
 
 
-def test_tapping_a_row_opens_the_details_sheet(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    add(spa_api, spa_books, "Swiggy", "food", "card", "597")
+def test_tapping_a_row_opens_the_details_sheet(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    add(api, books, "Swiggy", "food", "card", "597")
     page.goto("/transactions")
     row(page, "Swiggy").click()
     expect(sheet(page)).to_be_visible()
@@ -46,9 +46,9 @@ def test_tapping_a_row_opens_the_details_sheet(signed_in_spa_page: Page, spa_boo
     expect(sheet(page)).to_contain_text("Paid from")
 
 
-def test_the_sheet_closes_with_escape_and_with_a_tap_outside(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    add(spa_api, spa_books, "Swiggy", "food", "card")
+def test_the_sheet_closes_with_escape_and_with_a_tap_outside(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    add(api, books, "Swiggy", "food", "card")
     page.goto("/transactions")
     row(page, "Swiggy").click()
     expect(sheet(page)).to_contain_text("Paid from")
@@ -61,21 +61,21 @@ def test_the_sheet_closes_with_escape_and_with_a_tap_outside(signed_in_spa_page:
     expect(sheet(page)).to_be_hidden()
 
 
-def test_deleting_an_entry_asks_first_and_it_is_gone_for_good(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    add(spa_api, spa_books, "Swiggy", "food", "card")
+def test_deleting_an_entry_asks_first_and_it_is_gone_for_good(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    add(api, books, "Swiggy", "food", "card")
     page.goto("/transactions")
     row(page, "Swiggy").click()
     asked = []
     page.once("dialog", lambda d: (asked.append(d.message), d.dismiss()))
     sheet(page).get_by_role("button", name="Delete").click()
     assert "cannot be undone" in asked[0]
-    assert any(t["payee"] == "Swiggy" for t in spa_api.get("/transactions/")), "dismissing deletes nothing"
+    assert any(t["payee"] == "Swiggy" for t in api.get("/transactions/")), "dismissing deletes nothing"
     page.once("dialog", lambda d: d.accept())
     sheet(page).get_by_role("button", name="Delete").click()
     expect(row(page, "Swiggy")).to_have_count(0)
     expect(page.get_by_role("status").filter(has_text="Transaction deleted")).to_be_visible()
-    assert not any(t["payee"] == "Swiggy" for t in spa_api.get("/transactions/"))
+    assert not any(t["payee"] == "Swiggy" for t in api.get("/transactions/"))
 
 
 def pick(page: Page, label: str, choice: str):
@@ -84,12 +84,10 @@ def pick(page: Page, label: str, choice: str):
     page.get_by_role("dialog", name=label).get_by_role("button", name=re.compile(re.escape(choice))).first.click()
 
 
-def test_the_filter_sheet_narrows_the_list_and_each_filter_can_be_removed(
-    signed_in_spa_page: Page, spa_books, spa_api: Api
-):
-    page = signed_in_spa_page
-    add(spa_api, spa_books, "Swiggy", "food", "card")
-    add(spa_api, spa_books, "Landlord", "rent", "checking", "900")
+def test_the_filter_sheet_narrows_the_list_and_each_filter_can_be_removed(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    add(api, books, "Swiggy", "food", "card")
+    add(api, books, "Landlord", "rent", "checking", "900")
     page.goto("/transactions")
     expect(page.get_by_test_id("summary")).to_contain_text("transactions")
     page.get_by_role("button", name="Filter", exact=True).click()
@@ -104,10 +102,10 @@ def test_the_filter_sheet_narrows_the_list_and_each_filter_can_be_removed(
     expect(row(page, "Landlord")).to_have_count(1)
 
 
-def test_the_filter_lists_search_as_you_type(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    add(spa_api, spa_books, "Swiggy", "food", "card")
-    add(spa_api, spa_books, "Landlord", "rent", "checking", "900")
+def test_the_filter_lists_search_as_you_type(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    add(api, books, "Swiggy", "food", "card")
+    add(api, books, "Landlord", "rent", "checking", "900")
     page.goto("/transactions")
     page.get_by_role("button", name="Filter", exact=True).click()
     page.get_by_role("button", name=re.compile("^Merchant")).click()
@@ -120,15 +118,13 @@ def test_the_filter_lists_search_as_you_type(signed_in_spa_page: Page, spa_books
     assert "account=" not in page.url, "a field left on Any is not sent"
 
 
-def test_filtering_leaves_the_upcoming_row_closed_when_something_matches(
-    signed_in_spa_page: Page, spa_books, spa_api: Api
-):
-    page = signed_in_spa_page
-    add(spa_api, spa_books, "Lunch", "food", "checking", "120")
+def test_filtering_leaves_the_upcoming_row_closed_when_something_matches(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    add(api, books, "Lunch", "food", "checking", "120")
     ahead = TODAY + timedelta(days=1)
     if ahead.month != TODAY.month:
         pytest.skip("tomorrow is next month: nothing can be upcoming in this one")
-    add(spa_api, spa_books, "Soon", "food", "checking", "90", date=str(ahead))
+    add(api, books, "Soon", "food", "checking", "90", date=str(ahead))
     page.goto("/transactions")
     upcoming = page.locator("details", has_text="1 upcoming")
     expect(upcoming).not_to_have_attribute("open", "")
@@ -150,9 +146,9 @@ def shops(api: Api, books, n: int, month: str = "2026-01"):
         )
 
 
-def test_show_more_loads_the_rest_of_the_month_in_place(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    shops(spa_api, spa_books, 30)
+def test_show_more_loads_the_rest_of_the_month_in_place(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    shops(api, books, 30)
     page.goto("/transactions?month=2026-01")
     expect(page.get_by_role("button", name=re.compile(r"^Shop "))).to_have_count(25)
     more = page.get_by_role("button", name=re.compile("^Show"))
@@ -164,9 +160,9 @@ def test_show_more_loads_the_rest_of_the_month_in_place(signed_in_spa_page: Page
     assert page.url.endswith("month=2026-01"), "the address did not change"
 
 
-def test_deleting_after_show_more_leaves_no_duplicates(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    shops(spa_api, spa_books, 30)
+def test_deleting_after_show_more_leaves_no_duplicates(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    shops(api, books, 30)
     page.goto("/transactions?month=2026-01")
     page.get_by_role("button", name=re.compile("^Show")).click()
     expect(page.get_by_role("button", name=re.compile(r"^Shop "))).to_have_count(30)
@@ -179,18 +175,16 @@ def test_deleting_after_show_more_leaves_no_duplicates(signed_in_spa_page: Page,
     assert len(titles) == len(set(titles)), "no entry twice"
 
 
-def test_the_sheets_extras_sit_behind_a_more_row_that_keeps_edit_clear(
-    signed_in_spa_page: Page, spa_books, spa_api: Api
-):
-    page = signed_in_spa_page
-    first = add(spa_api, spa_books, "Swiggy", "food", "checking", "450")
-    spa_api.post(
+def test_the_sheets_extras_sit_behind_a_more_row_that_keeps_edit_clear(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    first = add(api, books, "Swiggy", "food", "checking", "450")
+    api.post(
         "/transactions/",
         payee="Swiggy refund",
         related_id=first["id"],
         source="gmail",
         external_id="msg-1042",
-        postings=[leg(spa_books["checking"], "debit", "120"), leg(spa_books["food"], "credit", "120")],
+        postings=[leg(books["checking"], "debit", "120"), leg(books["food"], "credit", "120")],
     )
     page.goto("/transactions")
     open_row(page, "Swiggy refund")
@@ -207,14 +201,14 @@ def test_the_sheets_extras_sit_behind_a_more_row_that_keeps_edit_clear(
     assert after and abs(after["y"] - before) < 1, "the sheet grows upwards: Edit stays where it was"
 
 
-def test_the_pill_opens_the_original_and_the_row_opens_its_own_sheet(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    first = add(spa_api, spa_books, "Amazon", "food", "card", "4998")
-    spa_api.post(
+def test_the_pill_opens_the_original_and_the_row_opens_its_own_sheet(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    first = add(api, books, "Amazon", "food", "card", "4998")
+    api.post(
         "/transactions/",
         payee="Amazon refund",
         related_id=first["id"],
-        postings=[leg(spa_books["card"], "debit", "1000"), leg(spa_books["food"], "credit", "1000")],
+        postings=[leg(books["card"], "debit", "1000"), leg(books["food"], "credit", "1000")],
     )
     page.goto("/transactions")
     pill = page.get_by_role("link", name=re.compile("^Related to an entry of"))
@@ -229,41 +223,41 @@ def test_the_pill_opens_the_original_and_the_row_opens_its_own_sheet(signed_in_s
 
 
 @pytest.fixture
-def wide_spa(browser: Browser, spa_server: str, signed_in_spa_page: Page):
-    context = browser.new_context(viewport={"width": 1400, "height": 900}, base_url=spa_server, reduced_motion="reduce")
-    context.add_cookies(signed_in_spa_page.context.cookies())
+def wide_page(browser: Browser, server: str, signed_in_page: Page):
+    context = browser.new_context(viewport={"width": 1400, "height": 900}, base_url=server, reduced_motion="reduce")
+    context.add_cookies(signed_in_page.context.cookies())
     page = context.new_page()
     page.set_default_timeout(8000)
     yield page
     context.close()
 
 
-def test_the_details_open_beside_the_list_and_another_row_replaces_them(wide_spa: Page, spa_books, spa_api: Api):
-    add(spa_api, spa_books, "Big Bazaar", "food", "checking", "120")
-    add(spa_api, spa_books, "Landlord", "rent", "checking", "900")
-    wide_spa.goto("/transactions")
-    row(wide_spa, "Big Bazaar").click()
-    panel = sheet(wide_spa)
+def test_the_details_open_beside_the_list_and_another_row_replaces_them(wide_page: Page, books, api: Api):
+    add(api, books, "Big Bazaar", "food", "checking", "120")
+    add(api, books, "Landlord", "rent", "checking", "900")
+    wide_page.goto("/transactions")
+    row(wide_page, "Big Bazaar").click()
+    panel = sheet(wide_page)
     expect(panel.get_by_role("heading", name="Big Bazaar")).to_be_visible()
-    row(wide_spa, "Landlord").click()  # the list is still usable beside the panel
+    row(wide_page, "Landlord").click()  # the list is still usable beside the panel
     expect(panel.get_by_role("heading", name="Landlord")).to_be_visible()
 
 
-def test_the_panel_closes_with_its_cross_and_with_escape(wide_spa: Page, spa_books, spa_api: Api):
-    add(spa_api, spa_books, "Big Bazaar", "food", "checking", "120")
-    wide_spa.goto("/transactions")
-    row(wide_spa, "Big Bazaar").click()
-    sheet(wide_spa).get_by_role("button", name="Close").click()
-    expect(sheet(wide_spa)).to_be_hidden()
-    row(wide_spa, "Big Bazaar").click()
-    expect(sheet(wide_spa)).to_be_visible()
-    wide_spa.keyboard.press("Escape")
-    expect(sheet(wide_spa)).to_be_hidden()
+def test_the_panel_closes_with_its_cross_and_with_escape(wide_page: Page, books, api: Api):
+    add(api, books, "Big Bazaar", "food", "checking", "120")
+    wide_page.goto("/transactions")
+    row(wide_page, "Big Bazaar").click()
+    sheet(wide_page).get_by_role("button", name="Close").click()
+    expect(sheet(wide_page)).to_be_hidden()
+    row(wide_page, "Big Bazaar").click()
+    expect(sheet(wide_page)).to_be_visible()
+    wide_page.keyboard.press("Escape")
+    expect(sheet(wide_page)).to_be_hidden()
 
 
-def test_a_phone_keeps_the_bottom_sheet(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    add(spa_api, spa_books, "Big Bazaar", "food", "checking", "120")
+def test_a_phone_keeps_the_bottom_sheet(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    add(api, books, "Big Bazaar", "food", "checking", "120")
     page.goto("/transactions")
     row(page, "Big Bazaar").click()
     expect(sheet(page).get_by_role("button", name="Close")).to_have_count(0)
@@ -271,21 +265,21 @@ def test_a_phone_keeps_the_bottom_sheet(signed_in_spa_page: Page, spa_books, spa
     assert box and box["y"] + box["height"] >= 844 - 2, "a phone's sheet sits on the bottom edge"
 
 
-def test_a_day_across_the_page_end_is_shown_whole_and_once(signed_in_spa_page: Page, spa_books, spa_api: Api):
+def test_a_day_across_the_page_end_is_shown_whole_and_once(signed_in_page: Page, books, api: Api):
     """January: the 31st down to the 9th one entry each, the 8th six entries (across a page of 25), then the 7th to the
     1st. The first page finishes the 8th; Show more brings the rest; nothing twice, nothing lost."""
-    page = signed_in_spa_page
+    page = signed_in_page
     days = (
         [f"2026-01-{d:02d}" for d in range(31, 8, -1)]
         + ["2026-01-08"] * 6
         + [f"2026-01-{d:02d}" for d in range(7, 0, -1)]
     )
     for i, day in enumerate(days):
-        spa_api.post(
+        api.post(
             "/transactions/",
             payee=f"Shop {i:02d}",
             date=day,
-            postings=[leg(spa_books["food"], "debit", "10"), leg(spa_books["checking"], "credit", "10")],
+            postings=[leg(books["food"], "debit", "10"), leg(books["checking"], "credit", "10")],
         )
     page.goto("/transactions?month=2026-01")
     shops = page.get_by_role("button", name=re.compile(r"^Shop "))
@@ -296,9 +290,9 @@ def test_a_day_across_the_page_end_is_shown_whole_and_once(signed_in_spa_page: P
     assert len(set(titles)) == 36
 
 
-def test_back_after_closing_a_sheet_goes_where_it_went_before(signed_in_spa_page: Page, spa_books, spa_api: Api):
-    page = signed_in_spa_page
-    add(spa_api, spa_books, "Swiggy", "food", "card")
+def test_back_after_closing_a_sheet_goes_where_it_went_before(signed_in_page: Page, books, api: Api):
+    page = signed_in_page
+    add(api, books, "Swiggy", "food", "card")
     page.goto("/")
     page.goto("/transactions")
     row(page, "Swiggy").click()
