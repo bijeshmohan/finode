@@ -1,6 +1,6 @@
 # finode documentation
 
-finode is a personal finance app built on double-entry bookkeeping, with envelope budgeting, a minimal web UI and an MCP server for AI assistants.
+finode is a personal finance app built on double-entry bookkeeping, with envelope budgeting, one app for phones and computers (React, on the same address as its JSON API) and an MCP server for AI assistants.
 
 ## Pick your path
 
@@ -28,7 +28,7 @@ Read in this order:
 1. [Overview](architecture/overview.md): layers, request flow, the pieces around the app
 2. [The ledger](architecture/ledger.md): accounts, postings, balancing
 3. [The budget](architecture/budget.md): the envelope arithmetic
-4. [The web UI](architecture/web-ui.md): templates, htmx, how a page updates
+4. [The app](architecture/web-ui.md): the React app, how a screen gets its data, its tests
 5. [The design system](architecture/design.md): the look, the parts every page is made of, motion, the rules behind them
 6. [MCP and authentication](architecture/mcp-and-auth.md): sign-in, tokens, OAuth, tools
 7. [Data and operations](architecture/data-and-ops.md): schema, migrations, backup, Docker, deployment

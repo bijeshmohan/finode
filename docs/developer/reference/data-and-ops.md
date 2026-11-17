@@ -14,7 +14,7 @@ finode keeps one currency, so the parser reads an amount with an optional label 
 
 ## Running a test with invited people
 
-`FINODE_TEST_NOTICE=true` shows the notice (`partials/test_notice.html`, the wording agreed with the owner: a person runs this, the data is technically reachable but not looked at, data may be reset, no financial advice) on the sign-up page, where ticking the box is required (`accept`), and under Profile › About this test. `FINODE_FEEDBACK_EMAIL` adds Profile › Send feedback, a `mailto:` link with the build version (`app/version.py`, from pyproject) and no personal data. The dashboard's "Get started" card is one tile of tappable rows (see "First run" below) and points only at the import; the currency and the backup live in Settings (2026-11-05). Changing the notice's wording means editing that one partial.
+`FINODE_TEST_NOTICE=true` shows the notice (`frontend/src/components/TestNotice.tsx`, the wording agreed with the owner: a person runs this, the data is technically reachable but not looked at, data may be reset, no financial advice) on the sign-up screen, where ticking the box is required (`accept`), and under Settings › About this test (`/api/auth/options` says whether it is on). `FINODE_FEEDBACK_EMAIL` adds Settings › Send feedback, a `mailto:` link with the build version (`app/version.py`, from pyproject) and no personal data (`feedback_url` in `/api/auth/session`). Home's "Get started" steps point only at the import; the currency and the backup live in Settings (2026-11-05). Changing the notice's wording means editing that one component.
 
 ## Limits and rate limiting
 
@@ -22,17 +22,17 @@ Per person (`settings.max_*`, 0 = no limit; checked by `limits.ensure_room`, whi
 
 ## Erasing and leaving
 
-Profile › Your data has two destructive actions (the person types their email to confirm; `confirm_word`): **Erase my books** (`POST /profile/data/erase`) and **Delete my account** (`POST /profile/data/delete-account`, only offered when `settings.can_delete_logins`, that is when the Supabase service key is configured). `services/erase.py` (`EraseService`) walks **every table that has a `user_id` column**, children first (`SQLModel.metadata.sorted_tables`), so a new table is erased without anyone remembering it; clearing the books keeps `profiles`, `api_tokens` and `oauth_grants` (what belongs to the person, not the books), deleting everything keeps nothing. Deleting the account erases everything first, then removes the Supabase login (`signup.delete_user`); if that call fails the books are already gone and the person is told to retry. Deleting the profile row also frees a place under `FINODE_MAX_USERS`. The finode app uses `POST /api/erase` and `POST /api/delete-account` (`confirm` in the body, `GET /api/data-options` for `confirm_word`); they take the app's cookie session only (`require_cookie_session`), never a bearer token. These routes are classified `OWN_DATA` in the isolation audit. Flash keys are one global dictionary: check a new key is not already taken.
+Settings › Your data has two destructive actions (the person types their email to confirm; `confirm_word`): **Erase my books** (`POST /api/erase`) and **Delete my account** (`POST /api/delete-account`, only offered when `settings.can_delete_logins`, that is when the Supabase service key is configured). `services/erase.py` (`EraseService`) walks **every table that has a `user_id` column**, children first (`SQLModel.metadata.sorted_tables`), so a new table is erased without anyone remembering it; clearing the books keeps `profiles`, `api_tokens` and `oauth_grants` (what belongs to the person, not the books), deleting everything keeps nothing. Deleting the account erases everything first, then removes the Supabase login (`signup.delete_user`); if that call fails the books are already gone and the person is told to retry. Deleting the profile row also frees a place under `FINODE_MAX_USERS`. Both take `confirm` in the body (`GET /api/data-options` gives `confirm_word`) and the app's cookie session only (`require_cookie_session`), never a bearer token. These routes are classified `OWN_DATA` in the isolation audit.
 
 ## Isolation audit
 
-`tests/test_isolation.py` is the guard for multi-user use: person A has a ledger that uses every feature, person B signs in and tries to reach it by every route that takes an id (all must answer 400/403/404 and nothing of A's may come back, A's books unchanged afterwards), by every list and page (only B's data), by naming A's accounts, categories, recurring rules or private assets inside B's own requests (API and forms), through B's assistant token, and without any sign-in. `test_every_route_is_covered` fails when a route is added that is not classified there (`PUBLIC`, `LISTS` or `REFERENCES`; routes with an id are swept automatically), so a new endpoint cannot ship without deciding what it does with other people's data. Every query must be filtered by the user (`self.uid` in repositories); the audit was checked by removing that filter from four repositories, and it failed each time. Keep A's names out of static template text (the audit looks for them in B's pages).
+`tests/test_isolation.py` is the guard for multi-user use: person A has a ledger that uses every feature, person B signs in and tries to reach it by every route that takes an id (all must answer 400/403/404 and nothing of A's may come back, A's books unchanged afterwards), by every list and page (only B's data), by naming A's accounts, categories, recurring rules or private assets inside B's own requests, through B's assistant token, and without any sign-in. Each refusal must come from a real route (a bare `{"detail":"Not Found"}` fails the audit: it would only prove the route is gone). `test_every_route_is_covered` fails when a route is added that is not classified there (`PUBLIC`, `LISTS` or `REFERENCES`; routes with an id are swept automatically), so a new endpoint cannot ship without deciding what it does with other people's data. Every query must be filtered by the user (`self.uid` in repositories); the audit was checked by removing that filter from four repositories, and it failed each time.
 
 The interactive API docs (`/docs`, `/redoc`, `/openapi.json`) are off unless `FINODE_API_DOCS=true`.
 
 ## Forgotten passwords
 
-`app/reset.py` and `/forgot`, `/reset` (`routers/web/auth.py`), on only when `FINODE_PASSWORD_RESET=true` (`settings.reset_enabled`; 404 otherwise, and the sign-in page shows no link). `/forgot` asks Supabase (`/auth/v1/recover`, anon key) to email a link and always shows the same answer; the email template in Supabase must link to `{{ .SiteURL }}/reset?token_hash={{ .TokenHash }}`. `GET /reset` only renders a form (scanners open links); `POST /reset` verifies the token (`/auth/v1/verify`, type recovery), sets the password (`PUT /auth/v1/user`) and signs the person in. Attempts are limited by address and email (`FINODE_RESET_ATTEMPTS`). The routes are `PUBLIC` in the isolation audit.
+`app/reset.py` and `POST /api/auth/forgot`, `POST /api/auth/reset` (`routers/auth.py`), on only when `FINODE_PASSWORD_RESET=true` (`settings.reset_enabled`; 404 otherwise, and the sign-in screen shows no link). Forgot asks Supabase (`/auth/v1/recover`, anon key) to email a link and always gives the same answer; the email template in Supabase must link to `{{ .SiteURL }}/reset?token_hash={{ .TokenHash }}`, the app's Reset screen. Opening the link sends nothing (scanners open links); saving the new password verifies the token (`/auth/v1/verify`, type recovery), sets the password (`PUT /auth/v1/user`) and signs the person in. Attempts are limited by address and email (`FINODE_RESET_ATTEMPTS`). The routes are `PUBLIC` in the isolation audit.
 
 ## Automatic backups
 
@@ -42,27 +42,35 @@ The interactive API docs (`/docs`, `/redoc`, `/openapi.json`) are off unless `FI
 
 `Dockerfile` is multi-stage: uv resolves `uv.lock` into `/opt/venv`, and the runtime stage copies only that venv plus `app/`, `migrations/`, `alembic.ini` and `pyproject.toml` (needed for the `[tool.fastapi]` entrypoint). If a new top-level file is needed at runtime, add it to the `COPY` lines and check `.dockerignore`. `compose.yaml` targets an existing Traefik on an external network; production uses Supabase Postgres, so there is no database service. Uvicorn reads `WEB_CONCURRENCY` and `FORWARDED_ALLOW_IPS` from the environment.
 
-The React app has its own image, `frontend/Dockerfile` (the `web` service): Node builds it with `VITE_API_URL` (the
-API's address, `https://<APP_DOMAIN>`), and nginx (`frontend/nginx.conf`) serves it on `WEB_DOMAIN`. The build context
-is the repo root, because the build reads `app/static` (tokens, font, icons); `frontend/Dockerfile.dockerignore` lets in
-only `frontend/` and `app/static/`. nginx answers every app address with `index.html` and sends it, the service worker
-and the manifest with `Cache-Control: no-cache`. Hashed `/assets/*` are kept a year (`immutable`). A missing asset is a
-404, never the page, so a tab open across a redeploy is not handed HTML as a script. Every answer carries
-`X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin` and the anti-framing headers below. A script at the
-top (`sw.js`, `workbox-<hash>.js`) is a 404 when missing, as under `/assets`; compressed answers carry
-`Vary: Accept-Encoding`. The image holds no settings and no secrets. It is `nginxinc/nginx-unprivileged`, so nginx runs
-as uid 101 on port 8080. Both images are pinned by tag and digest, and `HEALTHCHECK` asks for `/`. compose.yaml runs the
-container `read_only` with `/tmp` in memory, `cap_drop: [ALL]` and `no-new-privileges`. `scripts/check-web-image.sh`
-runs it the same way and checks all of this.
+**One address, two containers.** The app and the API answer on `APP_DOMAIN`. Traefik has two routers on that host
+(`compose.yaml`): the `app` container (the API) takes `/api`, `/mcp`, `/.well-known` and the API docs (`/docs`,
+`/redoc`, `/openapi.json`) at priority 100, and the `web` container takes every other path at priority 1. A new API path
+outside those must be added there, to the service worker's `navigateFallbackDenylist` (`frontend/vite.config.ts`) and
+to `tests/browser/server.py`; `tests/test_compose_routes.py` holds the three together. The session cookies are
+host-only on `APP_DOMAIN` with `SameSite=Lax`. A cookie write is accepted only with `X-Finode: 1` and an `Origin` equal
+to the address the request came in on (`auth.check_app_request`: the scheme and host uvicorn sees through
+`--proxy-headers`); there is no CORS. The moment the app and the API move to separate machines, one proxy in front of
+both keeps this single address.
 
-No other site may show finode inside a frame (clickjacking). Every answer, from the API and its pages (`app/framing.py`,
-pure ASGI so `/mcp`'s stream passes untouched) and from the `web` image, carries `X-Frame-Options: DENY` and
+The app's image is `frontend/Dockerfile` (the `web` service), built from `frontend/` alone (`frontend/.dockerignore`):
+Node builds the app, which names no address (it calls `/api` on its own origin), and nginx (`frontend/nginx.conf`)
+serves it. nginx answers every app address with `index.html` and sends it, the service worker and the manifest with
+`Cache-Control: no-cache`. Hashed `/assets/*` are kept a year (`immutable`). A missing asset is a 404, never the page,
+so a tab open across a redeploy is not handed HTML as a script. Every answer carries `X-Content-Type-Options: nosniff`,
+`Referrer-Policy: same-origin` and the anti-framing headers below. A script at the top (`sw.js`, `workbox-<hash>.js`)
+is a 404 when missing, as under `/assets`; compressed answers carry `Vary: Accept-Encoding`. The image holds no
+settings and no secrets. It is `nginxinc/nginx-unprivileged`, so nginx runs as uid 101 on port 8080. Both images are
+pinned by tag and digest, and `HEALTHCHECK` asks for `/`. compose.yaml runs the container `read_only` with `/tmp` in
+memory, `cap_drop: [ALL]` and `no-new-privileges`. `scripts/check-web-image.sh` runs it the same way and checks all of
+this, and that the bundle names no host of ours.
+
+No other site may show finode inside a frame (clickjacking). Every answer, from the API (`app/framing.py`, pure ASGI so
+`/mcp`'s stream passes untouched) and from the `web` image, carries `X-Frame-Options: DENY` and
 `Content-Security-Policy: frame-ancestors 'none'`. `tests/test_framing.py` guards the API; the image check guards
-nginx. The API allows the app's origin through `FINODE_FRONTEND_ORIGIN`. The
-cookies stay host-only on `APP_DOMAIN`, and `SameSite=Lax` holds because both names are under one site.
+nginx.
 
-The app's service worker (vite-plugin-pwa, `registerType: "prompt"`) caches only the app's own files. After a redeploy
+The app's service worker (vite-plugin-pwa, `registerType: "prompt"`) caches only the app's own files and leaves every API path to the network. After a redeploy
 it fetches the new version in the background. The new version is put in only once the page is hidden
 (`src/app/update.ts`): the page then reloads, so an open screen is never reloaded under someone typing.
 
-Tests live in `tests/`. `tests/conftest.py` builds a fresh in-memory SQLite engine per test  and overrides `get_db_session`, so tests are independent of `finode.db` and of Alembic. The session commits for real, so a service that rolls back only undoes its own unfinished work. `tests/htmlutil.py` has tiny helpers for asserting on HTML (there is no HTML parsing dependency). The migrations are tested on SQLite (the ones before `f4b6d8a0c2e5` stop at `e2a4c6e8f1b3`, because that one cannot be undone: `tests/test_migration_single_currency.py`); the single-currency one was also rehearsed on Postgres 16 with a copy of the production data. `migrations/env.py` reads `alembic.ini`'s logging with `disable_existing_loggers=False`: a migration run in the same process as the app (the tests, a script) must not silence the app's own loggers.
+Tests live in `tests/`. `tests/conftest.py` builds a fresh in-memory SQLite engine per test and overrides `get_db_session`, so tests are independent of `finode.db` and of Alembic. The session commits for real, so a service that rolls back only undoes its own unfinished work. The migrations are tested on SQLite (the ones before `f4b6d8a0c2e5` stop at `e2a4c6e8f1b3`, because that one cannot be undone: `tests/test_migration_single_currency.py`); the single-currency one was also rehearsed on Postgres 16 with a copy of the production data. `migrations/env.py` reads `alembic.ini`'s logging with `disable_existing_loggers=False`: a migration run in the same process as the app (the tests, a script) must not silence the app's own loggers.

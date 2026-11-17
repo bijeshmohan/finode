@@ -66,7 +66,9 @@ The decisions that look odd until you know the reason. Each entry says what was 
 **Decision.** Home's Transactions list and the Transactions page show only entries up to today. Future entries sit in one collapsed "upcoming" card, on the Transactions page and on account pages.
 **Why.** People enter EMI schedules and bills ahead of time; mixing them into the recent list buried what actually happened. Balances also count only up to today, so the list and the numbers agree.
 
-## Server-rendered HTML with htmx, no JavaScript build
+## Server-rendered HTML with htmx, no JavaScript build (superseded 2026-11-17)
+
+*Replaced by "One UI, the app, on the same address as the API" below; kept as the record of why the first UI was built this way.*
 
 **Decision.** Jinja2 templates, vendored htmx, one `app.js`.
 **Why (inferred).** One developer, a small app, and no build pipeline to maintain. Pages work without scripts where they can. (This is the documented intent; the project guidance says not to add a build step.)
@@ -127,3 +129,9 @@ The owner froze new features on 2026-10-14 and defined the MVP on 2026-10-18: co
 **Decision.** The budget plans against `budget_categories` (spending or earning, two levels), not against Expenses accounts. A category is a label on each line of a transaction (`postings.category_id`), so one entry can be split over several categories and a payment into a loan can carry "EMI" without any expense account being made up for it. (Superseded in part by "The books are pure" above: an account no longer stands for a category; the line carries it.)
 **Why.** The old design made "ghost" accounts such as `Expenses:EMI:Loans` just to hang a plan on, repeated the loan-payment rule in five places, and mixed what money was for with what the books record. The owner asked for a budgeting layer on top of the books (2026-10-28), flexible for a person who only wants to budget an EMI and for one who wants interest as a real expense.
 **Cost.** The books lose the per-account expense view (the journal export recreates it from the labels). A line names an account, or only its category (`PostingCreate`); a category's id is not accepted where an account goes (it was for a day, and removed).
+
+## One UI, the app, on the same address as the API
+
+**Decision.** The React app (`frontend/`) is finode's only UI and answers on the API's own address: Traefik sends the API's paths (`/api`, `/mcp`, `/.well-known`, the API docs) to the API's container and every other path to the app's (2026-11-17). The server-rendered Jinja/htmx pages were removed outright, not kept beside it.
+**Why.** The owner asked for the app at `finode.bijesh.me` and the old pages gone ("No dead code"). One address keeps the session cookies host-only and `SameSite=Lax` with no CORS at all: a change is accepted only from the address the request came in on, with `X-Finode: 1`. Keeping two UIs would have meant every rule about how a screen reads living twice; the views (`/api/views/…`) already hold it once.
+**Cost.** The app needs a build step (Node) and the server now serves no page of its own, so the API's health check and every API path outside `/api` must be named in `compose.yaml`, the service worker and the browser tests' server (`tests/test_compose_routes.py`). When the app and the API move to separate machines, one proxy in front of both keeps this single address; two addresses would bring back CORS and a cross-site cookie decision.

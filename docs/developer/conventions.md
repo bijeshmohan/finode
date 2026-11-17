@@ -44,20 +44,18 @@ Habits the linter enforces: `raise ... from None` (or `from e`) inside `except`,
 - **A page must not query once per row or per account.** Load postings and transactions in bulk (`postings_for_transactions`, `read_many`, `AccountService._postings_by_account`). A read that several services repeat goes through `repositories.cache.remembered`, which the session forgets on any write; its results are shared, so copy a list before sorting it in place.
 - **Comments say why**, not what. A module docstring says what the module is for.
 
-## How to add a web page
+## How to add a screen
 
-1. Add a handler in the right module under `app/routers/web/` (or a new module registered in `routers/web/__init__.py`; pages that need a login go in the `protected` router).
-2. Extend `base.html` in a new template; pass `active` for the current tab, and `hide_fab=True` on form pages.
-3. Format amounts with the `money` filter; lists use `partials/transaction_list.html`.
-4. A mutating form posts with `hx-post`; answer success with `htmx_redirect(location, flash="key")` (add the key to `MESSAGES` in `app/flash.py`; keys are one global dictionary, so check it is free) and failure with `htmx_error(message, "#target")`.
-5. Destructive actions are `POST /{id}/delete` routes, not `DELETE`.
-6. If the form can be opened from several places, accept a `back` path and pass it through `safe_back`.
-7. **Classify the route in `tests/test_isolation.py`**. `test_every_route_is_covered` fails until you do.
-8. Add a unit test for the HTML, and a browser test (`tests/browser/`) if behaviour lives in `app.js`.
+1. Build what the screen shows on the server: a view in `app/routers/views.py` (`/api/views/…`) from a `services/*_view.py`, so rows, totals and words are worked out once.
+2. **Classify the route in `tests/test_isolation.py`** (`test_every_route_is_covered` fails until you do) and hold it under a ceiling in `tests/test_query_counts.py`.
+3. `npm run gen:api` in `frontend/`, then the screen in `frontend/src/features/<area>/` (its queries under the `["views"]` key), and its route in `src/app/router.tsx`.
+4. Reuse the shared parts in `src/components/` (`Row`, `Tile`, `Sheet`, `Chips`, `MonthPill`, `Figure`, `EmptyState`); amounts are strings, formatted with `lib/money.ts`; today is `useToday()`.
+5. A form ends in one full-width primary button with no Cancel; a screen opened from several places takes `back` through `lib/safeNext.ts`. Destructive actions live on the screen or sheet, never on a row, and ask first.
+6. Vitest beside the component; a browser test (`tests/browser/`) for what needs a real browser.
 
 ## How to add a route to the JSON API
 
-The API covers everything the web app and the assistants can do (see [The JSON API](api.md) for the list and what is left out on purpose), so a new feature gets its route too: a handler in `app/routers/`, a schema in `app/schemas/`, a test (`tests/test_api_parity.py` is the pattern), the classification in the isolation audit (a route with an id is swept automatically; name the id for what it is (`category_id`, `history_id`, `deletion_id`…) so the audit knows it), and a row in `docs/developer/api.md`.
+The API covers everything the app and the assistants can do (see [The JSON API](api.md) for the list and what is left out on purpose), so a new feature gets its route too: a handler in `app/routers/`, a schema in `app/schemas/`, a test (`tests/test_api_parity.py` is the pattern), the classification in the isolation audit (a route with an id is swept automatically; name the id for what it is (`category_id`, `history_id`, `deletion_id`…) so the audit knows it), and a row in `docs/developer/api.md`.
 
 ## How to add an MCP tool
 
@@ -76,7 +74,7 @@ Write the function in `app/mcp_server/tools.py`, using `with services() as s:` t
 ## How to add a setting
 
 - **For the whole installation:** a field on `Settings` in `app/config.py` (`FINODE_<NAME>`), and a line in the README's configuration list.
-- **For one person:** a typed column on `profiles`, a migration, a field on `ProfileUpdate`, and a form on the Settings page (`routers/web/settings.py`, `settings.html`; forms post to `/settings/...`). Do not add a key-value or JSON store, and do not use Supabase `user_metadata` (users can write it directly).
+- **For one person:** a typed column on `profiles`, a migration, a field on `ProfileUpdate`, and a row on the Settings screen (`frontend/src/features/settings/SettingsPage.tsx`, saved through `PATCH /api/profile/`). Do not add a key-value or JSON store, and do not use Supabase `user_metadata` (users can write it directly).
 - A rarely used feature goes in a menu or a row where it belongs; there is no Advanced switch.
 
 ## Testing guide
