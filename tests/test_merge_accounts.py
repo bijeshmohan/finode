@@ -94,7 +94,7 @@ def test_a_merged_entry_records_who_did_it(client, books):
     one = spend(client, books, books["swiggy"], "30")
     merge_category(client, books["swiggy"], books["zomato"])
     entry = client.get(f"/api/transactions/{one['id']}").json()
-    assert entry["updated_via"] == "api"
+    assert entry["updated_via"] == "web", "merged in the app"
     assert {p["category_id"] for p in entry["postings"]} >= {books["zomato"]["id"]}
 
 

@@ -157,56 +157,26 @@ async def test_assistants_read_a_bill_and_set_the_days(session, client, root_acc
     assert visa["id"]
 
 
-def test_the_cards_page_shows_the_bill_and_a_pay_button(client, card, account, expense_account):
+def test_the_cards_page_carries_its_bill(client, card, account, expense_account):
     spend(client, expense_account, card, "700", "2026-01-05")
-    page = client.get(f"/accounts/{card['id']}").text
-    assert 'aria-label="Bill"' in page and "700.00" in page
-    assert f"/transactions/new?pay={card['id']}&amp;amount=700.00" in page or f"?pay={card['id']}&amount=700.00" in page
+    bill = client.get(f"/api/views/accounts/{card['id']}").json()["bill"]
+    assert bill is not None and bill["bill"] == "700.00"
 
 
 def test_a_card_without_days_offers_to_add_them(client, root_accounts):
     plain = post_account(client, {"name": "Axis", "parent_id": root_accounts["Liabilities"]}).json()
-    page = client.get(f"/accounts/{plain['id']}").text
-    assert "Add the days" in page and f"/accounts/{plain['id']}/edit" in page
-    assert (
-        "Add the days"
-        not in client.get(
-            f"/accounts/{post_account(client, {'name': 'Cash2', 'parent_id': root_accounts['Assets']}).json()['id']}"
-        ).text
-    )
+    assert client.get(f"/api/views/accounts/{plain['id']}").json()["can_set_days"] is True
+    cash = post_account(client, {"name": "Cash2", "parent_id": root_accounts["Assets"]}).json()
+    assert client.get(f"/api/views/accounts/{cash['id']}").json()["can_set_days"] is False
 
 
-def test_pay_bill_opens_the_form_with_the_card_and_the_amount_and_no_account_to_pay_from(client, card):
-    page = client.get("/transactions/new", params={"pay": card["id"], "amount": "18240.00"}).text
-    assert 'value="18240.00"' in page
-    assert (
-        f'<option value="{card["id"]}"' in page
-        and f'value="{card["id"]}" data-budget="0" data-balance="0.00" selected' in page
+def test_a_liability_takes_both_days_or_none(client, root_accounts):
+    made = post_account(
+        client, {"name": "Rupay", "parent_id": root_accounts["Liabilities"], "statement_day": 10, "due_day": 28}
     )
-
-
-def test_the_account_form_takes_the_days_for_a_liability(client, root_accounts):
-    made = client.post(
-        "/accounts",
-        data={
-            "name": "Rupay",
-            "parent_id": root_accounts["Liabilities"],
-            "bill_choice": "1",
-            "statement_day": "10",
-            "due_day": "28",
-        },
-    )
-    assert made.status_code == 200, made.text
-    card = next(a for a in client.get("/api/accounts/").json() if a["name"] == "Rupay")
-    assert (card["statement_day"], card["due_day"]) == (10, 28)
-    bad = client.post(
-        "/accounts",
-        data={"name": "Rupay2", "parent_id": root_accounts["Liabilities"], "bill_choice": "1", "statement_day": "10"},
-    )
-    assert "both the statement day and the due day" in bad.text
-    again = client.post(
-        f"/accounts/{card['id']}/edit",
-        data={"name": "Rupay", "bill_choice": "1", "statement_day": "", "due_day": ""},
-    )
-    assert again.status_code == 200
-    assert next(a for a in client.get("/api/accounts/").json() if a["name"] == "Rupay")["statement_day"] is None
+    assert made.status_code == 201, made.text
+    assert (made.json()["statement_day"], made.json()["due_day"]) == (10, 28)
+    half = post_account(client, {"name": "Rupay2", "parent_id": root_accounts["Liabilities"], "statement_day": 10})
+    assert half.status_code in (400, 422) and "both" in half.text
+    cleared = client.patch(f"/api/accounts/{made.json()['id']}", json={"statement_day": None, "due_day": None})
+    assert cleared.status_code == 200 and cleared.json()["statement_day"] is None

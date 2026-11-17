@@ -1,0 +1,6 @@
+/* .test-notice. */
+.notice {
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+}

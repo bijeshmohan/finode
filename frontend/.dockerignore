@@ -1,0 +1,10 @@
+# Only the app's sources go into the image (see Dockerfile), never local data, a developer's settings or what the build
+# makes itself.
+node_modules/
+dist/
+*.log
+**/*.module.css.d.ts
+tsconfig.tsbuildinfo
+.env*
+Dockerfile
+.dockerignore

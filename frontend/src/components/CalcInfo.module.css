@@ -1,0 +1,72 @@
+/* The "i" beside a headline figure and the sum it opens (.info-button, .calc-panel). */
+.infoButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: -0.25rem 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--faint);
+  cursor: pointer;
+}
+.infoButton :global(.icon) {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+.infoOpen {
+  color: var(--text);
+}
+.calcPanel {
+  margin-top: 0.9rem;
+  padding: 0.9rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--tile-border);
+  border-radius: var(--radius-sm);
+}
+.calcPanel h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.calcLine {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0;
+  padding: 0.4rem 0;
+  border-top: 1px solid var(--surface-2);
+  font-size: 0.9375rem;
+}
+.calcPanel h3 + .calcLine {
+  border-top: 0;
+}
+.calcLine b {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.plus b::before {
+  content: "+ ";
+  color: var(--muted);
+}
+.minus b::before {
+  content: "− ";
+  color: var(--muted);
+}
+.calcTotal {
+  margin-top: 0.2rem;
+  border-top: 2px solid var(--text);
+  font-weight: 600;
+}
+.calcTotal b {
+  font-weight: 600;
+}
+.calcNote {
+  margin: 0.6rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- The phone's status bar in the page's own colour, light and dark. -->
+    <meta name="theme-color" content="#ecf0ec" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#10151f" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>finode</title>
+    <script>
+      // The theme chosen on Settings (src/lib/theme.ts), set before the first paint so the other one never flashes.
+      try {
+        var theme = localStorage.getItem("finode_theme");
+        if (theme === "light" || theme === "dark") document.documentElement.setAttribute("data-theme", theme);
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

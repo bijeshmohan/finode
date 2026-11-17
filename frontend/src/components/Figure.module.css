@@ -1,0 +1,9 @@
+/* The rupee sign in front of a large figure: smaller and lighter than the digits, raised. */
+.cur {
+  margin-right: 0.08em;
+  font-size: 0.62em;
+  font-weight: 450;
+  letter-spacing: 0;
+  color: var(--muted);
+  vertical-align: 0.3em;
+}

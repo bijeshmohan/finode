@@ -4,38 +4,43 @@ finode has four ways to prove who you are, and each one reaches only the door it
 
 | Credential | Used on | Issued by |
 |---|---|---|
-| Login **cookies** (`finode_access`, `finode_refresh`) | the web app | finode, after a Supabase password sign-in |
+| Login **cookies** (`finode_access`, `finode_refresh`) | the finode app | finode, after a Supabase password sign-in |
 | A Supabase **bearer token** | the JSON API | Supabase |
 | A **personal access token** (`fin_…`) | `/mcp` only | finode, on `/profile/assistants` |
 | An **OAuth access token** for a connected app | `/mcp` only | Supabase's OAuth server |
 
 Identity itself is **Supabase Auth**; finode stores no passwords. The ledger data lives in the same Supabase Postgres.
 
-## The web login
+## Signing in to the app
 
-`app/web_auth.py` signs people in through Supabase's password grant and keeps the tokens in `HttpOnly` cookies (path `/`; `Secure` when `FINODE_COOKIE_SECURE` is true).
+`app/session.py` signs people in through Supabase's password grant and keeps the tokens in `HttpOnly` cookies (path `/`; `Secure` when `FINODE_COOKIE_SECURE` is true). The app's JavaScript never sees a token.
 
 ```mermaid
 sequenceDiagram
-    participant B as Browser
-    participant F as finode
+    participant B as The app (browser)
+    participant F as finode API
     participant S as Supabase Auth
-    B->>F: POST /login (email, password)
+    B->>F: POST /api/auth/sign-in (email, password; X-Finode: 1)
     F->>S: password grant
     S-->>F: access + refresh tokens
     F-->>B: Set-Cookie finode_access, finode_refresh
-    B->>F: any page (cookies)
-    F->>F: web_login_required verifies the JWT against Supabase's keys
+    B->>F: GET /api/views/home (cookies)
+    F->>F: require_authenticated_user verifies the JWT against Supabase's keys
     alt access token expired
-        F->>S: refresh with the refresh token
+        F->>S: refresh with the refresh token (once per request)
         S-->>F: new tokens
         F-->>B: new cookies (refreshed_cookies_middleware)
     end
 ```
 
-`web_login_required` stores the verified token in `request.state`, which `require_authenticated_user` accepts in addition to a bearer header, so the repositories stay scoped to the user. **The JSON API never reads cookies.**
+`require_authenticated_user` takes a bearer header or, without one, the session cookie (`auth.token_from_cookies`, which refreshes an expired access token), so the repositories stay scoped to the user either way.
 
-Sign-up is invite-only (`app/signup.py`): the invite code is compared in constant time and users are created, already confirmed, through Supabase's admin API with the **service key**. That key must stay server-side: never render it, log it or send it to a browser. Password reset (`app/reset.py`, `/forgot`, `/reset`) is off unless `FINODE_PASSWORD_RESET=true`. Sign-in and sign-up attempts are slowed per address by the in-memory limiter in `app/ratelimit.py`.
+- **Reads** with the cookie need nothing more.
+- **Changes** with the cookie (any method but GET, HEAD, OPTIONS) need `X-Finode: 1` and an `Origin` equal to the address the request came in on (`auth.check_app_request`: its scheme and host, which uvicorn takes from Traefik with `--proxy-headers`). The app and the API share that address, so there is no CORS at all: another site can send neither our origin nor, without a preflight nobody answers, the header. Bearer requests skip both checks: a token is not something a browser attaches by itself.
+- **Cookie only** (`auth.require_cookie_session`): what a token alone must never do, such as minting tokens, connecting apps, consenting for an assistant or erasing the books, refuses a bearer header even alongside a cookie.
+- A connected app's token (`client_id` claim) is refused in a cookie as anywhere outside `/mcp`.
+
+Sign-up is invite-only (`app/signup.py`): the invite code is compared in constant time and users are created, already confirmed, through Supabase's admin API with the **service key**. That key must stay server-side: never render it, log it or send it to a browser. Password reset (`app/reset.py`, `/api/auth/forgot`, `/api/auth/reset`) is off unless `FINODE_PASSWORD_RESET=true`. Sign-in and sign-up attempts are slowed per address by the in-memory limiter in `app/ratelimit.py`.
 
 ## The MCP server
 
@@ -44,7 +49,7 @@ Sign-up is invite-only (`app/signup.py`): the invite code is compared in constan
 | Module | Job |
 |---|---|
 | `transport.py` | `MCPEndpoint`: check the bearer token, rate-limit it, pick the server for its scope, serve the protected-resource metadata |
-| `context.py` | `services()`: build the services for the token's user, the way `dependencies.py` does for a web request |
+| `context.py` | `services()`: build the services for the token's user, the way `dependencies.py` does for an API request |
 | `tools.py` | the tools, the instructions text, the prompt |
 | `accounts.py` | `AccountIndex.find`: turn `Assets:Bank:HDFC`, or a unique end like `HDFC`, into an account and explain ambiguous or unknown names |
 
@@ -52,7 +57,7 @@ Sign-up is invite-only (`app/signup.py`): the invite code is compared in constan
 
 Fifteen read tools (`READ_TOOLS`): `list_categories` (the categories with ids, paths and kind: spending ones are what the budget plans against, earning ones label income; `category` on `record_transaction`, `record_transactions` and `create_recurring`, and on a `record_split` row, takes a path such as `EMI` or `Food:Groceries`, and a row may name only a category instead of an account; `spending_breakdown` is by category). The money-moving tools (`record_transaction`, `record_split`, `record_transactions`, `create_recurring`) take an account path or a category (`Expenses:Food:Groceries`, `Food:Groceries`, or its id); the line then posts to Expenses with that category, and a name that fits an account and a category, or several, is refused until given in full. The account tools (`update_account`, `close_account`, `merge_accounts`) take accounts only,  `list_tags` (the tags in use with their counts; tags are their own tables since 2026-10-26, see the ledger page; `search_transactions` takes `tag` and every transaction reads back `tags`), `check_balance` (a statement's balance against the books on the same day: whether they agree, the difference and the recent entries, marking those exactly as large as the difference; nothing is changed), `payee_defaults` (how the user usually books a payee: the newest simple entry's accounts, its kind, the use count and other routes; `TransactionService.payee_routes` works this out; the Add screen's payee chips suggest names only and do not use it), `get_status` (access level, currency, today, size and last change of the books, room left today), `get_overview`, `list_accounts`, `get_account`, `search_transactions`, `get_transaction`, `spending_breakdown`, `list_recurring`, `check_books`, `get_budget`, `get_card_bill` (a card's bill from its statement and due days). Accounts, postings and budget lines carry their ids (an id survives a rename, a path does not); `list_accounts` also gives type, `on_budget`, built-in group and details; `search_transactions` filters by payee and kind, pages with `offset`, and answers `count`, `spent`, `earned`, `transferred` (and `account_net_change`) over every match.
 
-Eleven tools usable only at the `manage` level (`update_category`, `close_category`, `reopen_category` and `merge_categories` join the tag and account tools below; `create_category` is a write tool) (`MANAGE_TOOLS`; they are listed at every level but refuse below it): `rename_tag`, `merge_tags` and `delete_tag` (`TransactionService.rename_tag` / `merge_tags` / `delete_tag`; renaming into an existing tag is a merge, deleting takes the tag off its entries and keeps them) and four account tools: `update_account` (rename, note, move, budget flag; the id never changes, only the path), `close_account`, `reopen_account` and `merge_accounts` (`AccountService.merge`: one plain account becomes part of another, see below; `dry_run` works at every level). They call the same `AccountService` methods as the web app, so every rule applies (two levels, one root, unique names, the built-in groups untouched), and they never delete an account except by merging one away.
+Eleven tools usable only at the `manage` level (`update_category`, `close_category`, `reopen_category` and `merge_categories` join the tag and account tools below; `create_category` is a write tool) (`MANAGE_TOOLS`; they are listed at every level but refuse below it): `rename_tag`, `merge_tags` and `delete_tag` (`TransactionService.rename_tag` / `merge_tags` / `delete_tag`; renaming into an existing tag is a merge, deleting takes the tag off its entries and keeps them) and four account tools: `update_account` (rename, note, move, budget flag; the id never changes, only the path), `close_account`, `reopen_account` and `merge_accounts` (`AccountService.merge`: one plain account becomes part of another, see below; `dry_run` works at every level). They call the same `AccountService` methods as the API, so every rule applies (two levels, one root, unique names, the built-in groups untouched), and they never delete an account except by merging one away.
 
 **Merging** (`AccountService.merge`, `POST /api/accounts/{account_id}/merge`): the source (a plain account with no sub-accounts) is folded into a target of the same top-level account that is open and can take postings. Its postings move (each entry records who did it in `updated_via`), recurring rules and shared bills are re-pointed, and the source is deleted for good. The budget plan belongs to categories, so an account merge moves none (`merge_categories` adds the folded category's planned amounts to the other's by month and answers `plan_months_moved`). It is one database transaction, and it is refused when an entry or rule has both accounts on opposite sides, when only one is part of the budget, or for built-in groups, roots and Opening Balances.
 
@@ -60,11 +65,11 @@ Fourteen write tools (`WRITE_TOOLS`): `record_transaction`, `record_split`, `rec
 
 One prompt, `monthly_review`. Assistants can create accounts and categories; only the `manage` level may change them, and no level deletes one (except by merging it away). Amounts go out as strings. A service error becomes a `ToolError` with the service's message. `INSTRUCTIONS` in `tools.py` must be kept in step with the ledger rules.
 
-There are **three access levels** (`TokenScope`: `read`, `write`, `manage`; `manage` is write plus changing accounts, migration `d3f5b7c9e1a2`, and nobody has it until they choose it). Each level gets its own server (`SERVERS`, `build_server(access)`) with instructions that say what it may do. A tool a connection may not use is still listed but only refuses, telling the assistant which level the user must allow under Profile › AI assistants: the write tools refuse on a **read-only** connection (except `dry_run=true`), the account-changing tools (`MANAGE_TOOLS`) refuse on anything below `manage`.
+There are **three access levels** (`TokenScope`: `read`, `write`, `manage`; `manage` is write plus changing accounts, migration `d3f5b7c9e1a2`, and nobody has it until they choose it). Each level gets its own server (`SERVERS`, `build_server(access)`) with instructions that say what it may do. A tool a connection may not use is still listed but only refuses, telling the assistant which level the user must allow under Settings › AI assistants: the write tools refuse on a **read-only** connection (except `dry_run=true`), the account-changing tools (`MANAGE_TOOLS`) refuse on anything below `manage`.
 
 ### Origin
 
-Transactions record who made them (`created_via` / `updated_via`: `web`, `api`, `import`, `recurring`, `mcp:<token name>`). The list marks entries made or changed by an assistant, and the edit page says who added and last changed it.
+Transactions record who made them (`created_via` / `updated_via`: `web` for the app, `api` for a request with its own bearer token, `import`, `recurring`, `mcp:<token name>`). The list marks entries made or changed by an assistant, and the details sheet says who added and last changed it.
 
 ## Phase 1: personal access tokens
 
@@ -97,9 +102,9 @@ sequenceDiagram
 Details that matter:
 
 - The scope (read or write) is stored by finode in `oauth_grants`, because Supabase has no read/write scope.
-- An ordinary sign-in token has no `client_id` and is **refused on `/mcp`**; conversely an app's token is refused by the JSON API and the web UI (`auth.reject_app_token`), so it can never act as a full sign-in.
-- Disconnecting an app (Profile › AI assistants › Connected apps) revokes the grant and asks Supabase to revoke the app's tokens.
-- The consent page is reached through `/oauth/consent`; the login page only honours a `next` that points there (`web_auth.safe_next`).
+- An ordinary sign-in token has no `client_id` and is **refused on `/mcp`**; conversely an app's token is refused by the JSON API (`auth.reject_app_token`), so it can never act as a full sign-in.
+- Disconnecting an app (Settings › AI assistants) revokes the grant and asks Supabase to revoke the app's tokens.
+- The consent screen is the app's `/oauth/consent`; a signed-out arrival signs in and comes back to it (`lib/safeNext.ts` keeps `next` inside the app), and the screen sends the browser only to the redirect Supabase checked.
 
 ## Isolation
 

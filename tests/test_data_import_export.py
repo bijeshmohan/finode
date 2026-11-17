@@ -261,3 +261,52 @@ def test_a_posting_date_before_the_entry_is_refused_with_its_line(client: TestCl
     text = JOURNAL.replace("    Assets:Bank:HDFC\n2026-09-30", "    Assets:Bank:HDFC  ; posted: 2026-09-01\n2026-09-30")
     refused = _import(client, text)
     assert refused.status_code == 400 and "cannot post before the entry's own date" in refused.text
+
+
+# Ported from test_web_data.py (the old import page), step 10: what the preview (a dry run) says.
+
+FOREIGN = """\
+2026-01-02 Opening
+    Assets:HDFC           100000.00 USD
+    Equity:Opening Balances
+"""
+
+
+def preview(client, text: str):
+    return client.post("/api/import", params={"dry_run": True}, files={"file": ("a.ledger", text.encode())})
+
+
+def test_a_file_in_another_currency_is_refused_and_explained(client):
+    found = preview(client, FOREIGN).json()
+    assert found["errors"] and "your currency is INR" in " ".join(found["errors"])
+
+
+def test_the_rupee_sign_and_code_are_accepted_as_labels(client):
+    text = "2026-01-02 Opening\n    Assets:HDFC  ₹500.00\n    Equity:Opening Balances  -500.00 INR\n"
+    found = preview(client, text).json()
+    assert found["errors"] == [] and found["assets"] == "500.00"
+
+
+def test_a_conversion_is_not_supported(client):
+    found = preview(client, "2026-01-05 Buy\n    Assets:Wise  100.00 @@ 8350.00\n    Assets:HDFC\n").json()
+    assert found["errors"] and "one currency" in " ".join(found["errors"])
+
+
+def test_a_preview_without_a_file_says_so(client):
+    assert client.post("/api/import", params={"dry_run": True}).status_code in (400, 422)
+
+
+def test_import_is_offered_only_before_there_are_transactions(client):
+    assert client.get("/api/data-options").json()["can_import"] is True
+    journal = "2026-09-01 Opening\n    Assets:Cash  100\n    Equity:Opening Balances\n"
+    done = client.post("/api/import", files={"file": ("a.ledger", journal.encode())})
+    assert done.status_code == 200, done.text
+    assert client.get("/api/data-options").json()["can_import"] is False
+
+
+def test_imports_are_marked(client):
+    """Moved from test_web_assistants.py (step 10)."""
+    journal = "2026-09-01 Shop\n    Expenses:Food  10\n    Assets:Cash\n"
+    response = client.post("/api/import", files={"file": ("a.ledger", journal.encode())})
+    assert response.status_code == 200, response.text
+    assert client.get("/api/transactions/").json()[0]["created_via"] == "import"

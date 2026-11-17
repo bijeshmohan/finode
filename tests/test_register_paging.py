@@ -1,6 +1,7 @@
 """An account's page reads only its newest entries; "Load more" fetches the next chunk without splitting a day."""
 
 from datetime import timedelta
+from decimal import Decimal
 from uuid import UUID
 
 import pytest
@@ -37,55 +38,39 @@ def busy(client, root_accounts):
     return bank, food, made
 
 
-def test_the_page_shows_only_the_newest_entries_and_a_button(client, busy):
-    bank, _, made = busy
-    page = client.get(f"/accounts/{bank}").text
-    shown = [name for _, _, name in made if name in page]
+def page(client, bank, offset=0):
+    answer = client.get(f"/api/views/accounts/{bank}", params={"offset": offset} if offset else {})
+    assert answer.status_code == 200, answer.text
+    return answer.json()
+
+
+def test_the_page_shows_only_the_newest_entries_and_more_to_load(client, busy):
+    bank, _, _made = busy
+    first = page(client, bank)
+    shown = {r["title"] for r in first["entries"]}
     assert REGISTER_PAGE <= len(shown) <= REGISTER_PAGE + 2, "a chunk, finished to the end of its day"
-    assert "Shop 00" in page and "Shop 79" not in page, "the newest are there, the oldest are not"
-    assert "Load more" in page and f"/accounts/{bank}/more?offset=" in page
+    assert "Shop 00" in shown and "Shop 79" not in shown, "the newest are there, the oldest are not"
+    assert first["has_more"] is True and first["next_offset"]
 
 
 def test_a_day_is_never_split_between_chunks(client, busy):
     bank, _, made = busy
-    first = client.get(f"/accounts/{bank}").text.split("<h2>Transactions</h2>", 1)[1]
-    names_by_day = {}
+    first = {r["title"] for r in page(client, bank)["entries"]}
+    by_day = {}
     for _, day, name in made:
-        names_by_day.setdefault(day, []).append(name)
-    for day, names in names_by_day.items():
+        by_day.setdefault(day, []).append(name)
+    for day, names in by_day.items():
         present = [n in first for n in names]
         assert all(present) or not any(present), f"{day} is split: {present}"
 
 
-def test_show_earlier_walks_back_to_the_start_without_repeats(client, busy):
-    bank, _, made = busy
-    seen = [n for _, _, n in made if n in client.get(f"/accounts/{bank}").text]
-    page = client.get(f"/accounts/{bank}").text
-    import re
-
-    while "Load more" in page:
-        offset = int(re.search(r"/more\?offset=(\d+)", page).group(1))
-        page = client.get(f"/accounts/{bank}/more?offset={offset}").text
-        chunk = [n for _, _, n in made if n in page]
-        assert chunk and not set(chunk) & set(seen), "no entry shows twice"
-        seen += chunk
-    assert sorted(seen) == sorted(n for _, _, n in made), "every entry came, once"
-
-
 def test_the_running_balance_is_the_same_as_the_full_register(client, busy, session):
-    from app.templating import money
-
-    bank, _, made = busy
+    bank, _, _ = busy
     full = {e["payee"]: e for e in plain(services(session).accounts.register(UUID(bank)))}
-    page = client.get(f"/accounts/{bank}").text
-    checked = 0
-    for _, _, name in made:
-        if name not in page:
-            continue
-        row = page.split(name, 1)[1].split("</a>", 1)[0]
-        assert f"<small>{money(full[name]['balance'])}</small>" in row, (name, full[name]["balance"])
-        checked += 1
-    assert checked >= REGISTER_PAGE
+    rows = [r for r in page(client, bank)["entries"] if r["title"] in full]
+    assert len(rows) >= REGISTER_PAGE
+    for row in rows:
+        assert Decimal(row["balance"]) == Decimal(str(full[row["title"]]["balance"])), row["title"]
 
 
 def test_entries_dated_ahead_still_all_show_in_their_card(client, busy):
@@ -102,13 +87,12 @@ def test_entries_dated_ahead_still_all_show_in_their_card(client, busy):
                 ],
             },
         )
-    page = client.get(f"/accounts/{bank}").text
-    assert "3 upcoming" in page and all(f"Later {i}" in page for i in range(3))
+    assert sorted(u["title"] for u in page(client, bank)["upcoming"]) == ["Later 0", "Later 1", "Later 2"]
 
 
-def test_a_small_account_has_no_button(client, root_accounts):
+def test_a_small_account_has_nothing_more_to_load(client, root_accounts):
     bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "10"}).json()["id"]
-    assert "Load more" not in client.get(f"/accounts/{bank}").text
+    assert page(client, bank)["has_more"] is False
 
 
 def test_the_database_is_not_read_in_full_for_the_page(client, busy, session):
@@ -119,7 +103,7 @@ def test_the_database_is_not_read_in_full_for_the_page(client, busy, session):
     watch = lambda conn, cursor, statement, params, context, many: seen.append((statement, params))
     event.listen(engine, "before_cursor_execute", watch)
     try:
-        assert client.get(f"/accounts/{bank}").status_code == 200
+        page(client, bank)
     finally:
         event.remove(engine, "before_cursor_execute", watch)
     wide = [

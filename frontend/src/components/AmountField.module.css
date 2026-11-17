@@ -1,0 +1,70 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+/* 16px or more stops iOS from zooming into the field. */
+.input {
+  font: inherit;
+  font-size: max(16px, 1rem);
+  min-height: var(--tap);
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  color: var(--text);
+  caret-color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+  font-variant-numeric: tabular-nums;
+  appearance: none;
+}
+.input::placeholder {
+  color: var(--faint);
+}
+/* The Add screen's amount: a bare figure, large, as wide as what is typed (--n, set by the field) so the sign in front
+   sits against it, with no box and no ring; its grey 0.00 kept while empty (the .total-field rules). */
+.big {
+  flex: 0 1 auto;
+  max-width: 100%;
+  align-items: center;
+}
+.big .input {
+  width: calc(var(--n, 4) * 1ch + 0.12em);
+  max-width: 100%;
+  box-shadow: none;
+  border-radius: 0;
+  outline: none;
+  font-size: 3.75rem;
+  font-weight: 650;
+  font-stretch: 75%;
+  letter-spacing: -0.025em;
+  text-align: center;
+  line-height: 1.1;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.big .input::placeholder {
+  color: var(--faint);
+  opacity: 0.55;
+}
+.big .input:focus,
+.big .input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+/* The grey 0.00 stays while the field is empty and focused, with the cursor at its start. */
+.big .input:placeholder-shown {
+  text-align: left;
+}
+.input[aria-invalid="true"],
+.input[aria-invalid="true"]:focus {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+  outline-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}

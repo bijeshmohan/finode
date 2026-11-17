@@ -466,28 +466,26 @@ def test_a_broken_file_is_refused_and_saves_nothing(client, rich):
         as_user(TEST_USER_ID)
 
 
-def test_the_data_page_offers_backup_and_restore(client, rich):
-    page = client.get("/profile/data").text
-    assert 'href="/backup"' in page and "Backup" in page
-    assert "only works on an empty ledger" in page
-    assert client.get("/backup").headers["content-type"].startswith("application/json")
+def test_the_data_page_offers_restore_only_on_empty_books(client, rich):
+    assert client.get("/api/data-options").json()["can_restore"] is False, "these books are not empty"
+    assert client.get("/api/backup").headers["content-type"].startswith("application/json")
 
 
-def test_the_restore_pages(client, rich):
+def test_restoring_previews_first_and_only_into_empty_books(client, rich):
     doc = client.get("/api/backup").json()
     files = {"file": ("b.json", json.dumps(doc), "application/json")}
     try:
         as_user(OTHER)
-        assert "Preview restore" in client.get("/profile/data").text
-        preview = client.post("/restore/preview", files=files)
-        assert "Ready to restore" in preview.text and f"{len(doc['transactions'])} transactions" in preview.text
-        assert "Restore everything" in preview.text
-        bad = client.post("/restore/preview", files={"file": ("b.json", "nope", "application/json")})
-        assert "Nothing was restored" in bad.text
-        done = client.post("/restore", files=files)
-        assert done.headers["HX-Redirect"] == "/" and "restore-done" in done.headers["set-cookie"]
-        again = client.post("/restore", files=files)
-        assert "Nothing was restored" in again.text and "empty ledger" in again.text
+        assert client.get("/api/data-options").json()["can_restore"] is True
+        preview = client.post("/api/restore", params={"dry_run": True}, files=files)
+        assert preview.status_code == 200 and preview.json()["transactions"] == len(doc["transactions"])
+        bad = client.post(
+            "/api/restore", params={"dry_run": True}, files={"file": ("b.json", "nope", "application/json")}
+        )
+        assert bad.status_code == 400 and bad.json()["detail"], "not a backup: refused with its reason"
+        assert client.post("/api/restore", files=files).status_code == 200
+        again = client.post("/api/restore", files=files)
+        assert again.status_code == 400 and "empty ledger" in str(again.json()["detail"])
     finally:
         as_user(TEST_USER_ID)
 

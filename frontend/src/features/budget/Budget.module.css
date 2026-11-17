@@ -1,0 +1,326 @@
+/* The Budgets pages (.budget-list, .crow.has-bar, .bar, .crow-of, form.copy-last, .quiet-link, .intro, .ready-warn,
+   .hero-warn, .coming-note, .group-title, a.tappable, .hero-chev, .unused-toggle, the sheet's .sheet-title,
+   .sheet-amount, .sheet-facts and .sheet-actions). */
+.list {
+  display: block;
+  padding: 0 1rem;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--tile-border);
+  border-radius: var(--radius);
+}
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 1rem;
+  row-gap: 0;
+  align-items: start;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.85rem 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.row + .row {
+  border-top: 1px solid var(--surface-2);
+}
+.main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.name {
+  font-weight: 500;
+}
+.sub {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.negative {
+  color: var(--negative);
+}
+.amount {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 7.5rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.bar {
+  position: relative;
+  display: block;
+  grid-column: 1 / -1;
+  height: var(--bar-h);
+  margin: 0.55rem 0 0;
+  overflow: visible;
+  border-radius: calc(var(--bar-h) / 2);
+  background: var(--surface-2);
+}
+.bar i {
+  display: block;
+  max-width: 100%;
+  height: 100%;
+  border-radius: calc(var(--bar-h) / 2);
+  background: var(--accent);
+}
+.bar.over i {
+  background: var(--danger);
+}
+.pace {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 0;
+  height: 0;
+  margin-top: 3px;
+  border: 4px solid transparent;
+  border-top: 0;
+  border-bottom: 5px solid var(--muted);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.copy {
+  margin: 0.25rem 0 0.75rem;
+}
+.quiet {
+  margin: 0;
+  padding: 0.25rem 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0.75rem 0 1rem;
+  padding: 0.8rem 1rem;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.intro p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.introStep {
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.warns {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: -0.75rem 0 1rem;
+}
+.warn {
+  margin: 0;
+  overflow: hidden;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 0.9375rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.heroWarn {
+  color: var(--warn);
+}
+.calcRow {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+.coming {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+.coming b {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.groupTitle {
+  margin: 0 0 1.25rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+  overflow-wrap: break-word;
+}
+.tappable {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 100%;
+  margin: 0 0 1rem;
+  padding: 0.25rem 0 0.75rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tappable:active {
+  opacity: 0.7;
+}
+.glanceBar {
+  position: relative;
+  display: block;
+  height: var(--bar-h);
+  margin-top: 0.6rem;
+  overflow: visible;
+  border-radius: calc(var(--bar-h) / 2);
+  background: var(--surface-2);
+}
+.glanceBar i {
+  display: block;
+  max-width: 100%;
+  height: 100%;
+  border-radius: calc(var(--bar-h) / 2);
+  background: var(--accent);
+}
+.chev {
+  display: inline-flex;
+  color: var(--faint);
+  transform: scaleX(-1);
+}
+.chev :global(.icon) {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+.over {
+  color: var(--danger);
+}
+/* The sheet of a category or a group */
+.sheetTitle {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.sheetTitle h2 {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.sheetTitle p {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.sheetAmount {
+  font-size: 1.625rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.sheetAmount small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+  text-align: right;
+}
+.sheetAmount.over {
+  color: var(--negative);
+}
+.sheetForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+.facts {
+  margin: 0.35rem 0 0;
+  border-top: 1px solid var(--border);
+}
+.facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9375rem;
+}
+.facts dt {
+  flex: none;
+  color: var(--muted);
+}
+.facts dd {
+  margin: 0;
+  font-weight: 500;
+  text-align: right;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-top: 0.2rem;
+}
+.save {
+  flex: 1;
+  min-height: 3.125rem;
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.moveLink {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.125rem;
+  padding-inline: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sheetError {
+  margin: 0;
+  color: var(--negative);
+}
+/* While a field is being typed in, the sheet shows only what is needed, so it fits above the keyboard. */
+:global(dialog[data-typing]:not([data-side-panel])) .facts,
+:global(dialog[data-typing]:not([data-side-panel])) .sheetTitle p,
+:global(dialog[data-typing]:not([data-side-panel])) .sheetAmount small {
+  display: none;
+}
+:global(dialog[data-typing]) .sheetForm {
+  margin-top: 0.5rem;
+}

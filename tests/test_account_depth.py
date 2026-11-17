@@ -31,9 +31,6 @@ def test_there_is_no_depth_setting_any_more(client: TestClient):
     client.patch("/api/profile/", json={"max_depth_expenses": 1})  # an old client: ignored
     food = _make(client, "Food", client.get("/api/accounts/").json()[0]["id"]).json()
     assert food["parent_id"]
-    settings_page = client.get("/settings").text
-    assert 'id="depth"' not in settings_page and "Account depth" not in settings_page
-    assert client.post("/settings/depth", data={"max_depth_expenses": "1"}).status_code in (404, 405)
 
 
 def test_moving_a_subtree_respects_the_two_levels(client: TestClient, root_accounts):
@@ -104,32 +101,31 @@ def test_a_restore_refuses_a_third_level_and_ignores_old_limits(client: TestClie
 def test_parent_pickers_leave_out_accounts_that_cannot_hold_more(client: TestClient, root_accounts):
     food = _make(client, "Food", root_accounts["Expenses"]).json()
     groceries = _make(client, "Groceries", food["id"]).json()
-    for url in ("/categories/new", "/accounts/quick?hint=Expenses"):
-        text = client.get(url).text
-        assert f'value="{food["id"]}"' in text
-        assert f'value="{groceries["id"]}"' not in text
+    groups = {g["id"] for g in client.get("/api/views/category-form").json()["groups"]}
+    pickers = {g["id"] for g in client.get("/api/views/entry-form").json()["category_parents"]}
+    for offered in (groups, pickers):
+        assert food["id"] in offered and groceries["id"] not in offered
 
 
-def test_account_page_offers_sub_accounts_only_where_there_is_room(client: TestClient, root_accounts):
+def test_a_category_offers_subcategories_only_where_there_is_room(client: TestClient, root_accounts):
     food = _make(client, "Food", root_accounts["Expenses"]).json()
     groceries = _make(client, "Groceries", food["id"]).json()
-    bottom = client.get(f"/categories/{groceries['id']}").text
-    assert f"/categories/new?parent={groceries['id']}" not in bottom and "levels deep" not in bottom
-    assert f"/categories/new?parent={food['id']}" in client.get(f"/categories/{food['id']}").text
+    assert client.get(f"/api/views/categories/{groceries['id']}").json()["can_add_child"] is False
+    assert client.get(f"/api/views/categories/{food['id']}").json()["can_add_child"] is True
 
 
 def test_edit_form_of_a_group_offers_no_new_parent(client: TestClient, root_accounts):
     a = _make(client, "A", root_accounts["Assets"]).json()
     b = _make(client, "B", root_accounts["Assets"]).json()
     _make(client, "C", b["id"])
-    text = client.get(f"/accounts/{b['id']}/edit").text
-    assert f'value="{a["id"]}"' not in text  # B has a child, so under A it would be 3 deep
-    assert 'name="parent_id"' not in text, "a group stays where it is: it has no kind to change"
+    form = client.get("/api/views/account-form", params={"account_id": b["id"]}).json()
+    assert form["is_group"] is True and form["parent_options"] == [], "a group stays where it is"
+    assert a["id"] not in {k["id"] for k in form["kinds"]}, "B has a child: under A it would be 3 deep"
 
 
 def test_the_category_form_offers_only_categories_that_can_hold_subcategories(client: TestClient, root_accounts):
     a = _make(client, "A", root_accounts["Expenses"]).json()
     b = _make(client, "B", root_accounts["Expenses"]).json()
     _make(client, "C", b["id"])
-    text = client.get(f"/categories/{b['id']}/edit").text
-    assert f'value="{a["id"]}"' not in text  # B holds a subcategory, so it cannot go inside A
+    form = client.get("/api/views/category-form", params={"category_id": b["id"]}).json()
+    assert a["id"] not in {g["id"] for g in form["groups"]}, "B holds a subcategory, so it cannot go inside A"

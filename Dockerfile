@@ -46,7 +46,7 @@ USER finode
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=4)"]
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/auth/options', timeout=4)"]
 
 # Worker count comes from WEB_CONCURRENCY (read by uvicorn), defaulting to 1.
 CMD ["fastapi", "run", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

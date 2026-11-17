@@ -1,0 +1,37 @@
+/* The access levels in words (.access-example, .access-list). */
+.level {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.example {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-style: italic;
+}
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+.list li::before {
+  display: inline-block;
+  width: 1.25rem;
+  font-weight: 600;
+}
+.yes::before {
+  content: "✓";
+  color: var(--accent);
+}
+.no::before {
+  content: "✕";
+  color: var(--muted);
+}
+.hint {
+  font-size: 0.85rem;
+  color: var(--muted);
+}

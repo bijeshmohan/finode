@@ -87,7 +87,7 @@ Budget targets (monthly, weekly, refill, by-date and yearly wishes per category,
 - **API:** `GET /api/budget/`, `PUT /api/budget/categories/{account_id}`.
 - **MCP:** `get_budget`, `assign_to_category`, `move_budget_money`, `copy_budget_from_previous_month`.
 
-Next: [The web UI](web-ui.md).
+Next: [The app](web-ui.md).
 
 ## Categories apart from the books (2026-10-29)
 

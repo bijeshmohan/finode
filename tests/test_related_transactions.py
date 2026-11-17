@@ -3,7 +3,6 @@
 from uuid import UUID
 
 from app.auth import CurrentUser, require_authenticated_user
-from app.clock import local_today
 from app.main import app
 
 from .books import leg, post_account
@@ -102,101 +101,6 @@ def test_the_ledger_still_balances_with_links(client, account, expense_account):
     assert client.get("/api/reports/trial-balance").json()["balanced"]
 
 
-def test_related_opens_a_blank_form_with_the_link(client, account, expense_account):
-    first = make(client, expense_account, account, "1000", "Swiggy")
-    page = client.get("/transactions/new", params={"related": first["id"]}).text
-    assert f'name="related" value="{first["id"]}"' in page
-    assert "Related to" in page and "Swiggy · 10 Oct · 1,000.00" in page
-    import re
-
-    assert not re.search(r'name="payee"[^>]*value="Swiggy"|value="Swiggy"[^>]*name="payee"', page), (
-        "nothing is copied from the original"
-    )
-    assert 'value="1000' not in page
-    assert (
-        client.get("/transactions/new", params={"related": "00000000-0000-4000-8000-0000000000aa"}).status_code == 404
-    )
-    assert "data-related-chip" in page and "data-related-chip hidden" not in page
-
-
-def test_a_plain_new_form_offers_the_dashed_row(client, account, expense_account):
-    page = client.get("/transactions/new").text
-    assert "Related</button>" in page and "Related to an earlier entry" not in page
-    assert "data-related-chip hidden" in page
-    assert 'name="related" value=""' in page
-
-
-def test_saving_the_form_keeps_the_link_and_the_edit_page_can_remove_it(client, account, expense_account):
-    first = make(client, expense_account, account, "1000", "Swiggy")
-    saved = client.post(
-        "/transactions/split",
-        data={
-            "account": [account["id"], expense_account["id"]],
-            "side": ["debit", "credit"],
-            "amount": ["300", "300"],
-            "date": "2026-10-12",
-            "payee": "Swiggy refund",
-            "related": first["id"],
-        },
-    )
-    assert saved.status_code == 200, saved.text
-    new = next(t for t in client.get("/api/transactions/").json() if t["payee"] == "Swiggy refund")
-    assert new["related_id"] == first["id"]
-    edit = client.get(f"/transactions/{new['id']}/edit").text
-    assert f'name="related" value="{first["id"]}"' in edit and "Swiggy · 10 Oct · 1,000.00" in edit
-    cleared = client.post(
-        f"/transactions/{new['id']}/edit",
-        data={
-            "account": [account["id"], expense_account["id"]],
-            "side": ["debit", "credit"],
-            "amount": ["300", "300"],
-            "date": "2026-10-12",
-            "payee": "Swiggy refund",
-            "related": "",
-        },
-    )
-    assert cleared.status_code == 200, cleared.text
-    assert client.get(f"/api/transactions/{new['id']}").json()["related_id"] is None
-
-
-def test_the_form_refuses_a_link_that_is_not_there(client, account, expense_account):
-    bad = client.post(
-        "/transactions/split",
-        data={
-            "account": [account["id"], expense_account["id"]],
-            "side": ["debit", "credit"],
-            "amount": ["3", "3"],
-            "related": "not-an-id",
-        },
-    )
-    assert bad.status_code == 400 and "related transaction was not found" in bad.text
-
-
-def test_both_sheets_show_the_link(client, account, expense_account):
-    first = make(client, expense_account, account, "1000", "Swiggy")
-    second = make(client, account, expense_account, "300", "Swiggy cashback", on="2026-10-12", related_id=first["id"])
-    new_sheet = client.get(f"/transactions/{second['id']}/sheet").text
-    assert "Related to" in new_sheet and f"/transactions/{first['id']}/sheet" in new_sheet and "1,000.00" in new_sheet
-    old_sheet = client.get(f"/transactions/{first['id']}/sheet").text
-    assert "Related · 1" in old_sheet and f"/transactions/{second['id']}/sheet" in old_sheet and "300.00" in old_sheet
-    assert f"/transactions/new?related={first['id']}" in old_sheet and ">Related</a>" in old_sheet
-    plain = make(client, expense_account, account, "5", "Plain")
-    assert "sheet-related" not in client.get(f"/transactions/{plain['id']}/sheet").text
-
-
-def test_the_picker_lists_earlier_entries_and_narrows_by_text(client, account, expense_account):
-    a = make(client, expense_account, account, "1000", "Swiggy")
-    b = make(client, expense_account, account, "420", "DMart", on="2026-10-11")
-    page = client.get("/transactions/related-picker").text
-    assert "Related to…" in page and "Swiggy" in page and "DMart" in page and f'data-related-pick="{a["id"]}"' in page
-    assert page.index("DMart") < page.index("Swiggy"), "newest first"
-    found = client.get("/transactions/related-picker", params={"results": 1, "q": "dmart"}).text
-    assert "DMart" in found and "Swiggy" not in found and "<input" not in found
-    assert "Nothing matches." in client.get("/transactions/related-picker", params={"results": 1, "q": "zzz"}).text
-    left = client.get("/transactions/related-picker", params={"results": 1, "exclude": b["id"]}).text
-    assert "DMart" not in left and "Swiggy" in left
-
-
 def test_the_backup_and_the_service_see_the_links(session, client, account, expense_account):
     a = make(client, expense_account, account, "10", "A")
     b = make(client, expense_account, account, "20", "B", related_id=a["id"])
@@ -208,50 +112,14 @@ def test_the_backup_and_the_service_see_the_links(session, client, account, expe
 # ---- the details sheet on an account's or a category's own page ----------------------------------------------------
 
 
-def test_account_and_category_pages_open_the_sheet_and_come_back(client, account, expense_account):
-    made = make(
-        client, expense_account, account, "250", "DMart", on=local_today().isoformat()
-    )  # a category lists this month
-    for page_url, back in (
-        (f"/accounts/{account['id']}", f"/accounts/{account['id']}"),
-        (f"/categories/{expense_account['id']}", f"/categories/{expense_account['id']}"),
-    ):
-        page = client.get(page_url).text
-        assert 'id="txn-sheet-body"' in page, page_url
-        assert f'hx-get="/transactions/{made["id"]}/sheet?back={back}"' in page, page_url
-    sheet = client.get(f"/transactions/{made['id']}/sheet", params={"back": f"/accounts/{account['id']}"}).text
-    back = f"/accounts/{account['id']}"
-    assert f"/transactions/{made['id']}/edit?back={back}" in sheet
-    assert (
-        f"/transactions/new?repeat={made['id']}&amp;back={back}" in sheet
-        or f"/transactions/new?repeat={made['id']}&back={back}" in sheet
-    )
-    plain = client.get(f"/transactions/{made['id']}/sheet").text
-    assert f'/transactions/{made["id"]}/edit"' in plain and "back=" not in plain.split("sheet-actions")[1]
-    assert (
-        "back="
-        not in client.get(f"/transactions/{made['id']}/sheet", params={"back": "https://evil.example"}).text.split(
-            "sheet-actions"
-        )[1]
-    )
-
-
-def test_an_upcoming_entry_on_an_account_page_opens_the_sheet(client, account, expense_account):
-    from datetime import date, timedelta
-
-    ahead = make(client, expense_account, account, "99", "Later", on=(date.today() + timedelta(days=5)).isoformat())
-    page = client.get(f"/accounts/{account['id']}").text
-    assert f'hx-get="/transactions/{ahead["id"]}/sheet?back=' in page and 'id="txn-sheet-body"' in page
-
-
 def test_only_the_related_entry_carries_a_pill_with_the_originals_date_and_amount(client, account, expense_account):
     first = make(client, expense_account, account, "1000", "Amazon", on="2026-10-12")
     second = make(client, account, expense_account, "300", "Amazon refund", on="2026-10-20", related_id=first["id"])
-    for url in ("/transactions?month=2026-10", f"/accounts/{account['id']}"):
-        page = client.get(url).text
-        assert page.count('class="tx-pill"') == 1, url
-        marked = [r for r in page.split("<li>") if "tx-pill" in r]
-        assert len(marked) == 1 and "Amazon refund" in marked[0], url
-        assert "12 Oct" in marked[0] and "1,000.00" in marked[0], url
-        assert f"/transactions/{first['id']}/sheet" in marked[0], "the pill opens the original, the row its own"
-        assert f"/transactions/{second['id']}/sheet" in marked[0]
+    lists = {
+        "transactions": client.get("/api/views/transactions", params={"month": "2026-10"}).json()["rows"],
+        "account": client.get(f"/api/views/accounts/{account['id']}").json()["entries"],
+    }
+    for name, rows in lists.items():
+        marked = [r for r in rows if r["related"]]
+        assert [r["id"] for r in marked] == [second["id"]], name
+        assert marked[0]["related"] == {"id": first["id"], "date": "2026-10-12", "amount": "1000.00"}, name

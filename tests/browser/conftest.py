@@ -1,4 +1,4 @@
-"""Tests that drive the web UI in a real browser, against the real app on a real port.
+"""Tests that drive the app in a real browser, against the real app on a real port.
 
 They need a browser. `uv run pytest` skips them when there is none. To run them:
 
@@ -18,16 +18,19 @@ from pathlib import Path
 
 import pytest
 import uvicorn
+from fastapi import HTTPException
 
-from app.auth import CurrentUser, require_authenticated_user
+from app import auth, auth_flows
+from app.config import settings
 from app.dependencies import get_db_session
 from app.main import app
-from app.web_auth import web_login_required
+from app.session import ACCESS_COOKIE, InvalidCredentialsError, SessionTokens
 
 from ..conftest import TEST_USER_ID
+from .server import app_and_api
 
 try:
-    from playwright.sync_api import Browser, Page, sync_playwright
+    from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
 except ImportError:  # pragma: no cover
     sync_playwright = None
 
@@ -55,12 +58,13 @@ def browser() -> Generator[Browser]:
     playwright.stop()
 
 
-@pytest.fixture
-def live_server(session) -> Generator[str]:
-    """The app on a free port, signed in as the test user, with the fresh in-memory database of the test."""
-    # The test database is one in-memory SQLite connection, which must not be used by two threads at once (a page
-    # fetches several things at the same time; that raised "bad parameter or other API misuse" now and then). So
-    # requests take turns, each with its own read memory, as every request has its own session in production.
+def _serve(asgi_app, session) -> Generator[str]:
+    """`asgi_app` on a free port, using the test's in-memory database, until the test ends.
+
+    The test database is one in-memory SQLite connection, which must not be used by two threads at once (a page
+    fetches several things at the same time; that raised "bad parameter or other API misuse" now and then). So
+    requests take turns, each with its own read memory, as every request has its own session in production.
+    """
     turn = threading.Lock()
 
     def one_at_a_time():
@@ -69,11 +73,7 @@ def live_server(session) -> Generator[str]:
             yield session
 
     app.dependency_overrides[get_db_session] = one_at_a_time
-    app.dependency_overrides[require_authenticated_user] = lambda: CurrentUser(
-        id=TEST_USER_ID, email="test@example.com", claims={}
-    )
-    app.dependency_overrides[web_login_required] = lambda: None
-    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning"))
+    server = uvicorn.Server(uvicorn.Config(asgi_app, host="127.0.0.1", port=0, log_level="warning"))
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
     deadline = time.time() + 15
@@ -86,6 +86,36 @@ def live_server(session) -> Generator[str]:
     server.should_exit = True
     thread.join(timeout=10)
     app.dependency_overrides.clear()
+
+
+# The React app signs in for real through /api/auth; only Supabase is stood in for: a password starting "right" signs in, and
+# the session cookie it sets ("test-access") is the test user.
+TOKEN = "test-access"
+
+
+def _fake_jwt(token: str) -> dict:
+    if token == TOKEN:
+        return {"sub": str(TEST_USER_ID), "email": "test@example.com"}
+    raise HTTPException(status_code=401, detail="invalid authentication token")
+
+
+def _fake_sign_in(email: str, password: str) -> SessionTokens:
+    if not password.startswith("right"):
+        raise InvalidCredentialsError()
+    return SessionTokens(TOKEN, "test-refresh", 3600)
+
+
+@pytest.fixture
+def server(session, monkeypatch: pytest.MonkeyPatch) -> Generator[str]:
+    """The built React app and the API on one free port, signed out, with the test's in-memory database."""
+    monkeypatch.setattr(auth, "verify_supabase_jwt", _fake_jwt)
+    monkeypatch.setattr(auth_flows, "sign_in", _fake_sign_in)
+    monkeypatch.setattr(settings, "recurring_interval_minutes", 0)
+    monkeypatch.setattr(settings, "cookie_secure", False)  # plain http on 127.0.0.1: WebKit drops a Secure cookie there
+    served = _serve(app_and_api(), session)
+    url = next(served)
+    yield url
+    next(served, None)
 
 
 @pytest.hookimpl(wrapper=True, tryfirst=True)
@@ -113,10 +143,9 @@ def keep_evidence(item, page: Page) -> None:
         warnings.warn(f"could not keep the evidence of {item.name}: {error}", stacklevel=2)
 
 
-@pytest.fixture
-def page(request, browser: Browser, live_server: str) -> Generator[Page]:
+def _new_page(browser: Browser, base_url: str) -> tuple[BrowserContext, Page, list[str]]:
     context = browser.new_context(
-        viewport={"width": 390, "height": 844}, base_url=live_server, reduced_motion="reduce"
+        viewport={"width": 390, "height": 844}, base_url=base_url, reduced_motion="reduce"
     )  # measured positions must not catch a page mid-rise
     page = context.new_page()
     page.set_default_timeout(8000)
@@ -127,17 +156,32 @@ def page(request, browser: Browser, live_server: str) -> Generator[Page]:
         "pageerror",
         lambda error: errors.append(str(error)) if "due to access control checks" not in str(error) else None,
     )
+    return context, page, errors
+
+
+@pytest.fixture
+def page(request, browser: Browser, server: str) -> Generator[Page]:
+    """The React app in a phone-sized browser, signed out."""
+    context, page, errors = _new_page(browser, server)
     yield page
     keep_evidence(request.node, page)
     context.close()
     assert not errors, f"JavaScript errors in the page: {errors}"
 
 
+@pytest.fixture
+def signed_in_page(page: Page, server: str) -> Page:
+    """The React app, signed in as the test user (the session cookie a real sign-in sets)."""
+    page.context.add_cookies([{"name": ACCESS_COOKIE, "value": TOKEN, "url": server}])
+    return page
+
+
 class Api:
     """Set data up through the JSON API, as the signed-in test user."""
 
-    def __init__(self, page: Page):
+    def __init__(self, page: Page, headers: dict[str, str] | None = None):
         self.request = page.request
+        self.headers = headers or {}
 
     def post(self, path: str, **body):
         if path == "/accounts/":  # an "account" under Expenses or Income (or inside a category) is a category
@@ -149,17 +193,17 @@ class Api:
                 send = {"name": body["name"], "kind": kind, **({"parent_id": parent} if parent in kinds else {})}
                 made = self.post("/categories/", **send)
                 return {**made, "id": made["id"]}
-        response = self.request.post(f"/api{path}", data=body)
+        response = self.request.post(f"/api{path}", data=body, headers=self.headers)
         assert response.ok, f"{path}: {response.status} {response.text()}"
         return response.json()
 
     def put(self, path: str, **body):
-        response = self.request.put(f"/api{path}", data=body)
+        response = self.request.put(f"/api{path}", data=body, headers=self.headers)
         assert response.ok, f"{path}: {response.status} {response.text()}"
         return response.json()
 
     def delete(self, path: str):
-        response = self.request.delete(f"/api{path}")
+        response = self.request.delete(f"/api{path}", headers=self.headers)
         assert response.ok, f"{path}: {response.status} {response.text()}"
 
     def get(self, path: str):
@@ -168,40 +212,10 @@ class Api:
         return response.json()
 
 
-def row_button(page: Page, side: str, index: int = 0):
-    """The button of a row on the Add screen (its account or category, its date and its amount)."""
-    return page.locator(f'[data-rows="{side}"] [data-row]').nth(index).locator("[data-pick].slim")
-
-
-def row_gear(page: Page, side: str, index: int = 0):
-    """The settings glyph at the right of a row that has its account."""
-    return page.locator(f'[data-rows="{side}"] [data-row]').nth(index).locator("[data-row-settings]")
-
-
-def set_row(page: Page, side: str, index: int = 0, amount: str | None = None, date: str | None = None) -> None:
-    """Open the settings of a row that already has its account, type its amount and/or day and press Done."""
-    row_gear(page, side, index).click()
-    sheet = page.locator("#row-settings")
-    if amount is not None:
-        sheet.locator("[data-config-amount]").fill(amount)
-    if date is not None:
-        sheet.locator("[data-config-date]").fill(date)
-    sheet.locator("[data-config-ok]").click()
-
-
-def add_row(
-    page: Page, side: str, label: str, index: int = 0, amount: str | None = None, date: str | None = None
-) -> None:
-    """Choose an account or category in the picker (it closes at once), then set its amount and/or day from the row."""
-    row_button(page, side, index).click()
-    page.locator("#row-picker [data-pick-option]", has_text=label).first.click()
-    if amount is not None or date is not None:
-        set_row(page, side, index, amount, date)
-
-
 @pytest.fixture
-def api(page: Page) -> Api:
-    return Api(page)
+def api(signed_in_page: Page, server: str) -> Api:
+    """The JSON API as the React app's signed-in person: the cookie, and the app's header and origin for changes."""
+    return Api(signed_in_page, headers={"X-Finode": "1", "Origin": server})
 
 
 @pytest.fixture
@@ -217,19 +231,3 @@ def books(api: Api) -> dict:
         "rent": api.post("/accounts/", name="Rent", parent_id=roots["Expenses"]),
         "roots": roots,
     }
-
-
-@pytest.fixture
-def touch_page(browser: Browser, live_server: str) -> Generator[Page]:
-    """A phone: a finger instead of a mouse, so a tap blurs the field it leaves before the click arrives (as on iOS)."""
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844},
-        base_url=live_server,
-        reduced_motion="reduce",
-        has_touch=True,
-        is_mobile=True,
-    )
-    page = context.new_page()
-    page.set_default_timeout(8000)
-    yield page
-    context.close()

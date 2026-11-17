@@ -1,0 +1,327 @@
+/* Settings and the pages under it (.settings, .settings-label, .setting, .setting-title, .setting-value, a.setting-link,
+   .signout-row, .grid-form and .danger-title). */
+.label {
+  margin: 1.25rem 0 0.4rem 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.tile {
+  padding: 0 1rem;
+  background: var(--surface);
+  border: 1px solid var(--tile-border);
+  border-radius: var(--radius);
+}
+.setting {
+  border-bottom: 1px solid var(--surface-2);
+}
+.setting:last-child {
+  border-bottom: 0;
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 52px;
+  padding: 0.6rem 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.head :global(.icon) {
+  flex: none;
+  color: var(--faint);
+  transition: transform 0.15s;
+}
+.head[aria-expanded="true"] :global(.icon) {
+  transform: rotate(90deg);
+}
+.title {
+  font-weight: 500;
+}
+.danger {
+  color: var(--danger);
+}
+.value {
+  margin-left: auto;
+  padding: 0 0.25rem 0 0.75rem;
+  flex: none;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: right;
+  white-space: nowrap;
+}
+.head .title + :global(.icon) {
+  margin-left: auto;
+}
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem 0 1rem;
+}
+.body p {
+  margin: 0;
+}
+.muted {
+  color: var(--muted);
+}
+.names {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+}
+.names label,
+.body > label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-weight: 500;
+}
+.body input:not([type="radio"]):not([type="file"]),
+.body select {
+  min-height: var(--tap);
+  font-size: 1rem;
+}
+.themes {
+  display: flex;
+  gap: 0.5rem;
+}
+.themes button {
+  flex: 1;
+  min-height: var(--tap);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.themes button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.primary {
+  align-self: flex-start;
+  min-height: var(--tap);
+  padding: 0 1.25rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: var(--tap);
+  padding: 0 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.dangerButton {
+  align-self: flex-start;
+  min-height: var(--tap);
+  padding: 0 1.25rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--danger);
+  color: var(--on-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.error {
+  margin: 0;
+  color: var(--negative);
+}
+.signout {
+  display: flex;
+  width: 100%;
+  min-height: 52px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--danger);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.plainList {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+}
+.plainList li + li {
+  margin-top: 0.2rem;
+}
+.subhead {
+  margin: 0.5rem 0 0;
+  font-size: 1rem;
+}
+.body input[type="file"] {
+  font: inherit;
+}
+/* AI assistants (.token-list, .secret, pre.snippet, .badge-write, .row-actions, .copy-row, .notice-card). */
+.tokens {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.75rem 0;
+  list-style: none;
+}
+.tokens li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.tokenLine {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.badge {
+  margin-left: 0.4rem;
+  padding: 0 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+.badgeWrite {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+.small {
+  min-height: 2.25rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.copyRow {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+.secret {
+  display: block;
+  flex: 1;
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.snippet {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  overflow-x: auto;
+  white-space: pre;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0.75rem 0 1rem;
+  padding: 1rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.card h2 {
+  margin: 0;
+  font-size: 1.125rem;
+}
+.notice {
+  margin: 0;
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+.scopes {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.scopes label {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-height: var(--tap);
+  align-items: center;
+  font-weight: 500;
+  cursor: pointer;
+}
+.scopes label:has(input:checked) {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.scopes input {
+  position: absolute;
+  opacity: 0;
+}
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.fieldset legend {
+  margin-bottom: 0.35rem;
+  font-weight: 500;
+}
+.hintLine {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}

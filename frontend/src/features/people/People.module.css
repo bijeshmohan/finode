@@ -1,0 +1,149 @@
+/* People (.person-actions, .person-entry and .out-amount); the rows are Rows.module.css, the
+   head and title Page.module.css. */
+.out {
+  color: var(--negative);
+}
+.shortHands {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 0.5rem;
+  margin: 0.75rem 0 1rem;
+}
+.shortHands a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 0 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+/* A row that opens a sheet: the shared row's look on a button. */
+.rowButton {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.hint {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.sheetHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.sheetHead h2 {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.sheetHead p {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.sheetAmount {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.note {
+  margin: 0.6rem 0 0;
+  color: var(--muted);
+}
+.actions {
+  margin-top: 1rem;
+}
+.danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: var(--tap);
+  margin-top: 0.5rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--danger);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.error {
+  margin: 0.75rem 0 0;
+  color: var(--negative);
+}
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  padding: 0 1.25rem;
+  border-radius: 999px;
+  color: var(--on-accent);
+  background: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+/* "Already owes you, or is owed?". */
+.extra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.extra :global(.icon) {
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--faint);
+  transition: transform 0.2s ease;
+}
+.extra[aria-expanded="true"] :global(.icon) {
+  transform: rotate(90deg);
+}
+.owing {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.lead {
+  margin: 0 0 1rem;
+  color: var(--muted);
+}
+/* .warn-note */
+.warn {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 0.9rem;
+}

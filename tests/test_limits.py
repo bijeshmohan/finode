@@ -5,13 +5,14 @@ import json
 
 import pytest
 
+from app import auth_flows
 from app.config import settings
 from app.ratelimit import AttemptLimiter
-from app.routers.web import auth as web_auth_router
-from app.web_auth import InvalidCredentialsError, SessionTokens
+from app.routers import auth as auth_router
+from app.session import InvalidCredentialsError, SessionTokens
 
 from .books import into, leg, post_account
-from .test_web_signup import CODE, FORM, raw_client, signup_on, supabase  # noqa: F401  (fixtures used by name)
+from .test_api_auth import APP, SIGN_UP, signup_on  # noqa: F401  (a fixture used by name)
 
 # ---- the counter ----------------------------------------------------------------------------------------------
 
@@ -36,7 +37,12 @@ def test_the_limiter_can_be_reset_or_off():
     assert limiter.retry_after("k", 5, 60, now=1) is None
 
 
-# ---- sign-in and sign-up -------------------------------------------------------------------------------------
+# ---- sign-in and sign-up (/api/auth) -------------------------------------------------------------------------
+
+
+def sign_in(client, email, password="bad", ip=None):
+    headers = {**APP, **({"x-test-ip": ip} if ip else {})}
+    return client.post("/api/auth/sign-in", json={"email": email, "password": password}, headers=headers)
 
 
 @pytest.fixture
@@ -47,64 +53,59 @@ def failing_sign_in(monkeypatch):
         calls.append(email)
         raise InvalidCredentialsError()
 
-    monkeypatch.setattr(web_auth_router, "sign_in", fail)
+    monkeypatch.setattr(auth_flows, "sign_in", fail)
     return calls
 
 
-def test_repeated_wrong_passwords_are_slowed_down(raw_client, failing_sign_in, monkeypatch):
+def test_repeated_wrong_passwords_are_slowed_down(client, failing_sign_in, monkeypatch):
     monkeypatch.setattr(settings, "login_attempts", 3)
     for _ in range(3):
-        assert raw_client.post("/login", data={"email": "a@x.com", "password": "bad"}).status_code == 401
-    blocked = raw_client.post("/login", data={"email": "a@x.com", "password": "bad"})
-    assert blocked.status_code == 429 and "Too many sign-in attempts" in blocked.text
+        assert sign_in(client, "a@x.com").status_code == 401
+    blocked = sign_in(client, "a@x.com")
+    assert blocked.status_code == 429 and "Too many sign-in attempts" in blocked.json()["detail"]["message"]
     assert int(blocked.headers["Retry-After"]) > 0
     assert len(failing_sign_in) == 3, "the blocked attempt never reached Supabase"
-    other = raw_client.post("/login", data={"email": "b@x.com", "password": "bad"})
-    assert other.status_code == 429, "the same address is slowed down whatever email it tries"
+    assert sign_in(client, "b@x.com").status_code == 429, "the same address is slowed down whatever email it tries"
 
 
-def test_one_email_is_slowed_down_from_every_address(raw_client, failing_sign_in, monkeypatch):
+def test_one_email_is_slowed_down_from_every_address(client, failing_sign_in, monkeypatch):
     monkeypatch.setattr(settings, "login_attempts", 2)
-    monkeypatch.setattr(web_auth_router, "_client", lambda request: request.headers["x-test-ip"])
+    monkeypatch.setattr(auth_router, "client_address", lambda request: request.headers["x-test-ip"])
     for ip in ("1.1.1.1", "2.2.2.2"):
-        raw_client.post("/login", data={"email": "victim@x.com", "password": "bad"}, headers={"x-test-ip": ip})
-    blocked = raw_client.post(
-        "/login", data={"email": "victim@x.com", "password": "bad"}, headers={"x-test-ip": "3.3.3.3"}
-    )
-    assert blocked.status_code == 429, "guessing one person's password from many addresses is slowed too"
-    assert (
-        raw_client.post(
-            "/login", data={"email": "someone@x.com", "password": "bad"}, headers={"x-test-ip": "3.3.3.3"}
-        ).status_code
-        == 401
-    )
+        sign_in(client, "victim@x.com", ip=ip)
+    assert sign_in(client, "victim@x.com", ip="3.3.3.3").status_code == 429, "one person guessed from many addresses"
+    assert sign_in(client, "someone@x.com", ip="3.3.3.3").status_code == 401
 
 
-def test_a_good_sign_in_is_not_counted_and_clears_the_email(raw_client, monkeypatch):
+def test_a_good_sign_in_is_not_counted_and_clears_the_email(client, monkeypatch):
     monkeypatch.setattr(settings, "login_attempts", 2)
     outcomes = iter([InvalidCredentialsError(), None, InvalidCredentialsError(), InvalidCredentialsError()])
 
-    def sign_in(email, password):
+    def answer(email, password):
         outcome = next(outcomes)
         if outcome:
             raise outcome
         return SessionTokens("a", "r", 3600)
 
-    monkeypatch.setattr(web_auth_router, "sign_in", sign_in)
-    assert raw_client.post("/login", data={"email": "a@x.com", "password": "x"}).status_code == 401
-    assert raw_client.post("/login", data={"email": "a@x.com", "password": "ok"}).status_code == 303
+    monkeypatch.setattr(auth_flows, "sign_in", answer)
+    assert sign_in(client, "a@x.com", "x").status_code == 401
+    assert sign_in(client, "a@x.com", "ok").status_code == 204
     # the address still has one failure on record, so one more is allowed and the next is not
-    assert raw_client.post("/login", data={"email": "a@x.com", "password": "x"}).status_code == 401
-    assert raw_client.post("/login", data={"email": "a@x.com", "password": "x"}).status_code == 429
+    assert sign_in(client, "a@x.com", "x").status_code == 401
+    assert sign_in(client, "a@x.com", "x").status_code == 429
 
 
-def test_sign_up_attempts_are_limited_even_with_the_right_code(raw_client, signup_on, supabase, monkeypatch):
+@pytest.mark.usefixtures("signup_on")
+def test_sign_up_attempts_are_limited_even_with_the_right_code(client, monkeypatch):
+    made = []
+    monkeypatch.setattr(auth_flows, "create_user", lambda email, password: made.append(email))
     monkeypatch.setattr(settings, "signup_attempts", 2)
-    assert raw_client.post("/signup", data={**FORM, "invite_code": "wrong"}).status_code == 403
-    assert raw_client.post("/signup", data={**FORM, "invite_code": "wrong"}).status_code == 403
-    blocked = raw_client.post("/signup", data=FORM)
-    assert blocked.status_code == 429 and "Too many attempts" in blocked.text and "Retry-After" in blocked.headers
-    assert supabase["create_user"] == [], "nothing reached Supabase"
+    for _ in range(2):
+        wrong = client.post("/api/auth/sign-up", json={**SIGN_UP, "invite_code": "wrong"}, headers=APP)
+        assert wrong.status_code == 403
+    blocked = client.post("/api/auth/sign-up", json=SIGN_UP, headers=APP)
+    assert blocked.status_code == 429 and "Too many attempts" in blocked.json()["detail"]["message"]
+    assert "Retry-After" in blocked.headers and made == [], "nothing reached Supabase"
 
 
 # ---- what one person may hold -----------------------------------------------------------------------------
@@ -116,8 +117,6 @@ def test_accounts_are_limited(client, root_accounts, monkeypatch):
     assert post_account(client, {"name": "One", "parent_id": root_accounts["Assets"]}).status_code == 201
     refused = post_account(client, {"name": "Two", "parent_id": root_accounts["Assets"]})
     assert refused.status_code == 400 and f"limit of {count + 1} accounts" in refused.json()["detail"]
-    form = client.post("/accounts", data={"name": "Three", "parent_id": root_accounts["Assets"]})
-    assert "limit of" in form.text
     monkeypatch.setattr(settings, "max_accounts", 0)
     assert post_account(client, {"name": "Two", "parent_id": root_accounts["Assets"]}).status_code == 201, (
         "0 = no limit"

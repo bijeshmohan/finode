@@ -16,12 +16,12 @@ from app.models.tag import Tag, TransactionTag
 from app.models.transaction import Posting, Transaction
 from app.repositories.api_token import ApiTokenRepository
 from app.repositories.oauth_grant import OAuthGrantRepository
-from app.routers.web import profile as profile_router
+from app.routers import data as data_router
 from app.schemas.api_token import ApiTokenCreate
 from app.services.api_token import ApiTokenService
 from app.services.erase import EraseService
 from app.services.oauth_grant import OAuthGrantService
-from app.web_auth import ACCESS_COOKIE, AuthUnavailableError
+from app.session import ACCESS_COOKIE, AuthUnavailableError
 
 from .books import post_account
 from .conftest import TEST_USER_ID
@@ -112,20 +112,18 @@ def test_after_erasing_a_backup_restores_everything(client, session, both):
 
 def test_the_data_page_offers_both_and_says_what_each_does(client, both, monkeypatch):
     monkeypatch.setattr(settings, "supabase_service_role_key", None)
-    page = client.get("/profile/data").text
-    assert "Erase my books" in page and "test@example.com" in page
-    assert "Deleting your login isn't set up here" in page and "Delete my account</button>" not in page
+    options = client.get("/api/data-options").json()
+    assert options["confirm_word"] == "test@example.com" and options["can_delete_login"] is False
     monkeypatch.setattr(settings, "supabase_service_role_key", "sb_secret_x")
     monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co")
-    assert "Delete my account</button>" in client.get("/profile/data").text
+    assert client.get("/api/data-options").json()["can_delete_login"] is True
 
 
 def test_erasing_needs_the_email_typed(client, session, both):
-    wrong = client.post("/profile/data/erase", data={"confirm": "nope"})
-    assert wrong.status_code == 400 and wrong.headers["HX-Retarget"] == "#erase-error"
+    wrong = client.post("/api/erase", json={"confirm": "nope"})
+    assert wrong.status_code == 400 and wrong.json()["detail"] == "Type test@example.com to confirm."
     assert rows(session, Account), "nothing was erased"
-    done = client.post("/profile/data/erase", data={"confirm": " Test@Example.com "})
-    assert done.headers["HX-Redirect"] == "/" and "books-erased" in done.headers["set-cookie"]
+    assert client.post("/api/erase", json={"confirm": " Test@Example.com "}).status_code == 204
     assert rows(session, Account) == [] and len(rows(session, Profile)) == 1
 
 
@@ -133,12 +131,11 @@ def test_deleting_the_account_erases_everything_and_signs_out(client, session, b
     deleted = []
     monkeypatch.setattr(settings, "supabase_service_role_key", "sb_secret_x")
     monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co")
-    monkeypatch.setattr(profile_router, "delete_user", lambda user_id: deleted.append(user_id))
-    wrong = client.post("/profile/data/delete-account", data={"confirm": "x"})
+    monkeypatch.setattr(data_router, "delete_user", lambda user_id: deleted.append(user_id))
+    wrong = client.post("/api/delete-account", json={"confirm": "x"})
     assert wrong.status_code == 400 and deleted == [] and rows(session, Account)
-    done = client.post("/profile/data/delete-account", data={"confirm": "test@example.com"})
-    assert done.headers["HX-Redirect"] == "/login" and "your-account-deleted" in done.headers["set-cookie"]
-    assert deleted == [TEST_USER_ID]
+    done = client.post("/api/delete-account", json={"confirm": "test@example.com"})
+    assert done.status_code == 204 and deleted == [TEST_USER_ID]
     cookies = done.headers.get_list("set-cookie")
     assert any(c.startswith(f"{ACCESS_COOKIE}=") and "Max-Age=0" in c for c in cookies), "the sign-in cookie is cleared"
     for model in (Account, Profile, ApiToken, OAuthGrant):
@@ -152,29 +149,27 @@ def test_if_the_login_cannot_be_removed_the_person_is_told(client, session, both
     def broken(user_id):
         raise AuthUnavailableError("down")
 
-    monkeypatch.setattr(profile_router, "delete_user", broken)
-    response = client.post("/profile/data/delete-account", data={"confirm": "test@example.com"})
-    assert response.status_code == 400 and "Your data was erased, but removing your login failed" in response.text
+    monkeypatch.setattr(data_router, "delete_user", broken)
+    told = client.post("/api/delete-account", json={"confirm": "test@example.com"})
+    assert told.status_code == 503 and "Your data was erased, but removing your login failed" in told.json()["detail"]
     assert rows(session, Account) == [], "the books are gone; the person can try again"
 
 
-def test_without_the_service_key_nothing_is_erased_by_the_delete_button(client, session, both, monkeypatch):
+def test_without_the_service_key_nothing_is_erased_by_deleting(client, session, both, monkeypatch):
     monkeypatch.setattr(settings, "supabase_service_role_key", None)
-    response = client.post("/profile/data/delete-account", data={"confirm": "test@example.com"})
-    assert response.status_code == 400 and "is not set up here" in response.text
+    refused = client.post("/api/delete-account", json={"confirm": "test@example.com"})
+    assert refused.status_code == 503 and "is not set up here" in refused.json()["detail"]
     assert rows(session, Account), "nothing was erased: the option is unavailable"
 
 
 def test_deleting_an_account_frees_a_place_for_the_next_person(client, session, both, monkeypatch):
-    from app.routers.web import auth as web_auth_router  # noqa: F401
-
     monkeypatch.setattr(settings, "max_users", 2)
     count = lambda: len(session.exec(select(Profile)).all())
     assert count() == 2
     monkeypatch.setattr(settings, "supabase_service_role_key", "sb_secret_x")
     monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co")
-    monkeypatch.setattr(profile_router, "delete_user", lambda user_id: None)
-    client.post("/profile/data/delete-account", data={"confirm": "test@example.com"})
+    monkeypatch.setattr(data_router, "delete_user", lambda user_id: None)
+    assert client.post("/api/delete-account", json={"confirm": "test@example.com"}).status_code == 204
     assert count() == 1
 
 

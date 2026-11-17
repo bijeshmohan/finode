@@ -1,0 +1,132 @@
+/* The to-do bell and its sheet, from .bell-badge, .todo-open, .todo-empty, .todo-list, .todo-item and .plain-list.flat
+  . */
+.bar {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-left: auto;
+  margin-right: 0.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.bar :global(.icon) {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+.bar .badge {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.1rem;
+}
+.side {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 2.5rem;
+  margin-top: auto;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.side:hover {
+  color: var(--text);
+  background: var(--border);
+}
+.side .badge {
+  margin-left: auto;
+}
+.badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--negative);
+  color: var(--on-accent);
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.empty {
+  margin: 0;
+  padding: 1.5rem 0;
+  color: var(--muted);
+}
+.list {
+  display: flex;
+  flex-direction: column;
+}
+.item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.9rem 0;
+  border-top: 1px solid var(--border);
+}
+.item:first-child {
+  border-top: 0;
+}
+.item p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+.item .secondary {
+  margin-top: 0.25rem;
+}
+.payments {
+  width: 100%;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.payments li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.35rem 0;
+}
+.payments li + li {
+  border-top: 1px solid var(--border);
+}
+.payments select {
+  min-height: var(--tap);
+  font-size: 1rem;
+}
+.muted {
+  color: var(--muted);
+}
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.error {
+  margin: 0;
+  color: var(--negative);
+}

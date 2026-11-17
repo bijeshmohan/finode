@@ -138,13 +138,13 @@ def test_the_rule_is_checked(client, card):
     assert client.patch(f"/api/accounts/{card['id']}", json={"bill_rounding": "up"}).json()["bill_rounding"] == "up"
 
 
-def test_the_card_page_shows_when_a_line_posts_and_the_rounding(client, card, expense_account):
+def test_the_card_page_says_when_a_line_posts_and_the_bill_its_rounding(client, card, expense_account):
     client.patch(f"/api/accounts/{card['id']}", json={"bill_rounding": "nearest"})
     buy(client, expense_account, card, "100.40", "2026-01-10")
     buy(client, expense_account, card, "180", "2026-10-16", posted_on="2026-10-18")
-    page = client.get(f"/accounts/{card['id']}").text
-    assert "Posts 18 Oct" in page
-    assert ">Rounded<" in page and "−0.40" in page
+    entries = client.get(f"/api/views/accounts/{card['id']}").json()["entries"]
+    assert {r["amount"]: r["posts_on"] for r in entries} == {"180.00": "2026-10-18", "100.40": None}
+    assert client.get(f"/api/accounts/{card['id']}/bill").json()["rounded_by"] == "-0.40"
 
 
 def test_a_backup_carries_posting_dates_and_the_rule(client, card, expense_account):

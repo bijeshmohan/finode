@@ -88,10 +88,14 @@ def test_deleting_frees_the_reference(client, account, expense_account):
 
 def test_the_details_sheet_names_the_source(client, account, expense_account):
     made = client.post("/api/transactions/", json=body(expense_account, account, **PAY)).json()
-    sheet = client.get(f"/transactions/{made['id']}/sheet").text
-    assert "gmail" in sheet and "msg-1" in sheet and 'href="https://mail.example.com/msg-1"' in sheet
+    sheet = client.get(f"/api/views/transactions/{made['id']}").json()
+    assert (sheet["source"], sheet["external_id"], sheet["source_url"]) == (
+        "gmail",
+        "msg-1",
+        "https://mail.example.com/msg-1",
+    )
     plain = client.post("/api/transactions/", json=body(expense_account, account, on="2026-10-12")).json()
-    assert "Source" not in client.get(f"/transactions/{plain['id']}/sheet").text
+    assert client.get(f"/api/views/transactions/{plain['id']}").json()["source"] is None
 
 
 @pytest.mark.anyio

@@ -1,4 +1,4 @@
-"""The tools assistants call. Each one goes through the same services as the web UI and JSON API."""
+"""The tools assistants call. Each one goes through the same services as the JSON API."""
 
 from collections.abc import Callable
 from datetime import date
@@ -17,7 +17,6 @@ from ..config import settings
 from ..models.api_token import TokenScope
 from ..models.transaction import PostingSide
 from ..models.utils import normalize_amount
-from ..routers.web.utils import validation_message
 from ..schemas import AccountCreate, AccountUpdate
 from ..schemas.account import RegisterEntry
 from ..schemas.budget import BudgetRead
@@ -32,6 +31,7 @@ from ..schemas.transaction import (
     TransactionRead,
     TransactionUpdate,
 )
+from ..services.validation import validation_message
 from ..tags import clean_name, clean_names, tags_in
 from ..version import VERSION
 from .accounts import AccountIndex, Entry, Place, Places

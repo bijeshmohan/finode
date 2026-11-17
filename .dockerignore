@@ -22,3 +22,6 @@ __pycache__/
 tests/
 *.md
 AGENTS.md
+
+# The app is built into its own image (frontend/Dockerfile, the `web` service); the API image needs none of it.
+frontend/

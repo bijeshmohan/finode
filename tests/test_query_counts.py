@@ -13,19 +13,38 @@ from sqlalchemy import event
 from app.auth import CurrentUser, require_authenticated_user
 from app.main import app
 
-PAGES = ["/transactions/new", "/transactions", "/", "/accounts", "/budget", "/categories", "/categories?tab=income"]
+PAGES = [
+    "/api/views/entry-form",
+    "/api/views/transactions",
+    "/api/views/home",
+    "/api/views/accounts",
+    "/api/views/budget",
+    "/api/views/categories",
+]
 # What each page asks today, with one to spare. The session remembers repeated reads (repositories/cache.py), which
 # brought these down from 10 to 21 each; a page that climbs back has probably started loading something twice.
 # /transactions and / read a chunk of the month, count what is left and, when a day runs over the chunk, finish the day (up to 3 more).
 CEILING = {
-    "/transactions/new": 4,  # + the categories
-    "/transactions": 12,  # + the categories (their names for the rows) + the tags of the rows shown (one query, whatever the number of rows)
-    "/": 15,  # + the categories (their own table) and what the month spent by category
-    "/accounts": 5,  # + the day of each account's last entry, + the postings of the cards that have bill days (one query each, whatever the number)
-    "/budget": 6,  # + the categories
-    "/categories": 4,
-    "/categories?tab=income": 4,
+    "/api/views/entry-form": 4,  # the Add screen
+    # Transactions reads + the categories (their names for the rows) + the tags of the rows shown (one query, whatever
+    # the number of rows).
+    "/api/views/transactions": 12,
+    "/api/views/home": 15,  # + the categories (their own table) and what the month spent by category
+    # Accounts: + the day of each account's last entry, + the postings of the cards that have bill days (one query
+    # each, whatever the number).
+    "/api/views/accounts": 5,
+    "/api/views/budget": 6,  # + the categories
+    "/api/views/categories": 4,
 }
+
+# The other screens, measured on the larger books of their tests, with one to spare (step 10: they used to be held to
+# the old pages they stood for).
+ONE_ACCOUNT_CEILING = {"view": 8, "list": 14}
+PEOPLE_CEILING = {"list": 7, "one": 15}
+ONE_CATEGORY_CEILING = 10
+BUDGET_VIEW_CEILING = {"group": 6, "move": 6}
+SCHEDULE_CEILING = {"todo": 8, "coming up": 7, "recurring": 7}
+RECURRING_FORM_CEILING = {"new": 4, "edit": 6}
 
 from .books import category, post_account  # noqa: E402
 from .conftest import TEST_USER_ID  # noqa: E402
@@ -44,7 +63,7 @@ def count_queries(session):
     def counted(get):
         counter["n"] = 0
         response = get()
-        assert response.status_code == 200
+        assert response.status_code in (200, 201), response.text
         return counter["n"]
 
     yield counted
@@ -84,16 +103,13 @@ def test_the_number_of_queries_does_not_grow_with_the_books(client, root_account
 def test_an_accounts_own_page_and_its_filtered_list_do_not_grow_either(client, root_accounts, count_queries):
     grow(client, root_accounts, accounts=6, transactions=6)
     busiest = client.get("/api/accounts/").json()[0]["id"]
-    first = {
-        "page": count_queries(lambda: client.get(f"/accounts/{busiest}")),
-        "list": count_queries(lambda: client.get(f"/transactions?account={busiest}")),
-    }
+    views = {"view": f"/api/views/accounts/{busiest}", "list": f"/api/views/transactions?account={busiest}"}
+    first = {k: count_queries(lambda p=p: client.get(p)) for k, p in views.items()}
     grow(client, root_accounts, accounts=6, transactions=60, start=6)
-    second = {
-        "page": count_queries(lambda: client.get(f"/accounts/{busiest}")),
-        "list": count_queries(lambda: client.get(f"/transactions?account={busiest}")),
-    }
-    assert second["page"] <= first["page"] + 2 and second["list"] <= first["list"] + 2, (first, second)
+    second = {k: count_queries(lambda p=p: client.get(p)) for k, p in views.items()}
+    for kind in views:
+        assert second[kind] <= first[kind] + 2, (first, second)
+        assert second[kind] <= ONE_ACCOUNT_CEILING[kind], (kind, second[kind])
 
 
 def test_saving_a_split_does_not_ask_more_as_it_gets_longer(client, root_accounts, count_queries):
@@ -104,13 +120,10 @@ def test_saving_a_split_does_not_ask_more_as_it_gets_longer(client, root_account
     expenses = [c["id"] for c in client.get("/api/categories/").json()]
 
     def save(rows: int):
-        data = {
-            "account": [assets[0], *expenses[:rows]],
-            "side": ["credit"] + ["debit"] * rows,
-            "amount": [str(rows)] + ["1"] * rows,
-            "payee": "split",
-        }
-        return count_queries(lambda: client.post("/transactions/split", data=data))
+        lines = [{"choice": assets[0], "side": "credit", "amount": str(rows)}]
+        lines += [{"choice": category_id, "side": "debit", "amount": "1"} for category_id in expenses[:rows]]
+        body = {"kind": "expense", "payee": "split", "rows": lines}
+        return count_queries(lambda: client.post("/api/entries", json=body))
 
     short, long = save(2), save(7)
     assert long <= short + 1, (short, long)
@@ -132,13 +145,20 @@ def test_the_people_pages_do_not_ask_per_person_or_per_row(client, root_accounts
         return first
 
     first = add_people(3, 0)
-    pages = ["/people", f"/people/{first}", "/api/contacts/", f"/api/contacts/{first}/summary"]
+    pages = [
+        "/api/contacts/",
+        f"/api/contacts/{first}/summary",
+        "/api/views/people",
+        f"/api/views/people/{first}",
+    ]
     small = {p: count_queries(lambda p=p: client.get(p)) for p in pages}
     add_people(25, 3)
     large = {p: count_queries(lambda p=p: client.get(p)) for p in pages}
     for page in pages:
         assert large[page] <= small[page] + 1, f"{page} asks more as the people grow: {small[page]} -> {large[page]}"
         assert large[page] <= 25, f"{page} makes {large[page]} queries"
+    assert large["/api/views/people"] <= PEOPLE_CEILING["list"], large
+    assert large[f"/api/views/people/{first}"] <= PEOPLE_CEILING["one"], large
 
 
 def test_one_persons_pages_do_not_ask_more_as_their_history_grows(client, root_accounts, count_queries):
@@ -174,7 +194,7 @@ def test_one_persons_pages_do_not_ask_more_as_their_history_grows(client, root_a
             assert [r.status_code for r in made] == [201, 201, 201], [r.text for r in made]
 
     pages = [
-        f"/people/{alice}",
+        f"/api/views/people/{alice}",
         f"/api/contacts/{alice}/summary",
         f"/api/contacts/{alice}/activity",
         f"/api/contacts/{alice}/obligations",
@@ -577,3 +597,146 @@ def test_a_backup_does_not_read_once_per_shared_bill(client, root_accounts, sess
     assert many <= few, f"a backup reads more as there are more shared bills: {few} -> {many}"
     bills = client.get("/api/backup").json()["shared_expenses"]
     assert len(bills) == 7 and all(len(b["shares"]) == 2 and len(b["contributions"]) == 1 for b in bills)
+
+
+# The Add screen's other views, for the finode app, with what each asks today and one to spare. Editing a bill shared
+# with people reads the entry, who it was made with (people, their accounts), the bill with its shares and payments,
+# the gift and related entry, then the picker groups; the related picker reads the newest entries and their names; the
+# Split's preview reads the people, the accounts and the category it names. None of them asks per row or per person.
+SHARE_CEILING = {"edit": 16, "related": 7, "preview": 7}
+
+
+def test_the_add_screens_other_views_do_not_grow_with_the_books(client, root_accounts, count_queries):
+    def shared_bill():
+        bank = post_account(client, {"name": f"Bank{len(made)}", "parent_id": root_accounts["Assets"]}).json()
+        food = category(client, f"Food{len(made)}")
+        ada = client.post("/api/contacts/", json={"name": f"Ada{len(made)}"}).json()
+        body = {
+            "kind": "expense",
+            "total": "900",
+            "share": {
+                "kind": "expense",
+                "category_id": food["id"],
+                "account_id": bank["id"],
+                "people": [{"contact_id": ada["id"]}],
+            },
+        }
+        saved = client.post("/api/entries", json=body)
+        assert saved.status_code == 201, saved.text
+        made.append((saved.json()["transaction_id"], body))
+
+    made: list = []
+
+    def counts():
+        transaction_id, body = made[-1]
+        return {
+            "edit": count_queries(
+                lambda: client.get("/api/views/entry-form", params={"transaction_id": transaction_id})
+            ),
+            "related": count_queries(lambda: client.get("/api/views/related-entries")),
+            "preview": count_queries(lambda: client.post("/api/views/entry-share-preview", json=body)),
+        }
+
+    grow(client, root_accounts, accounts=10, transactions=10)
+    shared_bill()
+    small = counts()
+    grow(client, root_accounts, accounts=40, transactions=40, start=10)
+    for _ in range(5):
+        shared_bill()
+    large = counts()
+    for view in SHARE_CEILING:
+        assert large[view] <= small[view], f"{view} asks more often as the books grow: {small[view]} -> {large[view]}"
+        assert large[view] <= SHARE_CEILING[view], f"{view} makes {large[view]} queries"
+
+
+def test_a_categorys_page_and_its_view_do_not_grow_either(client, root_accounts, count_queries):
+    grow(client, root_accounts, accounts=6, transactions=6)
+    category = client.get("/api/categories/").json()[0]["id"]
+    first = count_queries(lambda: client.get(f"/api/views/categories/{category}"))
+    grow(client, root_accounts, accounts=6, transactions=60, start=6)
+    second = count_queries(lambda: client.get(f"/api/views/categories/{category}"))
+    assert second <= first + 2 and second <= ONE_CATEGORY_CEILING, (first, second)
+
+
+def test_a_budget_groups_view_and_the_move_view_do_not_grow_either(client, root_accounts, count_queries):
+    grow(client, root_accounts, accounts=6, transactions=6)
+    group = client.get("/api/categories/").json()[0]
+    category(client, "Inside", parent=group["id"])
+    views = {"group": f"/api/views/budget/groups/{group['id']}", "move": "/api/views/budget-move"}
+    first = {k: count_queries(lambda p=p: client.get(p)) for k, p in views.items()}
+    grow(client, root_accounts, accounts=6, transactions=60, start=6)
+    second = {k: count_queries(lambda p=p: client.get(p)) for k, p in views.items()}
+    for kind in views:
+        assert second[kind] <= first[kind] + 2, (first, second)
+        assert second[kind] <= BUDGET_VIEW_CEILING[kind], (kind, second[kind])
+
+
+def test_a_past_month_of_the_budgets_pages_asks_no_more_than_this_month(client, root_accounts, count_queries):
+    grow(client, root_accounts, accounts=6, transactions=6)
+    group = client.get("/api/categories/").json()[0]
+    category(client, "Inside", parent=group["id"])
+    pages = ["/api/views/budget", f"/api/views/budget/groups/{group['id']}"]
+    for page in pages:
+        now = count_queries(lambda p=page: client.get(p))
+        past = count_queries(lambda p=page: client.get(p, params={"month": "2026-01"}))
+        assert past <= now, f"{page}: {past} queries for a past month, {now} for this one"
+
+
+def test_the_budgets_pages_work_out_the_budget_once(client, root_accounts, monkeypatch):
+    from app.services.budget import BudgetService
+
+    grow(client, root_accounts, accounts=2, transactions=2)
+    group = client.get("/api/categories/").json()[0]
+    category(client, "Inside", parent=group["id"])
+    computed = []
+    real = BudgetService._compute
+    monkeypatch.setattr(BudgetService, "_compute", lambda self, *a, **k: computed.append(1) or real(self, *a, **k))
+    for page in ["/api/views/budget", f"/api/views/budget/groups/{group['id']}"]:
+        computed.clear()
+        assert client.get(page, params={"month": "2026-01"}).status_code == 200
+        assert len(computed) == 1, f"{page} worked out the budget {len(computed)} times"
+
+
+def test_the_bell_coming_up_and_recurring_views_do_not_grow_either(client, root_accounts, count_queries):
+    grow(client, root_accounts, accounts=6, transactions=6)
+    bank = post_account(client, {"name": "Rules bank", "parent_id": root_accounts["Assets"]}).json()
+    rent = category(client, "Rules rent")
+    for day in ("2026-01-01", "2999-01-01"):
+        body = {
+            "from_account_id": bank["id"],
+            "to_account_id": root_accounts["Expenses"],
+            "category_id": rent["id"],
+            "amount": "10",
+            "frequency": "monthly",
+            "start_date": day,
+        }
+        assert client.post("/api/recurring/", json=body).status_code == 201
+    views = {"todo": "/api/views/todo", "coming up": "/api/views/coming-up", "recurring": "/api/views/recurring"}
+    first = {k: count_queries(lambda p=p: client.get(p)) for k, p in views.items()}
+    grow(client, root_accounts, accounts=6, transactions=60, start=6)
+    second = {k: count_queries(lambda p=p: client.get(p)) for k, p in views.items()}
+    for kind in views:
+        assert second[kind] <= first[kind] + 2, f"{kind}: {first[kind]} -> {second[kind]} as the books grew"
+        assert second[kind] <= SCHEDULE_CEILING[kind], (kind, second[kind])
+
+
+def test_the_recurring_form_view_does_not_grow_either(client, root_accounts, count_queries):
+    grow(client, root_accounts, accounts=6, transactions=6)
+    bank = post_account(client, {"name": "Form bank", "parent_id": root_accounts["Assets"]}).json()
+    rent = category(client, "Form rent")
+    body = {
+        "from_account_id": bank["id"],
+        "to_account_id": root_accounts["Expenses"],
+        "category_id": rent["id"],
+        "amount": "10",
+        "frequency": "monthly",
+        "start_date": "2999-01-01",
+    }
+    rule = client.post("/api/recurring/", json=body).json()
+    views = {"new": "/api/views/recurring-form", "edit": f"/api/views/recurring-form?recurring_id={rule['id']}"}
+    first = {k: count_queries(lambda p=p: client.get(p)) for k, p in views.items()}
+    grow(client, root_accounts, accounts=6, transactions=60, start=6)
+    second = {k: count_queries(lambda p=p: client.get(p)) for k, p in views.items()}
+    for kind in views:
+        assert second[kind] <= first[kind] + 2, f"{kind}: {first[kind]} -> {second[kind]} as the books grew"
+        assert second[kind] <= RECURRING_FORM_CEILING[kind], (kind, second[kind])

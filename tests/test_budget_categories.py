@@ -70,13 +70,11 @@ def test_a_payment_into_a_loan_with_no_category_is_listed_until_it_gets_one(clie
     assert [(u["transaction_id"], u["amount"], u["account"]) for u in listed] == [
         (made["id"], "19277.00", "Liabilities:Home Loan")
     ]
-    assert "needs you" not in client.get("/budget").text, "what needs a decision lives under the bell"
     todo = client.get("/api/todo/").json()
     assert todo["count"] == 1 and [u["transaction_id"] for u in todo["uncategorised"]] == [made["id"]]
-    assert "1 payment has no category" in client.get("/todo/sheet").text
-    answer = client.post(f"/todo/payments/{made['id']}/category", data={"category": books["emi"]["id"]})
-    assert answer.status_code == 200
-    assert "Nothing needs you" in answer.text
+    answer = client.post(f"/api/transactions/{made['id']}/category", json={"category_id": books["emi"]["id"]})
+    assert answer.status_code == 200, answer.text
+    assert client.get("/api/todo/").json()["count"] == 0, "nothing needs you any more"
     data = budget(client)
     assert data["uncategorised"] == [] and line(data, "EMI")["activity"] == "19277.00"
     entry = client.get(f"/api/transactions/{made['id']}").json()
@@ -89,14 +87,14 @@ def test_payments_that_have_a_category_or_stay_inside_the_budget_are_not_listed(
     cash = account(client, root_accounts, "Cash", "Assets")
     paid(client, books["bank"], cash, "50")  # a move inside the budget
     assert budget(client)["uncategorised"] == []
-    assert "no category" not in client.get("/todo/sheet").text
+    assert client.get("/api/todo/").json()["uncategorised"] == []
 
 
 def test_giving_a_payment_a_category_is_refused_for_what_does_not_wait_for_one(client, books):
     made = paid(client, books["bank"], books["loan"], "100", books["emi"])
-    refused = client.post(f"/todo/payments/{made['id']}/category", data={"category": books["sip"]["id"]})
-    assert refused.status_code == 400 and "no payment waiting" in refused.text
+    refused = client.post(f"/api/transactions/{made['id']}/category", json={"category_id": books["sip"]["id"]})
+    assert refused.status_code == 400 and "no payment waiting" in refused.json()["detail"]
     missing = client.post(
-        "/todo/payments/00000000-0000-4000-8000-0000000000aa/category", data={"category": books["sip"]["id"]}
+        "/api/transactions/00000000-0000-4000-8000-0000000000aa/category", json={"category_id": books["sip"]["id"]}
     )
     assert missing.status_code == 404

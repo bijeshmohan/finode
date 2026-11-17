@@ -2,9 +2,7 @@
 
 import pytest
 
-from app.templating import group_digits, grouping_for, money
-
-from .books import post_account
+from app.formatting import group_digits, grouping_for, money
 
 
 @pytest.mark.parametrize(
@@ -28,40 +26,3 @@ def test_only_the_rupee_is_grouped_in_lakhs():
     assert grouping_for("INR") == "indian"
     assert all(grouping_for(code) == "western" for code in ("USD", "EUR", "JPY", "PKR", None))
     assert group_digits("12345678", "indian") == "1,23,45,678"
-
-
-@pytest.fixture
-def lakhs(client, root_accounts):
-    bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "1234567"}).json()
-    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
-    return bank, food
-
-
-def test_pages_group_rupees_in_lakhs_and_crores(client, lakhs):
-    assert "12,34,567.00" in client.get("/accounts").text
-    assert "1,234,567" not in client.get("/accounts").text
-    assert 'data-grouping="indian"' in client.get("/").text, "the page tells the scripts which way to group"
-    assert "12,34,567.00" in client.get("/budget").text
-
-
-def test_another_currency_keeps_thousands(client, lakhs):
-    assert client.patch("/api/profile/", json={"default_currency": "USD"}).status_code == 200
-    page = client.get("/accounts").text
-    assert "1,234,567.00" in page and "12,34,567" not in page
-    assert 'data-grouping="western"' in client.get("/").text
-
-
-def test_budget_hints_follow_the_grouping(client, lakhs):
-    _bank, food = lakhs
-    from datetime import date
-
-    month = date.today().replace(day=1).isoformat()
-    client.put(f"/api/budget/categories/{food['id']}", json={"month": month, "amount": "250000"})
-    page = client.get("/budget").text
-    assert "of 2,50,000.00" in page
-
-
-def test_the_page_tells_the_scripts_how_many_decimals_the_currency_keeps(client):
-    assert 'data-places="2"' in client.get("/").text
-    assert client.patch("/api/profile/", json={"default_currency": "JPY"}).status_code == 200
-    assert 'data-places="0"' in client.get("/").text

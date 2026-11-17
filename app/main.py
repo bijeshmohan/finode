@@ -3,20 +3,22 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.routing import Route
 
 from . import recurring_runner
-from .caching import Compression, cache_headers_middleware
 from .config import settings
-from .flash import clear_shown_flash_middleware
+from .framing import NoFraming
 from .mcp_server import transport as mcp_transport
 from .routers import (
     accounts,
+    assistants,
+    auth,
     budget,
     categories,
     contacts,
     data,
+    entries,
     profile,
     recurring,
     reports,
@@ -27,10 +29,9 @@ from .routers import (
     todo,
     transactions,
     transfers,
-    web,
+    views,
 )
-from .templating import BASE_DIR
-from .web_auth import LoginRequired, login_required_handler, refreshed_cookies_middleware
+from .session import refreshed_cookies_middleware
 
 
 @asynccontextmanager
@@ -56,8 +57,9 @@ def protected_resource(request: Request):
     return mcp_transport.protected_resource_metadata(request.scope)
 
 
-# The JSON API lives under /api; the web UI owns the site root.
+# The JSON API lives under /api; every other path on the address is the finode app's (the web container, compose.yaml).
 for api_router in (
+    auth,
     accounts,
     categories,
     contacts,
@@ -71,15 +73,16 @@ for api_router in (
     tags,
     todo,
     data,
+    entries,
     profile,
     reports,
+    views,
 ):
     app.include_router(api_router.router, prefix="/api")
-app.include_router(web.router)
-app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
-# Starlette types a handler as taking any Exception; ours takes the one it is registered for.
-app.add_exception_handler(LoginRequired, login_required_handler)  # pyrefly: ignore[bad-argument-type]
+app.include_router(assistants.router, prefix="/api")
+app.include_router(assistants.consent_router, prefix="/api")
 app.middleware("http")(refreshed_cookies_middleware)
-app.middleware("http")(clear_shown_flash_middleware)
-app.middleware("http")(cache_headers_middleware)
-app.add_middleware(Compression, minimum_size=1000, compresslevel=5)  # outermost: it compresses what the others return
+app.add_middleware(NoFraming)
+app.add_middleware(
+    GZipMiddleware, minimum_size=1000, compresslevel=5
+)  # outermost: it compresses what the others return

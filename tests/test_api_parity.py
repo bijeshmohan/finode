@@ -1,4 +1,4 @@
-"""The JSON API does what the web app does (the pieces added so the API is complete)."""
+"""The JSON API does everything the app does (the pieces added so the API is complete)."""
 
 from datetime import date, timedelta
 
@@ -145,6 +145,36 @@ def line(data, name):
     return next(l for l in data["lines"] if l["name"] == name)
 
 
+def test_a_rule_from_the_recurring_forms_rows(client, books):
+    body = {
+        "payee": "Landlord",
+        "rows": [
+            {"choice": books["bank"]["id"], "side": "credit", "amount": "900"},
+            {"choice": books["rent"]["id"], "side": "debit", "amount": "900"},
+        ],
+        "start_date": "2999-01-01",
+    }
+    made = client.post("/api/recurring/form", json=body)
+    assert made.status_code == 201, made.text
+    rule = made.json()
+    assert rule["category_id"] == books["rent"]["id"] and rule["amount"] == "900.00"
+    body["every"] = 2
+    changed = client.put(f"/api/recurring/{rule['id']}/form", json=body)
+    assert changed.status_code == 200 and changed.json()["every"] == 2
+    assert client.put(f"/api/recurring/{MISSING}/form", json=body).status_code == 404
+
+
+def test_a_person_with_an_opening_balance_and_reversing_an_entry_of_theirs(client, books):
+    made = client.post("/api/contacts/", json={"name": "Asha", "opening": {"direction": "payable", "amount": "40"}})
+    assert made.status_code == 201 and made.json()["payable"] == "40.00"
+    who = made.json()["id"]
+    opening = client.get(f"/api/contacts/{who}/activity").json()["items"][0]
+    done = client.post(f"/api/contacts/{who}/entries/{opening['transaction_id']}/reverse")
+    assert done.status_code == 204 and client.get(f"/api/contacts/{who}").json()["payable"] == "0.00"
+    assert client.post(f"/api/contacts/{who}/entries/{MISSING}/reverse").status_code == 404
+    assert client.get("/api/reports/trial-balance").json()["balanced"]
+
+
 def test_move_and_copy_budget_money(client, books):
     client.put(f"/api/budget/categories/{books['food']['id']}", json={"amount": "100"})
     moved = client.post(
@@ -169,6 +199,24 @@ def test_include_an_account_in_the_budget(client, books):
     done = client.post(f"/api/budget/accounts/{out['id']}/include")
     assert done.status_code == 200 and client.get(f"/api/accounts/{out['id']}").json()["on_budget"] is True
     assert client.post(f"/api/budget/accounts/{MISSING}/include").status_code == 404
+
+
+def test_give_a_payment_a_category_from_the_bell(client, books):
+    loan = post_account(client, {"name": "Loan", "parent_id": books["spare"]["parent_id"], "on_budget": False}).json()
+    made = entry(client, books, amount="500", to="spare")
+    paid = client.post(
+        "/api/transactions/",
+        json={"postings": [leg(loan, "debit", "300"), leg(books["bank"], "credit", "300")]},
+    ).json()
+    assert client.get("/api/views/todo").json()["uncategorised"][0]["transaction_id"] == paid["id"]
+    done = client.post(f"/api/transactions/{paid['id']}/category", json={"category_id": books["food"]["id"]})
+    assert done.status_code == 200 and client.get("/api/views/todo").json()["uncategorised"] == []
+    refused = client.post(f"/api/transactions/{made['id']}/category", json={"category_id": books["food"]["id"]})
+    assert refused.status_code == 400
+    assert (
+        client.post(f"/api/transactions/{MISSING}/category", json={"category_id": books["food"]["id"]}).status_code
+        == 404
+    )
 
 
 def test_a_group_budget(client, books, root_accounts):
@@ -202,3 +250,47 @@ def test_the_currency_list(client):
     listed = client.get("/api/profile/currencies").json()
     inr = next(c for c in listed if c["code"] == "INR")
     assert inr["decimals"] == 2 and len(listed) > 100
+
+
+# ---- your data ------------------------------------------------------------------------------------------------------
+
+
+def test_data_options(client):
+    options = client.get("/api/data-options").json()
+    assert options == {
+        "can_import": True,
+        "can_restore": True,
+        "confirm_word": "test@example.com",
+        "can_delete_login": False,
+    }
+
+
+def test_erase_needs_the_confirm_word(client, books):
+    entry(client, books)
+    assert client.post("/api/erase", json={"confirm": "nope"}).json()["detail"] == "Type test@example.com to confirm."
+    assert client.get("/api/transactions/").json() != []
+    assert client.post("/api/erase", json={"confirm": " TEST@example.com "}).status_code == 204
+    assert client.get("/api/transactions/").json() == []
+
+
+def test_delete_account_when_logins_cannot_be_deleted(client, books):
+    entry(client, books)
+    refused = client.post("/api/delete-account", json={"confirm": "test@example.com"})
+    assert refused.status_code == 503
+    assert refused.json()["detail"] == "Deleting your login is not set up here: ask the person who runs finode."
+    assert client.get("/api/transactions/").json() != []
+
+
+def test_delete_account(client, books, monkeypatch):
+    from app.config import settings
+    from app.routers import data as data_router
+
+    monkeypatch.setattr(settings, "supabase_service_role_key", "sb_secret_test_key")
+    monkeypatch.setattr(settings, "supabase_url", "https://proj.supabase.co")
+    deleted = []
+    monkeypatch.setattr(data_router, "delete_user", deleted.append)
+    entry(client, books)
+    response = client.post("/api/delete-account", json={"confirm": "test@example.com"})
+    assert response.status_code == 204 and len(deleted) == 1
+    assert any(c.startswith("finode_access=") and "Max-Age=0" in c for c in response.headers.get_list("set-cookie"))
+    assert client.get("/api/transactions/").json() == []
