@@ -197,7 +197,7 @@ def transactions_view(
     """A page of one month's entries for the Transactions screen, newest first up to today (a day is never split between
     pages: the next page starts at `offset + len(rows)`). With an account, category, merchant or tag filter, `summary`
     adds up everything that matches; on the first page of the current month, `upcoming` lists what is dated ahead."""
-    recurring.catch_up()  # record what has fallen due, as the pages do
+    recurring.catch_up()  # record what has fallen due before the list is read
     today = local_today()
     filters = ListFilters(account, category, merchant, tag, q, kind)
     found = month_list(
@@ -277,7 +277,7 @@ def home(
 ):
     """Home for a month (`YYYY-MM`, never ahead): the budget at a glance and a new person's first steps while some are
     left. The month's entries are the list's (`/views/transactions`), so every page of them refreshes together."""
-    recurring.catch_up()  # record what has fallen due, as the page does
+    recurring.catch_up()  # record what has fallen due before Home is read
     found = home_view(parse_month(month, local_today()), accounts, categories, reports, transactions, budget)
     g = found.glance
     return HomeView(

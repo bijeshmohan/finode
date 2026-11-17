@@ -1,11 +1,11 @@
 # The JSON API
 
-Everything the web app and the assistants can do can be done through the JSON API under `/api`. It is for the finode app (the React frontend), scripts and tools; the web pages and the MCP server call the same services directly. Interactive documentation (`/docs`) is off unless `FINODE_API_DOCS=true`.
+Everything the app and the assistants can do can be done through the JSON API under `/api`. It is for the finode app (the only UI), scripts and tools; the MCP server calls the same services directly. Interactive documentation (`/docs`) is off unless `FINODE_API_DOCS=true`.
 
 ## Using it
 
 - **Sign in with a Supabase access token**: `Authorization: Bearer <token>`. An assistant's personal access token or an OAuth app's token is refused here (they work only on `/mcp`).
-- **The finode app** signs in through `/auth/sign-in` and then uses the HttpOnly session cookies it sets. A cookie request that changes anything must send `X-Finode: 1` from `FINODE_FRONTEND_ORIGIN`, the only origin CORS allows (see `docs/architecture/mcp-and-auth.md`).
+- **The finode app** signs in through `/auth/sign-in` and then uses the HttpOnly session cookies it sets. A cookie request that changes anything must send `X-Finode: 1` and an `Origin` equal to the address it came in on: the app and the API share one address, and there is no CORS (see `docs/architecture/mcp-and-auth.md`).
 - **Everything is yours alone.** Every request is scoped to the signed-in person; another person's ids answer 404 (or 400 when they are named inside a request). `tests/test_isolation.py` checks this for every route.
 - **Amounts** are decimal strings or numbers in the person's one currency (no other currency exists); more decimals than the currency keeps are refused. **Dates** are `YYYY-MM-DD`, between 1900 and 2999. Money moves as a list of **postings** (`account`, `side` debit or credit, `amount`) whose debits equal their credits.
 - **Errors** are JSON `{"detail": ...}`: 400 for a refused change (with the reason), 404 for an unknown id, 409 when something is in use, 422 for a malformed request.
@@ -150,7 +150,7 @@ A contact is a person you lend to, borrow from or share costs with. It is not an
 ## Entries
 
 What the finode app's Add screen saves: the entry as the person chose it, rows naming an account, a category or a person.
-The server decides what that records, exactly as for the web form (`services/entry.py`). `/transactions` stays the
+The server decides what that records (`services/entry.py`). `/transactions` stays the
 ledger's own, line by line, for scripts and tools.
 
 | Method | Path | What it does |
@@ -224,9 +224,10 @@ ledger's own, line by line, for scripts and tools.
 
 ## Views
 
-What one screen of the finode app shows, in one call. A view is built from the same code as the web page it stands for
-(`services/transaction_rows.py`), so the app formats nothing the server already works out (a row's name and second
-line, which way the money went, a month's totals); it costs no more queries than that page (`tests/test_query_counts.py`).
+What one screen of the finode app shows, in one call. A view is built by the server's own services
+(`services/transaction_rows.py` and the `*_view.py` modules), so the app formats nothing the server already works out (a
+row's name and second line, which way the money went, a month's totals); `tests/test_query_counts.py` holds each under a
+ceiling.
 Add a view only for a screen that would otherwise need several calls or would have to repeat a rule of the server.
 
 | Method | Path | What it does |

@@ -1,64 +1,71 @@
-# The web UI
+# The app
 
-The web app is **server-rendered HTML** (Jinja2) with a little vendored **htmx** and one hand-written script, `app/static/app.js`. There is **no JavaScript build step** and none should be added to these pages.
-
-A React app that will replace them is being built in `frontend/` on the `feature/react-frontend` branch (design: `docs/superpowers/specs/2026-11-13-react-frontend-design.md`; rules: the Frontend section of `AGENTS.md`). It uses only `/api`, shares this UI's colour tokens (`app/static/tokens.css`) and icons, and these pages stay the live UI until the switch.
+finode's one UI is **the finode app**: React + TypeScript, built with Vite, in `frontend/`. It is static files served by the `web` container (nginx) on the same address as the API, and it talks to the server only through the JSON API (`/api`). It replaced the server-rendered pages on 2026-11-17 (see [removed.md](../developer/reference/removed.md)); the rules for working on it are the UI section of `AGENTS.md`.
 
 ## Where things are
 
 | What | Where |
 |---|---|
-| Page handlers | `app/routers/web/*.py` (one module per area: `accounts`, `budget`, `categories`, `dashboard`, `transactions`, `recurring`, `settings`, `profile`, `data`, `oauth`, `auth`) |
-| Shared helpers for handlers | `app/routers/web/utils.py` (`htmx_redirect`, `htmx_error`, `htmx_trigger`, `safe_back`, `UpcomingItem`) |
-| Page templates | `app/templates/*.html`, all extending `base.html` |
-| Fragments returned to htmx | `app/templates/partials/` |
-| Styles and tokens | `app/static/style.css`; the colour tokens in `app/static/tokens.css` (shared with the React app) |
-| Behaviour | `app/static/app.js`, `app/static/htmx.min.js` |
-| Money formatting | `app/templating.py` (`money`, `symbol`, `friendly_date`), the `figure` macro in `partials/money.html` |
-| Icons | the `icon()` macro in `partials/icons.html` |
-| Flash messages | `app/flash.py` (`MESSAGES`), shown once and cleared by a middleware |
+| Routes, the session, the layout, toasts, the offline banner | `frontend/src/app/` (`router.tsx`, `session.tsx`, `Layout.tsx`, `Offline.tsx`) |
+| The API client | `frontend/src/api/` (`schema.d.ts` generated from `openapi.json`; `client.ts`, `useApi()`; `messages.ts`) |
+| The shared parts | `frontend/src/components/` (`Row`, `Tile`, `Sheet`, `Chips`, `MonthPill`, `Figure`, `CalcInfo`, `AmountField`, `EmptyState`, `Icon`; `lines/`, the Add screen's rows) |
+| One folder per area | `frontend/src/features/` (`home`, `transactions`, `entry`, `accounts`, `categories`, `budget`, `todo`, `people`, `recurring`, `tags`, `settings`, `consent`, `auth`) |
+| Writing amounts and days | `frontend/src/lib/` (`money.ts`, `amount.ts`, `dates.ts`, `split.ts`) |
+| Colours, the base look, the font | `frontend/src/styles/` (`tokens.css`, `base.css`, `fonts/`) |
+| What each screen shows | the server: `app/routers/views.py` (`/api/views/…`) built by `app/services/*_view.py` and `transaction_rows.py` |
 
-## The pages
+## The screens
 
 ```mermaid
 flowchart LR
     Home["/ Home"] --> Tx["/transactions"]
     Home --> New["/transactions/new"]
-    Budget["/budget"] --> Grp["/budget/group/{id}"]
+    Budget["/budget"] --> Grp["/budget/groups/{id}"]
+    Budget --> Move["/budget/move"]
+    Budget --> Coming["/budget/coming-up"]
     Accounts["/accounts"] --> Acc["/accounts/{id}"]
     Cats["/categories"] --> Cat["/categories/{id}"]
     Settings["/settings"] --> Rec["/recurring"]
+    Settings --> People["/people"]
+    Settings --> Tags["/tags"]
     Settings --> Ass["/profile/assistants"]
     Settings --> Dat["/profile/data"]
-    Settings --> Del["/accounts/deleted"]
 ```
 
-The bottom tab bar on phones is Home, Budgets, Accounts and Categories with the "+" docked in the middle (nothing floats over the page); from 60rem up a fixed sidebar replaces the bar. Transactions has no tab: it is reached from "View all" on Home and from the sidebar.
+The bottom tab bar on phones is Home, Budgets, Accounts and Categories with the "+" docked in the middle (nothing floats over the page); from 60rem a fixed sidebar replaces it. Transactions has no tab: it is reached from "View all" on Home and from the sidebar. Each screen is described in [ui-pages.md](../developer/reference/ui-pages.md).
 
-## How a page updates
+## How a screen gets its data
 
-1. A normal page is a full render of a template.
-2. A form uses `hx-post`. htmx 2 sends `DELETE` parameters in the URL, so destructive actions are `POST /{id}/delete` routes.
-3. On success the handler answers with `htmx_redirect(location, flash=...)`; the browser goes to the next page and shows the flash.
-4. On failure it answers with a 4xx status plus `HX-Retarget` pointing at an error element (`htmx_error`). `app.js` lets htmx swap those 4xx responses in, so the message appears next to the form, which is never cleared.
-5. Some interactions swap a fragment: the budget's sheet saves and swaps `#budget`; "Load more" on an account page replaces itself with the next chunk; the payee chips and the account picker refresh from small partial routes.
+```mermaid
+sequenceDiagram
+    participant S as Screen (React)
+    participant Q as TanStack Query
+    participant A as /api/views/… (FastAPI)
+    participant V as services/*_view.py
+    S->>Q: useQuery(["views", "home", month])
+    Q->>A: GET /api/views/home?month=… (session cookie)
+    A->>V: build the screen: rows, totals, words, signs
+    V-->>A: one answer
+    A-->>Q: JSON
+    Q-->>S: render (cached; shown at once next time)
+```
 
-Pages work without scripts where they can: rows are links to detail or edit pages, and the bottom sheets (`<dialog>`) are an enhancement over the same links.
+1. **A screen reads one view.** `/api/views/…` answers what one screen shows in one call, worked out by the server (`services/transaction_rows.py` and the `*_view.py` modules): what a row is called, its second line, which way the money went, a month's totals. The app does no ledger arithmetic; its only sum on money is what is left to allocate on the Add screen (`lib/split.ts`).
+2. **A change goes through the API** (`/api/entries`, `/api/budget/…`, …) with `X-Finode: 1` from the app's own address; on success every cached view (key prefix `["views"]`) is refreshed, so no screen shows stale books.
+3. **A refusal** shows the server's own words beside the form, which is never cleared; a lost connection or a server failure says so in plain words (`api/messages.ts`).
 
 ## Conventions you will meet
 
-- **Phones first.** Keep text inputs at 16px or more so iOS does not zoom. Prefer our own chips and sheets over native pickers so iOS and Android look the same.
-- **Bento tiles.** Rows are grouped into soft rounded tiles (a tile per day in transaction lists, per group on Accounts and Budget). One rule block at the end of `style.css` defines them; new lists should reuse it.
-- **Tokens only.** Colours come from the CSS variables in `tokens.css`; the light theme, the automatic dark block and the manual `data-theme="dark"` block must define the same tokens (a test compares them). Green and red are for money in and out only.
-- **The `back` path.** Forms that can be opened from several places take a `back` path and return there; always pass it through `safe_back`, which only allows local paths of the web UI.
-- **No Advanced switch (removed 2026-10-24).** Closing accounts is always in an account's menu; the `profiles.advanced` column is dropped (migration `a9b1c3d5e7f2`). The period lock and the hand-set order of accounts were removed too (2026-10-25, migration `b2d4f6a8c0e3`): accounts are listed alphabetically, the built-in groups first.
-- **Amount fields.** Every `input[inputmode="decimal"]` is cleaned as it is typed (`cleanAmount` in `app.js`): digits, one decimal point, a leading minus. The server still decides how many decimals are allowed.
-- **Indian grouping.** For INR the whole part is grouped as lakhs and crores (`12,34,567.00`); other currencies in thousands. `templating.money` follows the person's currency automatically.
-- **Signs.** Ordinary spending shows no minus; income is `+` and green; a real negative keeps its `−` in red. On an account's own page, what raises an asset or pays into a liability is green with a `+`.
-- **Offline and failed saves.** `base.html` has a hidden `#net-banner` and a `.loadbar`; they are driven by the last block of `app.js`. There is no offline queue: nothing is saved until the connection is back.
+- **Phones first.** Text inputs at 16px or more so iOS does not zoom; our own chips and sheets over native pickers (except the month and date pickers laid over our chips), so iOS and Android look the same.
+- **Bento tiles.** Rows sit in soft rounded tiles (`components/Tile`): a tile per day in transaction lists, per group on Budgets, per section in Settings.
+- **Tokens only.** Colours come from `tokens.css`; both dark blocks define the same tokens (a test compares them). Green and red are for money in and out only.
+- **Amounts are strings** end to end, never `Number`. Typing cleans them (`lib/amount.ts`), writing groups them (lakhs and crores for INR), and the server checks again.
+- **Today is the server's** (`useToday()`, in `FINODE_TIMEZONE`), never the device's clock.
+- **Offline.** A banner says so; nothing is saved until the connection is back (there is no offline queue).
+- **Updates.** The service worker fetches a new version in the background and puts it in once the page is hidden, so an open screen never reloads under someone typing. It leaves every API path to the network.
 
-## Tests for the UI
+## Tests for the app
 
-Unit tests see only the server-rendered HTML (`tests/htmlutil.py` has small helpers). Anything that lives in `app.js` is tested in `tests/browser/` with Playwright, which starts the real app on a free port with an in-memory database. Run them with `scripts/browser-tests.sh`.
+Vitest tests sit beside each component and run in `npm run check`. What needs a real browser is in `tests/browser/` (Playwright): `tests/browser/server.py` serves the built app and the API on one address with an in-memory database, only Supabase stood in for; the fixtures are `page`, `signed_in_page`, `api` and `books`. Run them with `scripts/browser-tests.sh` (`FINODE_BROWSER=webkit` for the closest to iOS Safari).
 
 Next: [The design system](design.md).

@@ -1,8 +1,9 @@
 # finode
 
-Personal finance API and web app built with FastAPI and SQLModel. Finode uses
-a double-entry ledger: every category-like concept is an account, and every
-posting is recorded as a balanced journal entry.
+Personal finance on a double-entry ledger with envelope budgeting: a FastAPI +
+SQLModel JSON API, an MCP server for AI assistants, and the finode app (React +
+TypeScript, in `frontend/`), served on the same address as the API. Every entry
+is a balanced journal entry; spending and income carry a budget category.
 
 ## Documentation
 
@@ -18,37 +19,36 @@ Requires Python 3.14+.
 ```bash
 uv sync                           # install dependencies
 uv run alembic upgrade head       # create / migrate the database
-uv run fastapi dev                # start the dev server
+uv run fastapi dev                # start the API
 ```
 
-The server runs at http://localhost:8000 with auto-reload. OpenAPI docs at `/docs` once you set `FINODE_API_DOCS=true` (off by default, because they are public).
+The API runs at http://localhost:8000 with auto-reload. OpenAPI docs at `/docs` once you set `FINODE_API_DOCS=true` (off by default, because they are public).
 
-## Web UI
+The app needs Node, at the version in `frontend/.nvmrc`:
 
-A server-rendered UI (Jinja2 templates + [htmx](https://htmx.org), no JavaScript
-build step) is served by the same app at http://localhost:8000/. Users sign
-in with email and password against Supabase Auth, so set `FINODE_SUPABASE_URL`
-and `FINODE_SUPABASE_ANON_KEY` first (see Configuration). Pages:
+```sh
+cd frontend && npm ci
+npm run dev       # http://localhost:5173, passing /api on to the API above
+npm run check     # what CI runs for the app
+```
 
-- **Dashboard** — net worth, this month's income and spending, recent
-  transactions, and a "Get started" checklist for new users
-- **Accounts** — accounts grouped by type with balances; each opens an
-  **account page** with its activity, running balance and actions
-- **Transactions** — grouped by day, filterable by account and date; tap one
-  to edit or delete it
-- **New transaction** — *simple* mode (amount, from, to) or *split* mode
-  (any number of debit/credit rows with a live balance check). Missing an
-  account? Pick **+ New account…** in any account list to add it, with an
-  optional opening balance, without leaving the form.
+People sign in with email and password against Supabase Auth, so set
+`FINODE_SUPABASE_URL` and `FINODE_SUPABASE_ANON_KEY` first (see Configuration).
 
-The layout adapts to the screen: phones get a bottom tab bar and a floating
-"+" button for new transactions, wider screens a top navigation bar. Light
-and dark themes follow the system setting.
+## The app
+
+Home (what is left to spend this month and the month's entries), Budgets,
+Accounts and Categories are the four tabs, with the "+" for a new entry docked
+in the middle on phones; from 60rem a sidebar replaces the tab bar. Settings
+holds Your data (export, backup, import, restore, erase), Recurring, People,
+Tags and AI assistants. Light and dark follow the system, or the choice made in
+Settings. What each screen does is in
+[docs/developer/reference/ui-pages.md](docs/developer/reference/ui-pages.md).
 
 ### Invite-only sign-up
 
-Registration is closed by default: `/signup` returns 404 and the login
-page shows no link. To let invited people create accounts:
+Registration is closed by default: `POST /api/auth/sign-up` answers 404 and
+the sign-in screen shows no link. To let invited people create accounts:
 
 1. In Supabase, open Authentication → Sign In / Providers and turn **off**
    "Allow new users to sign up". Without this, anyone holding your public anon
@@ -63,41 +63,33 @@ page shows no link. To let invited people create accounts:
      only sent to Supabase's admin endpoint, never to browsers, and it must
      never be committed.
 3. Restart (`docker compose up -d --build`) and share the code with the people
-   you invite. They enter it on `/signup` along with an email and password
+   you invite. They enter it on the app's Sign up screen along with an email and password
    (min. 8 characters); accounts are created pre-confirmed (no email
    verification) and the user is signed in immediately.
 
 `FINODE_MAX_USERS` (default 10, you included; 0 = no limit) closes sign-up once that many people have an account.
 
-With the service key set, people can also delete their own account (Profile › Your data › Delete my account): their data is erased and their Supabase login removed. Without it only "Erase my books" is offered.
+With the service key set, people can also delete their own account (Settings › Your data › Delete my account): their data is erased and their Supabase login removed. Without it only "Erase my books" is offered.
 
 Sign-in and sign-up attempts are rate limited per address (see `.env.example`), and each person has limits on accounts and transactions so nobody can fill the database.
 
-To close sign-up again, remove `FINODE_SIGNUP_CODE` and restart. There is no
-per-IP limit on code guesses, which is why the code must be long and random.
-Email verification and password reset are not implemented yet.
+To close sign-up again, remove `FINODE_SIGNUP_CODE` and restart. Code
+guesses are slowed per address (`FINODE_SIGNUP_ATTEMPTS`), but the code must
+still be long and random. There is no email verification; password reset is
+below.
 
-The browser keeps the Supabase tokens in `HttpOnly`, `SameSite=Lax` cookies
-sent to the whole site, and the UI calls the same services as the JSON API. The JSON
-API (all under `/api`) only accepts `Authorization: Bearer` tokens. Behind HTTPS, set
-`FINODE_COOKIE_SECURE=true`. htmx is vendored in `app/static/`, so no CDN is
-needed.
-
-## The React app (being built)
-
-The UI that will replace the pages above lives in `frontend/` (see the Frontend section of `AGENTS.md`). It needs Node, at the version in `frontend/.nvmrc`:
-
-```sh
-cd frontend && npm ci
-FINODE_FRONTEND_ORIGIN=http://localhost:5173 uv run fastapi dev   # in one terminal, from the repo root
-npm run dev                                                       # in another: http://localhost:5173
-npm run check                                                     # what CI runs for the frontend
-```
+The browser keeps the Supabase tokens in `HttpOnly`, `SameSite=Lax` cookies;
+the app's JavaScript never sees them. The JSON API takes either those cookies
+(the app: a change must also send `X-Finode: 1` from the API's own address) or
+an `Authorization: Bearer` token (scripts). Behind HTTPS, set
+`FINODE_COOKIE_SECURE=true`.
 
 ## Docker deployment
 
 `compose.yaml` runs finode behind an existing [Traefik](https://traefik.io)
-reverse proxy, using Supabase Postgres as the database.
+reverse proxy, using Supabase Postgres as the database. The app and the API share
+one address: Traefik sends `/api`, `/mcp`, `/.well-known` and the API docs to
+the `app` service and every other path to the `web` service (the built app).
 
 1. Copy `.env.example` to `.env` and fill it in:
    - `FINODE_DATABASE_URL` — the Supabase **session pooler** connection string
@@ -107,12 +99,9 @@ reverse proxy, using Supabase Postgres as the database.
      prepared statements psycopg uses, and the direct `db.<ref>.supabase.co`
      host, which is IPv6-only and unreachable from Docker's default networks.
    - `FINODE_SUPABASE_URL`, `FINODE_SUPABASE_ANON_KEY`
-   - `APP_DOMAIN` — the public host name Traefik should route to the app (the API,
-     `/mcp` for assistants, and the old pages)
-   - `WEB_DOMAIN` — the React app's host name (e.g. `app.finode.example.com`),
-     with `FINODE_FRONTEND_ORIGIN=https://<WEB_DOMAIN>` so the API lets the app
-     call it. Point an `A` record for it at the server, not proxied, as for
-     `APP_DOMAIN`; Traefik gets its certificate.
+   - `APP_DOMAIN` — the public host name of finode (the app, the API and `/mcp`
+     for assistants). Point an `A` record for it at the server; Traefik gets
+     its certificate.
    - optionally `TRAEFIK_NETWORK` (default `proxy`), `TRAEFIK_ENTRYPOINT`
      (`websecure`), `TRAEFIK_CERTRESOLVER` (`le`) and `WEB_CONCURRENCY` (`2`)
 2. Build, migrate and start:
@@ -124,12 +113,10 @@ reverse proxy, using Supabase Postgres as the database.
    The one-off `migrate` service runs `alembic upgrade head`; the `app`
    service starts only after it succeeds. The app publishes no ports — it is
    reachable only through Traefik on the external proxy network, with secure
-   cookies enabled. The `web` service serves the built React app
-   (`frontend/Dockerfile`, nginx) on `WEB_DOMAIN`; it holds no settings and
-   calls the API on `APP_DOMAIN`. The sign-in cookies stay on `APP_DOMAIN`:
-   the two names are the same site, so in one browser signing in on either
-   signs in both (an app installed on iOS keeps its own cookies).
-   `scripts/check-web-image.sh` builds that image and checks what it serves.
+   cookies enabled. The `web` service serves the built app
+   (`frontend/Dockerfile`, nginx); it holds no settings and calls `/api` on
+   its own address. `scripts/check-web-image.sh` builds that image and checks
+   what it serves.
 
 Day-to-day:
 
@@ -139,14 +126,13 @@ docker compose run --rm migrate       # run migrations on their own
 git pull && docker compose up -d --build   # deploy a new version
 ```
 
-To be able to go back, tag the running image first
-(`docker tag finode:latest finode:pre-trial`); going back is then
-`docker tag finode:pre-trial finode:latest && docker compose up -d --no-build app`.
-`compose.yaml` needs `WEB_DOMAIN` for every command, so keep it in `.env` even
-with the `web` service removed (`docker compose rm -sf web`).
+To be able to go back, tag the running images first
+(`docker tag finode:latest finode:pre-trial`, and the same for `finode-web`);
+going back is then `docker tag finode:pre-trial finode:latest && docker compose up -d --no-build app`
+(and `web`).
 
-The image (see `Dockerfile`) installs dependencies from `uv.lock`, runs as an
-unprivileged user and has a health check on `/`. `.dockerignore` keeps `.env`,
+The API's image (see `Dockerfile`) installs dependencies from `uv.lock`, runs as
+an unprivileged user and has a health check on `/api/auth/options`. `.dockerignore` keeps `.env`,
 local databases and tests out of it.
 
 ### Forgot password
@@ -154,7 +140,7 @@ local databases and tests out of it.
 Off until you set `FINODE_PASSWORD_RESET=true`, because Supabase must be able to send email first:
 
 1. Supabase › Authentication › Emails › SMTP Settings: enable custom SMTP with your mail provider's host, port, user and password, and a sender address on your own domain (for Zoho Mail: `smtp.zoho.com` or `smtp.zoho.in` to match your data centre, port 465, the mailbox's full address, an app password).
-2. Authentication › Emails › Templates › **Reset Password**: make the link `<a href="{{ .SiteURL }}/reset?token_hash={{ .TokenHash }}">Choose a new password</a>`. The Site URL (Authentication › URL Configuration) must be the public address of this app. When the finode app (React) moves to its own address (`app.<domain>`, `FINODE_FRONTEND_ORIGIN`), the Site URL and the OAuth Server's authorization path point there instead; until then they stay as they are.
+2. Authentication › Emails › Templates › **Reset Password**: make the link `<a href="{{ .SiteURL }}/reset?token_hash={{ .TokenHash }}">Choose a new password</a>`. The Site URL (Authentication › URL Configuration) must be the public address of finode (`https://<APP_DOMAIN>`): the link opens the app's Reset screen. The OAuth Server's authorization path is `/oauth/consent` on the same address, the app's consent screen.
 3. Set `FINODE_PASSWORD_RESET=true` and restart. The sign-in page then shows "Forgot your password?".
 
 The link only opens a form; the token is spent when the new password is submitted, so mail scanners that open links cannot use it up. `/forgot` always answers the same whether or not the address has an account, and is rate limited (`FINODE_RESET_ATTEMPTS`).
@@ -186,11 +172,11 @@ users' ids first or the foreign keys fail.
 ## Tests and code quality
 
 ```bash
-uv run pytest                  # unit and web tests (about 1,000, a few minutes)
-scripts/browser-tests.sh       # the browser tests in Docker, after building the React app (FINODE_BROWSER=webkit for Safari's engine)
+uv run pytest                  # the API's tests (about 1,300, a few minutes)
+scripts/browser-tests.sh       # the app's browser tests in Docker, after building it (FINODE_BROWSER=webkit for Safari's engine)
 uv run ruff check app tests migrations scripts && uv run ruff format --check app tests migrations scripts
 uv run pyrefly check           # type checks app/ (under a second)
-make check                     # lint + types + tests; `make help` lists every target
+make check                     # lint + types + tests + the app's npm check; `make help` lists every target
 make hooks                     # install the pre-commit hook (ruff, pyrefly, file hygiene)
 ```
 
@@ -203,17 +189,16 @@ app/
 ├── main.py            FastAPI app + router registration
 ├── config.py          pydantic-settings (env-driven)
 ├── dependencies.py    engine, session, repositories and services
-├── auth.py            Supabase JWT verification
-├── web_auth.py        email/password sign-in and cookie sessions for the UI
+├── auth.py            Supabase JWT verification, the app's cookie session
+├── session.py         email/password sign-in and the session cookies
 ├── models/            SQLModel ORM tables
 ├── schemas/           Pydantic request/response shapes
 ├── repositories/      tenant-scoped persistence over a Session
 ├── services/          ledger rules, balances, reports
-├── routers/           FastAPI APIRouters (JSON API)
-│   └── web/           HTML routers served at the site root
-├── templates/         Jinja2 templates (partials/ holds htmx fragments)
-└── static/            stylesheet, small script, vendored htmx
+├── routers/           the JSON API (views.py: one call per screen of the app)
+└── mcp_server/        the MCP server for AI assistants
 
+frontend/              the finode app (React + TypeScript + Vite)
 migrations/            Alembic migrations
 tests/                 pytest suite
 ```
@@ -227,10 +212,9 @@ Environment variables (or a `.env` file at the project root) override defaults:
 - `FINODE_TIMEZONE` — the time zone "today" is read in, e.g. `Asia/Kolkata`; the server's own clock when empty
 - `FINODE_SUPABASE_URL` — Supabase project URL, used to fetch JWKS for protected API routes
 - `FINODE_SUPABASE_AUDIENCE` — expected JWT audience, default `authenticated`
-- `FINODE_SUPABASE_ANON_KEY` — Supabase anon (public) key, used by the web UI to sign users in
+- `FINODE_SUPABASE_ANON_KEY` — Supabase anon (public) key, used to sign people in
 - `FINODE_SIGNUP_CODE`, `FINODE_SUPABASE_SERVICE_ROLE_KEY` — enable invite-only sign-up (see above); both are optional
 - `FINODE_COOKIE_SECURE` — set `true` when serving over HTTPS so session cookies are `Secure`, default `false` (compose sets it to `true`)
-- `FINODE_FRONTEND_ORIGIN` — where the finode app (the React frontend) is served, e.g. `https://app.example.com`: the only origin allowed to call `/api` from a browser and to make changes with the session cookie; empty (the default) allows none
 
 Keys without the `FINODE_` prefix (such as the compose settings above) are
 ignored by the app, so one `.env` serves both.
