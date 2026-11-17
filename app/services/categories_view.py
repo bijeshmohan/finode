@@ -1,7 +1,6 @@
 """What the Categories page and a category's own page show: for one kind (spending or earning), what each category came
 to in a month, ranked, with what is inside it and its share; for one category, its month, its subcategories and its own
-entries. The web pages (routers/web/categories.py) and the finode app's views (/api/views/categories) both read from
-here."""
+entries. The finode app's views (/api/views/categories) read from here."""
 
 from __future__ import annotations
 

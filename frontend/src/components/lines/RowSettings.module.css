@@ -1,4 +1,4 @@
-/* #row-settings in app/static/style.css: the amount and the day a row posts, a Done pill and a red Remove. */
+/* #row-settings: the amount and the day a row posts, a Done pill and a red Remove. */
 .fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

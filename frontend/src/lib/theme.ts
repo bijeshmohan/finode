@@ -1,5 +1,5 @@
-// The app's light or dark look, chosen on Settings for this browser only (the web pages kept it in a cookie the
-// server read; the app is static files, so it keeps it here). index.html reads the same key before the first paint.
+// The app's light or dark look, chosen on Settings for this browser only (the app is static
+// files, so it keeps it here, not on the server). index.html reads the same key before the first paint.
 export type Theme = "auto" | "light" | "dark";
 
 const KEY = "finode_theme";

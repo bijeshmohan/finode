@@ -1,12 +1,7 @@
 /// <reference types="vitest/config" />
-import { fileURLToPath } from "node:url";
-
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
-
-// The colour tokens, the font and other files both UIs share live in app/static until the old pages are retired.
-const staticDir = fileURLToPath(new URL("../app/static", import.meta.url));
 
 export default defineConfig({
   plugins: [
@@ -32,13 +27,15 @@ export default defineConfig({
           { src: "/favicon.svg", sizes: "any", type: "image/svg+xml" },
         ],
       },
-      workbox: { navigateFallbackDenylist: [/^\/api\//], globPatterns: ["**/*.{js,css,html,svg,png,woff2}"] },
+      workbox: {
+        // Every path Traefik sends to the API (compose.yaml; tests/test_compose_routes.py holds the two together).
+        navigateFallbackDenylist: [/^\/(api|mcp)(\/|$)/, /^\/\.well-known\//, /^\/(docs|redoc|openapi\.json)$/],
+        globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
+      },
     }),
   ],
-  resolve: { alias: { "@static": staticDir } },
   server: {
-    fs: { allow: [".", staticDir] },
-    // Development only: the API runs on `uv run fastapi dev`; in production it is its own address (VITE_API_URL).
+    // Development only: the API runs on `uv run fastapi dev`; in production Traefik sends /api to it on the same address.
     proxy: { "/api": "http://localhost:8000" },
   },
   test: {

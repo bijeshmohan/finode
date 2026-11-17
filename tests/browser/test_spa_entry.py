@@ -7,6 +7,7 @@ from playwright.sync_api import Page, expect
 
 from ..books import leg
 from .conftest import Api
+from .test_spa_home import MUTED
 
 
 def side(page: Page, title: str):
@@ -367,12 +368,8 @@ def test_adding_a_category_from_the_picker(signed_in_spa_page: Page, spa_books, 
     assert any(c["name"] == "Coffee" for c in spa_api.get("/categories/"))
 
 
-def test_the_amount_is_a_bare_figure_with_the_rupee_sign_against_it_as_on_the_web(
-    signed_in_spa_page: Page, page: Page, spa_books
-):
+def test_the_amount_is_a_bare_figure_with_the_rupee_sign_against_it(signed_in_spa_page: Page, spa_books):
     """No box and no ring around the Add screen's amount; the sign muted and right against the digits."""
-    page.goto("/transactions/new")
-    web_sign = page.locator(".total-field .currency-code").evaluate("e => getComputedStyle(e).color")
     app = signed_in_spa_page
     app.goto("/transactions/new")
     field = app.get_by_label("Amount", exact=True)
@@ -383,7 +380,7 @@ def test_the_amount_is_a_bare_figure_with_the_rupee_sign_against_it_as_on_the_we
     )
     assert look == ["0px", "none", "none"], look
     sign = app.locator("main").get_by_text("₹", exact=True).first
-    assert sign.evaluate("e => getComputedStyle(e).color") == web_sign, "muted, as on the web"
+    assert sign.evaluate("e => getComputedStyle(e).color") == app.evaluate(MUTED), "muted"
     sign_box, field_box = sign.bounding_box(), field.bounding_box()
     assert sign_box and field_box
     assert 0 <= field_box["x"] - (sign_box["x"] + sign_box["width"]) <= 16, "the sign sits against the digits"
@@ -394,7 +391,7 @@ GLYPH = """(e) => { const b = getComputedStyle(e, '::before');
   return {content: b.content, dashed: b.borderTopStyle, mask: b.maskImage || b.webkitMaskImage, weight: getComputedStyle(e).fontWeight}; }"""
 
 
-def test_the_rows_read_as_on_the_web_a_plus_until_chosen_then_a_glyph(signed_in_spa_page: Page, spa_books):
+def test_the_rows_read_a_plus_until_chosen_then_a_glyph(signed_in_spa_page: Page, spa_books):
     page = signed_in_spa_page
     page.goto("/transactions/new")
     for title in ("Paid from", "Spent on"):

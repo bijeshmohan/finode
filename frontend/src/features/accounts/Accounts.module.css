@@ -1,5 +1,5 @@
 /* The Accounts page's rows of cards and an account's own page (.acc-kind, .acc-head, .acc-rail, .acc-card*, .pin-mark,
-   .pin-button, .bill* in style.css); the parts every page shares are in components/Page.module.css. */
+   .pin-button, .bill*); the parts every page shares are in components/Page.module.css. */
 .kind {
   margin-top: 2.1rem;
 }
@@ -153,7 +153,7 @@
 .pinButton[aria-pressed="false"] :global(.icon) {
   color: var(--muted);
 }
-/* A card's bill (partials/card_bill.html) */
+/* A card's bill */
 .bill {
   margin: 1rem 0 0.5rem;
   padding: 0.85rem 1rem;

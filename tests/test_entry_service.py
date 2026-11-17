@@ -1,4 +1,4 @@
-"""Saving an entry from a form (services/entry.py): what the web form and /api/entries both record."""
+"""Saving an entry from a form (services/entry.py): what /api/entries records."""
 
 from decimal import Decimal
 from uuid import UUID

@@ -1,4 +1,4 @@
-/* The access levels in words (.access-example, .access-list of app/static/style.css). */
+/* The access levels in words (.access-example, .access-list). */
 .level {
   display: flex;
   flex-direction: column;

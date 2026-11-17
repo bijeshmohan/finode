@@ -1,6 +1,6 @@
 """What the Recurring list shows: every rule with the names on its two sides, what leaves each time (a split: its
-total), its schedule in words and its status. The web page (routers/web/recurring.py) and the finode app's view
-(/api/views/recurring) both read from here."""
+total), its schedule in words and its status. The finode app's view (/api/views/recurring) reads from
+here."""
 
 from __future__ import annotations
 

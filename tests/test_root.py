@@ -7,7 +7,7 @@ from .books import post_account
 
 
 def test_the_old_app_prefix_is_gone(client: TestClient):
-    """The web UI left /app long ago; the redirects that kept old links alive were removed once nothing pointed there."""
+    """The app left /app long ago; the redirects that kept old links alive were removed once nothing pointed there."""
     for old in ("/app", "/app/", "/app/accounts", "/app/oauth/consent?authorization_id=x"):
         assert client.get(old, follow_redirects=False).status_code == 404, old
 

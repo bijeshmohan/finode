@@ -1,7 +1,7 @@
 """JSON API for signing in (`/api/auth`): the finode app's sign-in, sign-up, password reset, sign-out and session.
 
 The session lives in HttpOnly cookies set here; the app's JavaScript never holds a token. Every POST must come from the
-app (`auth.check_app_request`). The rules and messages are the web pages' own (`app/auth_flows.py`).
+app (`auth.check_app_request`). The rules and messages live in `app/auth_flows.py`.
 """
 
 from typing import Annotated

@@ -1,4 +1,4 @@
-// The shared cases (tests/format_cases.json): pytest holds the server's filters to them, Vitest holds these helpers.
+// The shared cases (tests/format_cases.json): pytest holds app/formatting.py's `money` to them, Vitest holds these helpers.
 import cases from "../../../tests/format_cases.json";
 
 import type { Grouping } from "./amount";

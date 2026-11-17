@@ -1,5 +1,4 @@
-// The notice shown at sign-up and on Settings while finode is a test with invited people (partials/test_notice.html,
-// word for word).
+// The notice shown at sign-up and on Settings while finode is a test with invited people.
 import styles from "./TestNotice.module.css";
 
 export function TestNotice() {

@@ -1,4 +1,4 @@
-// The Transactions page (transactions.html): one month, newest first; the line that says how many and, filtered, what
+// The Transactions page: one month, newest first; the line that says how many and, filtered, what
 // they come to; the Filter sheet; what is dated ahead in its own card; "Show more" for the rest of the month. The
 // month, the filters and an open entry live in the address.
 import { useState } from "react";

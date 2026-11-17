@@ -1,4 +1,4 @@
-// What each access level lets an assistant do, in plain words (partials/access.html): the consent screen's cards.
+// What each access level lets an assistant do, in plain words: the consent screen's cards.
 import styles from "./Access.module.css";
 
 export type AccessLevel = "read" | "write" | "manage";

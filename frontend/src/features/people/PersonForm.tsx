@@ -1,4 +1,4 @@
-// Adding or editing a person (person_form.html): the name and details; when adding, what they already owed (an opening
+// Adding or editing a person: the name and details; when adding, what they already owed (an opening
 // balance), saved with them or not at all (services/people_view.add_person).
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";

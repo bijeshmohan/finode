@@ -1,5 +1,4 @@
-/* The Tags page and a tag's sheet, from .tag-row, .tag-name, .tag-count, .sheet-title, .sheet-extra and .danger-text of
-   app/static/style.css. */
+/* The Tags page and a tag's sheet. */
 .tile {
   padding: 0 1rem;
   background: var(--surface);

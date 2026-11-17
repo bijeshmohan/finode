@@ -1,4 +1,4 @@
-// A large amount with its currency (partials/money.html `figure`): the rupee sign in front for INR, set apart (smaller,
+// A large amount with its currency: the rupee sign in front for INR, set apart (smaller,
 // lighter, raised; a negative has its minus after the sign: ₹−5.00), the code after it, small, for anything else.
 import { useCurrency, useGrouping } from "../app/currency";
 import { formatMoney } from "../lib/money";

@@ -1,4 +1,4 @@
-// A bento tile: the slip rows sit on (the tile rule at the end of app/static/style.css).
+// A bento tile: the slip rows sit on (the tile rule at the end).
 import { type ReactNode, useId } from "react";
 
 import styles from "./Tile.module.css";

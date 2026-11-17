@@ -1,5 +1,4 @@
-"""A bill or an income shared with people, as the Add screen's Split describes it (the web form and /api/entries
-alike), turned into what the sharing services record, and back into the form's starting values for an edit.
+"""A bill or an income shared with people, as the Add screen's Split describes it (/api/entries), turned into what the sharing services record, and back into the form's starting values for an edit.
 
 The rules are the form's: a box left empty is not given. Your own payment on a bill is whatever the others did not
 pay; what landed in your account from an income is whatever the people did not receive for you."""

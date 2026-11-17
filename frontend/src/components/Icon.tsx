@@ -1,4 +1,4 @@
-// The web pages' stroke icons (partials/icons.html), drawn from icons.json; tests/test_icon_parity.py keeps the two equal.
+// The stroke icons, drawn from icons.json (their one source; tests/test_icons.py keeps the markup plain SVG).
 import icons from "./icons.json";
 
 export type IconName = keyof typeof icons;

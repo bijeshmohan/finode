@@ -1,6 +1,5 @@
 """JSON API for the Add screen's save (`/api/entries`): an entry as the person chose it (rows naming accounts, categories
-or people, or a bill or an income shared with people). The server decides what it records, exactly as for the web form
-(services/entry.py): an ordinary entry, money to or from a person, a gift, or a shared bill or income. `/api/transactions` stays the ledger's own, line by line."""
+or people, or a bill or an income shared with people). The server decides what it records (services/entry.py): an ordinary entry, money to or from a person, a gift, or a shared bill or income. `/api/transactions` stays the ledger's own, line by line."""
 
 from uuid import UUID
 

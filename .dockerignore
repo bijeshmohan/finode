@@ -23,5 +23,5 @@ tests/
 *.md
 AGENTS.md
 
-# The React app is built and served on its own (see frontend/); the API image needs none of it.
+# The app is built into its own image (frontend/Dockerfile, the `web` service); the API image needs none of it.
 frontend/

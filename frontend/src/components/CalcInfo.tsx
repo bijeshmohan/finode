@@ -1,5 +1,5 @@
-// The "i" beside a headline figure and the panel it opens: the sum behind the figure, with the person's own numbers
-// (partials/calc_info.html). A negative line flips its sign, so every line is a positive number and the column adds up.
+// The "i" beside a headline figure and the panel it opens: the sum behind the figure, with the person's own numbers.
+// A negative line flips its sign, so every line is a positive number and the column adds up.
 import { type ReactNode, useId } from "react";
 
 import { useCurrency, useGrouping } from "../app/currency";

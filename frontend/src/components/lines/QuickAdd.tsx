@@ -1,4 +1,4 @@
-// A new account or category made from the Add screen's picker (quick_account.html, quick_category.html): the server
+// A new account or category made from the Add screen's picker: the server
 // checks the name and where it goes; once made, it is chosen on the row the picker was opened from.
 import { useState } from "react";
 

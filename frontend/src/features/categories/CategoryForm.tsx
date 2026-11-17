@@ -1,4 +1,4 @@
-// Adding or editing a category (category_form.html): its name, the group it sits under (our own picker, "None (top
+// Adding or editing a category: its name, the group it sits under (our own picker, "None (top
 // level)" first), a note. An edit sends only what changed.
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";

@@ -1,4 +1,4 @@
-// The month selector: ‹ Nov 2026 ›, with the native month picker laid invisibly over the name (partials/month_pill.html).
+// The month selector: ‹ Nov 2026 ›, with the native month picker laid invisibly over the name.
 import { Icon } from "./Icon";
 import styles from "./MonthPill.module.css";
 

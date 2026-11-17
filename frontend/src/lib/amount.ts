@@ -1,5 +1,5 @@
-// Typing amounts, ported from app/static/app.js (cleanAmount, tidyAmount, groupAmount). The currency's decimal places
-// and grouping are arguments here, where app.js read them from <html>. The server checks every amount again.
+// Typing amounts: cleanAmount, tidyAmount and groupAmount. The currency's decimal places and grouping are arguments.
+// The server checks every amount again.
 
 /** Rupees are written in lakhs and crores (12,34,567); every other currency in thousands (1,234,567). */
 export type Grouping = "indian" | "western";

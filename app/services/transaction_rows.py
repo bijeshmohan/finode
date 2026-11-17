@@ -1,5 +1,5 @@
-"""The rows of a list of transactions, as every list shows them (the web pages and the React app's view endpoints):
-what each row is called, its second line, which way the money went, and the lists' summary and filter choices."""
+"""The rows of a list of transactions, as every list shows them (the finode app's view endpoints): what each
+row is called, its second line, which way the money went, and the lists' summary and filter choices."""
 
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ STOCK_OPENING_NOTE = "Initial account balance"
 
 @dataclass
 class UpcomingItem:
-    """One entry dated ahead, as the "upcoming" card shows it (see partials/upcoming.html)."""
+    """One entry dated ahead, as the "upcoming" card shows it."""
 
     transaction_id: UUID
     date: Date
@@ -450,8 +450,7 @@ def transaction_details(
 
 @dataclass
 class RegisterRow:
-    """One entry on an account's or a category's own page (partials/account_entries.html, category_entries.html): what
-    it is called, the quiet line under it, the day it posts when that is not its own, and the figure. `inflow` is money
+    """One entry on an account's or a category's own page: what it is called, the quiet line under it, the day it posts when that is not its own, and the figure. `inflow` is money
     coming in (green, "+"); `negative` a category's line that went the other way ("−"); `balance` the account's running
     balance (none on a category's page)."""
 

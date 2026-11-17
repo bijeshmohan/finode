@@ -26,7 +26,7 @@ interface AmountFieldProps {
 const KEPT = /[\d.-]/;
 
 /** The big amount is as wide as what is typed (in characters, a comma counting about half), at least "0.00", so the
- * currency sign in front sits against the digits (app.js sets --n the same way). */
+ * currency sign in front sits against the digits. */
 function widthOf(text: string): CSSProperties {
   const commas = text.split(",").length - 1;
   return { "--n": Math.max(text.length - 0.55 * commas, 4) } as CSSProperties;

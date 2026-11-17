@@ -1,4 +1,4 @@
-// Adding or editing an account (account_form.html). The kind chips choose where it sits; the budget box and a card's
+// Adding or editing an account. The kind chips choose where it sits; the budget box and a card's
 // days follow the chosen kind as the server describes it (can_budget, can_bill, budget_default). An edit sends only
 // what changed: a new balance records an adjustment against Opening Balances, so it is never sent unchanged.
 import { useState } from "react";

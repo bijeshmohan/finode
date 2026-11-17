@@ -1,4 +1,4 @@
-"""The JSON API does what the web app does (the pieces added so the API is complete)."""
+"""The JSON API does everything the app does (the pieces added so the API is complete)."""
 
 from datetime import date, timedelta
 

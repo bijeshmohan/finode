@@ -1,5 +1,5 @@
 """/api/views/people, /api/views/people/{contact_id}, its entries and /api/views/opening-form: what the finode app's
-People pages show, worked out as the web pages work it out (services/people_view.py); a person added with an opening
+People pages show, worked out by services/people_view.py; a person added with an opening
 balance all or nothing, and an entry reversed the way its kind is reversed."""
 
 from .books import category

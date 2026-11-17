@@ -1,6 +1,6 @@
 /* The Budgets pages (.budget-list, .crow.has-bar, .bar, .crow-of, form.copy-last, .quiet-link, .intro, .ready-warn,
    .hero-warn, .coming-note, .group-title, a.tappable, .hero-chev, .unused-toggle, the sheet's .sheet-title,
-   .sheet-amount, .sheet-facts and .sheet-actions in style.css). */
+   .sheet-amount, .sheet-facts and .sheet-actions). */
 .list {
   display: block;
   padding: 0 1rem;

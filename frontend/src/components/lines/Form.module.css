@@ -1,4 +1,4 @@
-/* The Add screen's form look of app/static/style.css (.back, .form-actions, .danger-zone, the payee and its chips, the
+/* The Add screen's form look (.back, .form-actions, .danger-zone, the payee and its chips, the
    meta row, the note and the tags), shared with the recurring form. The rows have their own (Lines.module.css). */
 .back {
   display: inline-flex;
@@ -207,7 +207,7 @@
 .muted {
   color: var(--muted);
 }
-/* The note under the Add screen saying what a transfer with a person does (the web's .person-note.muted). */
+/* The note under the Add screen saying what a transfer with a person does. */
 .personNote {
   margin: 0;
   color: var(--muted);

@@ -1,5 +1,5 @@
-"""JSON API for the finode app's screens (`/api/views`): one call answers what one screen shows, built from the same
-rows as the web pages (services/transaction_rows.py), so the app works out nothing the server already knows."""
+"""JSON API for the finode app's screens (`/api/views`): one call answers what one screen shows, built from the
+server's own rows (services/transaction_rows.py), so the app works out nothing the server already knows."""
 
 import calendar
 from collections.abc import Iterable
@@ -27,6 +27,7 @@ from ..dependencies import (
     Transactions,
     Transfers,
 )
+from ..formatting import grouping_for, money
 from ..repositories.transaction import SYSTEM_PAYEES
 from ..schemas.entry import EntryForm, ExpenseShare
 from ..schemas.views import (
@@ -137,7 +138,6 @@ from ..services.transaction_rows import (
     transaction_details,
 )
 from ..services.validation import validation_message
-from ..templating import grouping_for, money
 from .contact_utils import refused
 
 router = APIRouter(prefix="/views", tags=["views"], dependencies=[Depends(require_authenticated_user)])

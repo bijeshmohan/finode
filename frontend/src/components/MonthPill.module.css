@@ -1,4 +1,4 @@
-/* .month-pill of app/static/style.css: plain text, no box around the month. */
+/* .month-pill: plain text, no box around the month. */
 .pill {
   display: inline-flex;
   align-items: center;

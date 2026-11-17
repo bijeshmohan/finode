@@ -1,4 +1,4 @@
-// Invite-only sign-up (signup.html): the same checks and words as the web page; the server checks everything again.
+// Invite-only sign-up: the server's checks and words; the server checks everything again.
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";

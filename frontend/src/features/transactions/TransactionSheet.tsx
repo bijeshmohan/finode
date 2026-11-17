@@ -1,4 +1,4 @@
-// One transaction's details, in the sheet over a list (partials/txn_sheet.html): what it was, from and to, the note and
+// One transaction's details, in the sheet over a list: what it was, from and to, the note and
 // tags, then everything else behind one "More" row so Edit stays clear of a thumb opening it. Delete asks first and is
 // for good.
 import { useEffect } from "react";

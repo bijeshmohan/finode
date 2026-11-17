@@ -1,5 +1,4 @@
-// A bottom sheet: a modal dialog that slides up on phones and rises gently on wide screens (dialog.sheet in
-// app/static/style.css). It stays mounted and is opened and closed with showModal() and close(), so the browser gives
+// A bottom sheet: a modal dialog that slides up on phones and rises gently on wide screens. It stays mounted and is opened and closed with showModal() and close(), so the browser gives
 // focus back to whatever opened it and the closing slide can play. Escape and a tap on the dimmed area close it.
 // With `panelOnWide`, a wide screen with a mouse shows it as a panel beside the page instead (not modal: the list
 // stays usable), with a close button (dialog.side-panel).
@@ -22,7 +21,7 @@ interface SheetProps {
 const FIELDS = "input, select, textarea";
 
 /** How much of the screen the soft keyboard takes (--kb) and how tall the visible part is (--vvh), so a bottom sheet
- * sits above the keyboard (app.js "Sheets and the soft keyboard"). With no field in a sheet focused there is no
+ * sits above the keyboard . With no field in a sheet focused there is no
  * keyboard, whatever the viewport says: iOS's keyboard-down tick sends no resize. Installed once for the whole app. */
 let placing = false;
 function placeAboveTheKeyboard(): void {

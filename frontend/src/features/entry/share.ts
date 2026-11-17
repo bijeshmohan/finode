@@ -1,4 +1,4 @@
-// The Split of the Add screen as the person types it (people_editor.html, income_editor.html): amounts stay as typed
+// The Split of the Add screen as the person types it: amounts stay as typed
 // strings, and what is sent is only what was typed for the people ticked. The server works out every share, what is
 // owed and "you paid whatever the others did not" (services/entry_share.py).
 import { type Grouping, groupAmount } from "../../lib/amount";
@@ -107,7 +107,7 @@ function inGroups(id: string | null, groups: PickGroup[], titles: string[]): boo
 
 const MONEY = ["Assets", "Liabilities"];
 
-/** What the rows already say carries over to the Split, once (app.js CARRY): the account and the category, when the
+/** What the rows already say carries over to the Split, once: the account and the category, when the
  * Split has none yet. */
 export function carryExpense(
   share: ExpenseShareState,

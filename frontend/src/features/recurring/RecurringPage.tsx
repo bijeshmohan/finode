@@ -1,4 +1,4 @@
-// The Recurring list (recurring.html): the rules on repeat, then under Paused the paused and ended ones. Each row's
+// The Recurring list: the rules on repeat, then under Paused the paused and ended ones. Each row's
 // status and schedule are the server's (services/recurring_view.py); a row opens the rule.
 import { Link } from "react-router";
 

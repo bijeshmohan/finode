@@ -8,7 +8,7 @@ const css = readFileSync("src/styles/base.css", "utf8");
 describe("base.css", () => {
   it("uses the shared Anek Latin font", () => {
     expect(css).toContain('font-family: "Anek Latin"');
-    expect(css).toContain("@static/fonts/anek-latin.woff2");
+    expect(css).toContain("./fonts/anek-latin.woff2");
   });
 
   it("draws the rupee sign from the app's own font, not the phone's", () => {

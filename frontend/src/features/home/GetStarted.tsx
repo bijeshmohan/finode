@@ -1,4 +1,4 @@
-// A new person's first steps (partials/get_started.html): a step still to do is a link (the next one is filled in), a
+// A new person's first steps: a step still to do is a link (the next one is filled in), a
 // finished one is ticked.
 import { Link } from "react-router";
 

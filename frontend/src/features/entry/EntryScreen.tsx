@@ -1,4 +1,4 @@
-// The Add / Edit screen (transaction_form.html, txn_rows.html): what kind of entry, the amount, where the money came from
+// The Add / Edit screen: what kind of entry, the amount, where the money came from
 // and went (rows on each side, chosen in our own picker, each with its own amount and posting day from its settings),
 // and for a payment into a loan or fund what it was for. The server decides what the choices record
 // (services/entry.py); this screen only sends them.
@@ -353,7 +353,7 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
   );
 }
 
-/** What a transfer with a person does, said under the form as the web's does (app.js, noteForPeople): for the last row,
+/** What a transfer with a person does, said under the form: for the last row,
  * From then To, that names a person; nothing when nobody is on the entry. */
 function noteForPeople(state: LinesState, groups: PickGroup[], grouping: Grouping): string {
   const people = new Map((groups.find((g) => g.title === "People")?.options ?? []).map((o) => [o.id, o]));

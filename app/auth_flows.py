@@ -1,4 +1,4 @@
-"""The sign-in rules shared by the web pages and `/api/auth`: rate limits, checks and messages, in one place.
+"""The sign-in rules behind `/api/auth`: rate limits, checks and messages, in one place.
 
 Each flow either returns the new session (or nothing) or raises `FlowError` with the message to show, the HTTP
 status, and the seconds to wait when it is a rate limit.

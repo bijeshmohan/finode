@@ -1,4 +1,4 @@
-// The Filter sheet (transactions.html): Account, Category, Merchant and Tag, each chosen from a list you can search.
+// The Filter sheet: Account, Category, Merchant and Tag, each chosen from a list you can search.
 // "Show transactions" applies the choices; "Clear all" drops them.
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";

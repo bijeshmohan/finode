@@ -1,4 +1,4 @@
-// Entries dated ahead, in one card (partials/upcoming.html): closed, a line with what they come to; open, the list
+// Entries dated ahead, in one card: closed, a line with what they come to; open, the list
 // with the date down the left. A row opens the entry's details.
 import { useGrouping } from "../../app/currency";
 import { Icon } from "../../components/Icon";

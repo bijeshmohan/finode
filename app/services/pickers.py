@@ -1,5 +1,5 @@
-"""What the Add screen's pickers offer: accounts grouped by their type, the people, and the categories; for the web form
-and the finode app's form view alike."""
+"""What the Add screen's pickers offer: accounts grouped by their type, the people, and the categories; for the finode
+app's form view."""
 
 from collections.abc import Collection
 from dataclasses import dataclass

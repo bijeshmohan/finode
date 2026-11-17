@@ -1,5 +1,4 @@
-/* A day as a chip with the native date picker laid over it (.date-chip, .chip-prefix and .date-chip.dim of
-   app/static/style.css). */
+/* A day as a chip with the native date picker laid over it. */
 .chip {
   position: relative;
   display: inline-flex;

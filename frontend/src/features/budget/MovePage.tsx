@@ -1,4 +1,4 @@
-// Moving money between categories (budget_move.html): from one category's available money to another; Ready to assign
+// Moving money between categories: from one category's available money to another; Ready to assign
 // stays the same. The pickers say what each category has left.
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
@@ -98,7 +98,7 @@ function Body({ view }: { view: BudgetMoveView }) {
           onChange={setAmount}
           places={places}
           grouping={grouping}
-          // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the page is opened to type the amount, as on the web page
+          // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the page is opened to type the amount
           autoFocus
         />
         {field("From", from)}

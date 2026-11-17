@@ -1,25 +1,22 @@
-"""The React app reaches /api with the web session cookie: reads freely, changes only from the app's own origin with
-the X-Finode header. A bearer token still works as before, and cookie-only routes refuse it."""
+"""The app reaches /api with its session cookie: reads freely, changes only from the address the request came in on,
+with the X-Finode header. A bearer token still works as before, and cookie-only routes refuse it."""
 
 from collections.abc import Generator
 
 import pytest
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, HTTPException
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from app import auth
 from app.auth import CookieSession, require_cookie_session
-from app.config import settings
 from app.dependencies import get_db_session
-from app.main import app, cors_options
+from app.main import app
 from app.session import ACCESS_COOKIE, REFRESH_COOKIE, SessionTokens
 
 from .conftest import TEST_USER_ID
 
-FRONTEND = "https://app.example.com"
-APP = {"X-Finode": "1", "Origin": FRONTEND}
+APP = {"X-Finode": "1", "Origin": "http://testserver"}
 
 
 def fake_verify(token: str) -> dict:
@@ -35,7 +32,6 @@ def raw_client(session: Session, monkeypatch: pytest.MonkeyPatch) -> Generator[T
     """Real authentication against fake Supabase answers; only the database is replaced."""
     monkeypatch.setattr(auth, "verify_supabase_jwt", fake_verify)
     monkeypatch.setattr(auth, "refresh_session", lambda token: SessionTokens("good", "new-refresh", 3600))
-    monkeypatch.setattr(settings, "frontend_origin", FRONTEND)
     app.dependency_overrides[get_db_session] = lambda: session
     with TestClient(app, follow_redirects=False) as c:
         yield c
@@ -69,13 +65,6 @@ def test_an_expired_access_cookie_is_refreshed(raw_client: TestClient):
     assert any(c.startswith(f"{REFRESH_COOKIE}=new-refresh") for c in response.headers.get_list("set-cookie"))
 
 
-def test_without_a_frontend_origin_cookie_writes_are_refused(raw_client: TestClient, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(settings, "frontend_origin", None)
-    client = signed_in(raw_client)
-    assert client.get("/api/profile/").status_code == 200
-    assert client.patch("/api/profile/", json={"first_name": "A"}, headers=APP).status_code == 403
-
-
 def test_bearer_skips_the_origin_check(raw_client: TestClient):
     response = raw_client.patch("/api/profile/", json={"first_name": "A"}, headers={"Authorization": "Bearer good"})
     assert response.status_code == 200
@@ -99,32 +88,6 @@ def test_cookie_only_routes_refuse_bearer(raw_client: TestClient):
         assert client.get("/api/_probe", headers=bearer).status_code == 401
     finally:
         app.router.routes[:] = [r for r in app.router.routes if getattr(r, "path", None) != "/api/_probe"]
-
-
-def preflight(origin: str) -> dict:
-    tiny = FastAPI()
-
-    @tiny.get("/x")
-    def x() -> dict:
-        return {}
-
-    tiny.add_middleware(CORSMiddleware, **cors_options())
-    headers = {"Origin": origin, "Access-Control-Request-Method": "PATCH"}
-    return dict(TestClient(tiny).options("/x", headers=headers).headers)
-
-
-def test_cors_allows_only_the_frontend(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(settings, "frontend_origin", FRONTEND)
-    allowed = preflight(FRONTEND)
-    assert allowed["access-control-allow-origin"] == FRONTEND
-    assert allowed["access-control-allow-credentials"] == "true"
-    assert "access-control-allow-origin" not in preflight("https://evil.example")
-    monkeypatch.setattr(settings, "frontend_origin", None)
-    assert "access-control-allow-origin" not in preflight(FRONTEND)
-
-
-def test_the_app_has_cors():
-    assert any(m.cls is CORSMiddleware for m in app.user_middleware)
 
 
 def test_one_request_refreshes_the_session_once(raw_client: TestClient, monkeypatch: pytest.MonkeyPatch):
@@ -167,13 +130,6 @@ def test_cookie_only_routes_answer_the_app(raw_client: TestClient):
     assert client.post("/api/assistants/tokens", json={"name": "x"}, headers=APP).status_code == 201
 
 
-def test_the_frontend_origin_setting_forgives_a_trailing_slash():
-    from app.config import Settings
-
-    assert Settings(frontend_origin="https://app.example.com/").frontend_origin == "https://app.example.com"
-    assert Settings(frontend_origin="").frontend_origin is None
-
-
 def test_an_entry_says_whether_the_app_or_a_script_made_it(client, root_accounts):
     """The app signs in with its cookie session and records "web" (the app); a request with its own bearer token is a
     script and records "api" (step 10: every write now comes through /api, so the path no longer tells them apart)."""
@@ -185,3 +141,35 @@ def test_an_entry_says_whether_the_app_or_a_script_made_it(client, root_accounts
     assert client.post("/api/transactions/", json=body).json()["created_via"] == "web"
     scripted = client.post("/api/transactions/", json=body, headers={"Authorization": "Bearer some-supabase-jwt"})
     assert scripted.status_code == 201 and scripted.json()["created_via"] == "api"
+
+
+# ---- one address (step 10): the app and the API share an origin; a cookie write must come from it ---------------------
+
+
+def test_a_cookie_write_from_the_requests_own_origin_passes_and_any_other_is_refused(raw_client: TestClient):
+    client = signed_in(raw_client)
+    change = {"first_name": "A"}
+    own = {"X-Finode": "1", "Origin": "http://testserver"}
+    assert client.patch("/api/profile/", json=change, headers=own).status_code == 200
+    for other in ("https://evil.example", "https://app.example.com", "http://testserver.evil.example"):
+        refused = client.patch("/api/profile/", json=change, headers={"X-Finode": "1", "Origin": other})
+        assert refused.status_code == 403, other
+    assert client.patch("/api/profile/", json=change, headers={"X-Finode": "1"}).status_code == 403, "no origin"
+    assert client.patch("/api/profile/", json=change, headers={"Origin": "http://testserver"}).status_code == 403
+
+
+def test_the_origin_is_the_scheme_and_host_the_request_came_in_on(session, monkeypatch: pytest.MonkeyPatch):
+    """Behind Traefik, uvicorn (--proxy-headers) gives the request its https scheme and public host; the origin the
+    browser sends must match those exactly."""
+    monkeypatch.setattr(auth, "verify_supabase_jwt", fake_verify)
+    app.dependency_overrides[get_db_session] = lambda: session
+    try:
+        with TestClient(app, base_url="https://finode.example") as client:
+            client.cookies.set(ACCESS_COOKIE, "good", path="/")
+            change = {"first_name": "A"}
+            same = {"X-Finode": "1", "Origin": "https://finode.example"}
+            assert client.patch("/api/profile/", json=change, headers=same).status_code == 200
+            plain_http = {"X-Finode": "1", "Origin": "http://finode.example"}
+            assert client.patch("/api/profile/", json=change, headers=plain_http).status_code == 403
+    finally:
+        app.dependency_overrides.clear()

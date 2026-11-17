@@ -1,4 +1,4 @@
-// One group's budget (budget_group.html, budget_group_body.html): what is left in it and how much of what there was is
+// One group's budget: what is left in it and how much of what there was is
 // spent, its categories each opening the sheet, and its own budget in a sheet that never goes below what its
 // categories add up to.
 import { useState } from "react";
@@ -50,7 +50,7 @@ function GroupSheet({ view, monthLabel, onClose }: { view: BudgetGroupView; mont
           places={places}
           grouping={grouping}
           invalid={below}
-          // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the sheet is opened to set this amount, as on the web page
+          // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the sheet is opened to set this amount
           autoFocus
         />
         {assign.isError && (
@@ -157,7 +157,7 @@ export function GroupPage() {
   );
 }
 
-/** /budget/group/:id, the web page's address, opens the same page. */
+/** /budget/group/:id, an old address, opens the same page. */
 export function OldGroupAddress() {
   const { categoryId = "" } = useParams();
   const [params] = useSearchParams();

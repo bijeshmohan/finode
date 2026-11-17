@@ -1,6 +1,6 @@
 """What the Budgets pages show: the month's categories as a ranked list with a bar each, how each row reads, a group's
-glance and its categories, and the categories money can move between. The web pages (routers/web/budget.py) and the
-finode app's views (/api/views/budget) both read from here."""
+glance and its categories, and the categories money can move between. The finode app's
+views (/api/views/budget) read from here."""
 
 from __future__ import annotations
 
@@ -12,13 +12,13 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from ..clock import FIRST_MONTH, LAST_MONTH, month_progress
+from ..clock import month_progress
 from ..schemas.budget import BudgetLine, BudgetRead
 from .budget import BudgetService, month_start
 
 ZERO = Decimal("0.00")
 
-# How an amount is written in the person's currency (templating.money with their grouping).
+# How an amount is written in the person's currency (formatting.money with their grouping).
 Money = Callable[[Decimal], str]
 
 
@@ -31,13 +31,6 @@ def parse_month(value: str) -> date:
         return month_start(date.fromisoformat(value)) if value else month_start(None)
     except ValueError:
         return month_start(None)
-
-
-def shift(month: date, by: int) -> date:
-    """The month `by` months away; at the ends of the calendar finode works in, the month it already is."""
-    index = month.year * 12 + month.month - 1 + by
-    moved = date(index // 12, index % 12 + 1, 1) if 1 <= index // 12 <= 9998 else month
-    return moved if FIRST_MONTH <= moved <= LAST_MONTH else month
 
 
 class Node:
@@ -130,7 +123,7 @@ def hint(node: Node, money: Money) -> str:
 
 @dataclass
 class Reading:
-    """How a row reads (budget_rows.html): "of 25,000.00" or "nothing assigned", whether it is overspent or all spent, and
+    """How a row reads: "of 25,000.00" or "nothing assigned", whether it is overspent or all spent, and
     how far its bar runs."""
 
     of: Decimal | None

@@ -1,5 +1,5 @@
 """A bill or an income shared with people, saved from a form (services/entry_share.py through services/entry.py): what
-the web form's Split and /api/entries both record."""
+/api/entries records."""
 
 from decimal import Decimal
 from uuid import UUID, uuid4

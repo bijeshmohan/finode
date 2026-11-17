@@ -1,5 +1,5 @@
 """/api/views/budget, /api/views/budget/groups/{category_id} and /api/views/budget-move: what the finode app's Budgets
-pages show, worked out as the web pages work it out (services/budget_view.py)."""
+pages show, worked out by services/budget_view.py."""
 
 from datetime import date
 

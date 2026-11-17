@@ -101,7 +101,7 @@ class RecurringService:
         ]
 
     def _keep_labels[T: RecurringCreate | RecurringUpdate](self, rule: RecurringTransaction, data: T) -> T:
-        """A change that does not mention categories (the web form has no field for them yet) keeps the ones the rule
+        """A change that does not mention categories (a caller that sends none) keeps the ones the rule
         had, as long as the account they were on is still in the rule. Sending null takes a category off."""
         update: dict = {}
         if "category_id" not in data.model_fields_set and rule.category_id is not None:

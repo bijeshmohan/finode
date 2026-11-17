@@ -1,5 +1,5 @@
 /* The to-do bell and its sheet, from .bell-badge, .todo-open, .todo-empty, .todo-list, .todo-item and .plain-list.flat
-   of app/static/style.css. */
+  . */
 .bar {
   position: relative;
   display: inline-grid;

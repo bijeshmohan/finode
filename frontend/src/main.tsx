@@ -1,5 +1,5 @@
-// The colour tokens are shared with the web pages (app/static/tokens.css) until they are retired.
-import "@static/tokens.css";
+// The colour tokens: every colour the app uses (tests/test_contrast.py and the dark-mode parity guard check them).
+import "./styles/tokens.css";
 import "./styles/base.css";
 
 import { StrictMode } from "react";

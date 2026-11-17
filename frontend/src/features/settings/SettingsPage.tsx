@@ -1,4 +1,4 @@
-// Settings (settings.html): your name, the currency and the look, the links to Your data, Tags, People, Recurring and AI
+// Settings: your name, the currency and the look, the links to Your data, Tags, People, Recurring and AI
 // assistants, About (feedback, the test notice) and Sign out.
 import { useState } from "react";
 

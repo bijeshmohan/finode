@@ -5,7 +5,7 @@ from app import reset
 from app.config import Settings, settings
 from app.session import ACCESS_COOKIE
 
-from .test_api_auth import APP, from_the_app  # noqa: F401  (an autouse fixture)
+from .test_api_auth import APP
 
 TOKENS = {"access_token": "new-access", "refresh_token": "new-refresh", "expires_in": 3600}
 
