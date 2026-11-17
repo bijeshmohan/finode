@@ -6,7 +6,7 @@ The decisions that look odd until you know the reason. Each entry says what was 
 
 **Decision.** No balance, no "available", no "Ready to assign" is a column. They are computed from postings and the plan.
 **Why.** Editing, deleting or restoring a transaction can never leave a stored number stale or wrong. There is one source of truth, and `trial_balance` can re-check it.
-**Cost.** Pages must compute from many postings. This is why queries are bulk (one query for all postings, not one per account) and why `tests/test_query_counts.py` exists.
+**Cost.** Pages must compute from many postings. This is why queries are bulk (one query for all postings, not one per account) and why `backend/tests/guards/test_query_counts.py` exists.
 
 ## One currency per person
 
@@ -134,4 +134,10 @@ The owner froze new features on 2026-10-14 and defined the MVP on 2026-10-18: co
 
 **Decision.** The React app (`frontend/`) is finode's only UI and answers on the API's own address: Traefik sends the API's paths (`/api`, `/mcp`, `/.well-known`, the API docs) to the API's container and every other path to the app's (2026-11-17). The server-rendered Jinja/htmx pages were removed outright, not kept beside it.
 **Why.** The owner asked for the app at `finode.bijesh.me` and the old pages gone ("No dead code"). One address keeps the session cookies host-only and `SameSite=Lax` with no CORS at all: a change is accepted only from the address the request came in on, with `X-Finode: 1`. Keeping two UIs would have meant every rule about how a screen reads living twice; the views (`/api/views/…`) already hold it once.
-**Cost.** The app needs a build step (Node) and the server now serves no page of its own, so the API's health check and every API path outside `/api` must be named in `compose.yaml`, the service worker and the browser tests' server (`tests/test_compose_routes.py`). When the app and the API move to separate machines, one proxy in front of both keeps this single address; two addresses would bring back CORS and a cross-site cookie decision.
+**Cost.** The app needs a build step (Node) and the server now serves no page of its own, so the API's health check and every API path outside `/api` must be named in `compose.yaml`, the service worker and the browser tests' server (`backend/tests/guards/test_compose_routes.py`). When the app and the API move to separate machines, one proxy in front of both keeps this single address; two addresses would bring back CORS and a cross-site cookie decision.
+
+## Two halves side by side: `backend/` and `frontend/`
+
+**Decision.** The repository holds the API in `backend/` (the `finode` package, migrations, tests, its own `pyproject.toml`, `uv.lock` and `Dockerfile`) next to the app in `frontend/` (its own `package.json` and `Dockerfile`). `compose.yaml`, the one `.env`, the `Makefile` and the docs stay at the root (2026-11-17). The package is `finode`, not `app`; sign-in lives in `finode/auth/`. The API's tests are grouped by area, and the guards on the app's CSS and icons are Vitest tests in `frontend/`.
+**Why.** After the move to React the API sat at the root while the app sat in a folder, and the Python package had a generic name. With two equal halves each tool runs from its own folder with its own lock file and image, CI and Dependabot point at one folder each, and a test lives with the code it checks. The owner asked for a layout an experienced full-stack developer would expect, with no debt left behind.
+**Cost.** Python commands run in `backend/` (or through `make` from the root). The deploy command is unchanged (`docker compose up -d --build` at the root), as are the database and its migration history; the API image is now built from `backend/`.

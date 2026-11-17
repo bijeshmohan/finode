@@ -8,7 +8,7 @@ afterEach(() => {
   cleanup();
 });
 
-// jsdom has no modal dialogs: just enough of one for the Sheet's tests (real browsers are covered by tests/browser).
+// jsdom has no modal dialogs: just enough of one for the Sheet's tests (real browsers are covered by backend/tests/e2e).
 if (!("showModal" in HTMLDialogElement.prototype)) {
   Object.assign(HTMLDialogElement.prototype, {
     showModal(this: HTMLDialogElement) {

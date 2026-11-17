@@ -6,8 +6,8 @@ How the finode app (`frontend/`, React + TypeScript + Vite) is built and how it 
 
 - **One address.** The app is static files served by the `web` container (nginx); the API answers on the same address (Traefik sends `/api`, `/mcp`, `/.well-known` and the API docs to the `app` container). The app calls `/api/...` on its own origin with the session cookie and `X-Finode: 1`; nothing else is built in.
 - **Data.** Every screen reads its view endpoint (`/api/views/…`) through TanStack Query (`useApi()`, `data()`); cached views share the key prefix `["views"]` and a change to the books refreshes them all. Rows, totals, words and signs come from the server (`services/transaction_rows.py` and the `*_view.py` services); the app does no ledger arithmetic.
-- **Layout** (`app/Layout.tsx`): on phones a slim top bar (the wordmark, the to-do bell, an avatar to Settings) and a bottom tab bar of four tabs (Home, Budgets, Accounts, Categories) with the **"+" docked in the middle** (nothing floats over the page). Transactions has no tab: it is reached from "View all" on Home and from the sidebar. From 60rem a fixed sidebar (the new-entry button, the four sections, Transactions last, Settings at the foot) replaces the bars, and the page is one calm column. The "+" stays on every screen, the Add and Edit screens included (2026-11-16). On an account's or a category's page the "+" starts an entry for it and comes back there (`app/newEntry.tsx`).
-- **The tab's title** is the screen's name and "finode" ("Accounts · finode"): each route's `handle: { title }` in `app/router.tsx`, or, once loaded, the name of the account, category, person or budget group shown (`useTabTitle`, `app/title.tsx`). Home is plain "finode". A new screen gets a title; `app/title.test.tsx` lists the routes without one.
+- **Layout** (`backend/finode/Layout.tsx`): on phones a slim top bar (the wordmark, the to-do bell, an avatar to Settings) and a bottom tab bar of four tabs (Home, Budgets, Accounts, Categories) with the **"+" docked in the middle** (nothing floats over the page). Transactions has no tab: it is reached from "View all" on Home and from the sidebar. From 60rem a fixed sidebar (the new-entry button, the four sections, Transactions last, Settings at the foot) replaces the bars, and the page is one calm column. The "+" stays on every screen, the Add and Edit screens included (2026-11-16). On an account's or a category's page the "+" starts an entry for it and comes back there (`backend/finode/newEntry.tsx`).
+- **The tab's title** is the screen's name and "finode" ("Accounts · finode"): each route's `handle: { title }` in `backend/finode/router.tsx`, or, once loaded, the name of the account, category, person or budget group shown (`useTabTitle`, `backend/finode/title.tsx`). Home is plain "finode". A new screen gets a title; `backend/finode/title.test.tsx` lists the routes without one.
 - **Forms** end in one full-width primary button with no Cancel (the back link is the cancel; sheets keep theirs). A screen opened from several places takes `back`, passed through `lib/safeNext.ts` (only an address inside the app).
 
 ## Amount fields
@@ -18,7 +18,7 @@ On a new entry the amount takes the focus only on a computer (`(hover: hover) an
 
 ## Lakhs and crores
 
-For INR the whole part of an amount is grouped the Indian way (`12,34,567.00`), every other currency in thousands (`1,234,567.00`): `groupingFor` in the app, `formatting.grouping_for` on the server for the few sentences it words itself. `tests/format_cases.json` holds both to the same answers. Only the rupee is grouped this way.
+For INR the whole part of an amount is grouped the Indian way (`12,34,567.00`), every other currency in thousands (`1,234,567.00`): `groupingFor` in the app, `formatting.grouping_for` on the server for the few sentences it words itself. `backend/tests/format_cases.json` holds both to the same answers. Only the rupee is grouped this way.
 
 ## The rupee sign and what was added automatically
 
@@ -36,7 +36,7 @@ A round, faint `i` (`components/CalcInfo`) beside **Left to spend** (Home) and *
 
 ## Offline and failed saves
 
-`app/Offline.tsx` shows "You're offline…" while the device has no connection. A save that cannot reach the server says "finode can't be reached" and a server failure "Something went wrong"; the server's own words show only when it gave them as JSON (`api/messages.ts`). **A form is never cleared on failure.** There is no offline queue: nothing is saved until the connection is back. Browser tests: `tests/browser/test_states.py`. Empty states are a short sentence and one next step (`components/EmptyState`).
+`backend/finode/Offline.tsx` shows "You're offline…" while the device has no connection. A save that cannot reach the server says "finode can't be reached" and a server failure "Something went wrong"; the server's own words show only when it gave them as JSON (`api/messages.ts`). **A form is never cleared on failure.** There is no offline queue: nothing is saved until the connection is back. Browser tests: `backend/tests/e2e/test_states.py`. Empty states are a short sentence and one next step (`components/EmptyState`).
 
 ## Bento tiles
 
@@ -44,7 +44,7 @@ Rows are grouped into soft rounded tiles (`components/Tile`: `--surface` with a 
 
 ## Contrast (2026-11-04)
 
-`--muted` is `#5a6560` in light (5.3 : 1 on the paper, 5.9 : 1 on a tile, 4.8 : 1 on a grey chip) and `#949eb0` in dark; `--faint` (3.7 : 1) is for placeholders and glyphs, not sentences. `tests/test_contrast.py` fails if `--muted` drops under 4.5 : 1 in either theme.
+`--muted` is `#5a6560` in light (5.3 : 1 on the paper, 5.9 : 1 on a tile, 4.8 : 1 on a grey chip) and `#949eb0` in dark; `--faint` (3.7 : 1) is for placeholders and glyphs, not sentences. `frontend/src/styles/tokens.test.ts` fails if `--muted` drops under 4.5 : 1 in either theme.
 
 ## The passbook look (2026-11-07)
 
@@ -58,7 +58,7 @@ The mock-up the owner approved: https://claude.ai/artifact/GoV9wYTkHZbkuYZNT9vBF
 
 ## Colours and dark mode
 
-Every colour is a token in `frontend/src/styles/tokens.css`. Both dark blocks (the automatic `prefers-color-scheme` one and the chosen `data-theme="dark"` one) define the same tokens (`tests/test_app_css.py`). The look (auto, light, dark) is chosen on Settings and kept in this browser (`lib/theme.ts`); `index.html` applies it before the first paint. Form fields use `--field-border`, stronger than the hairline `--border` in dark. `favicon.svg` follows the ink palette in both themes; the phone's status bar takes the page's own colour (`theme-color`).
+Every colour is a token in `frontend/src/styles/tokens.css`. Both dark blocks (the automatic `prefers-color-scheme` one and the chosen `data-theme="dark"` one) define the same tokens (`frontend/src/styles/tokens.test.ts`). The look (auto, light, dark) is chosen on Settings and kept in this browser (`lib/theme.ts`); `index.html` applies it before the first paint. Form fields use `--field-border`, stronger than the hairline `--border` in dark. `favicon.svg` follows the ink palette in both themes; the phone's status bar takes the page's own colour (`theme-color`).
 
 ## One design system (2026-10-23)
 

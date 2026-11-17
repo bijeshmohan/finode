@@ -36,7 +36,6 @@ Read in this order:
 ## Developer
 
 - [Code map](developer/code-map.md): where everything lives and where to start reading
-- [Plan: tags apart from notes](developer/tags-plan.md): built 2026-10-26
 - [The JSON API](developer/api.md): every route, and what is left out on purpose
 - Reference, area by area (the detail behind `AGENTS.md`): [ledger](developer/reference/ledger.md), [budget](developer/reference/budget.md), [UI look](developer/reference/ui-look.md), [UI pages](developer/reference/ui-pages.md), [data and operations](developer/reference/data-and-ops.md), [assistants](developer/reference/assistants.md), [people](developer/reference/people.md), [removed on purpose](developer/reference/removed.md)
 - [Conventions and how-tos](developer/conventions.md): the rules, adding a page, a tool, a migration, a setting

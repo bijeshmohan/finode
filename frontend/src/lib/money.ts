@@ -1,5 +1,5 @@
-// Amounts in the app's words, worked on the string so no digit is lost to floating point. tests/format_cases.json holds
-// the cases, and the server's own sentences (app/formatting.py) to the same `money` answers.
+// Amounts in the app's words, worked on the string so no digit is lost to floating point. backend/tests/format_cases.json holds
+// the cases, and the server's own sentences (backend/finode/formatting.py) to the same `money` answers.
 import { type Grouping, groupDigits } from "./amount";
 
 const MINUS = "−"; // a true minus sign lines up with "+" and reads better than a hyphen

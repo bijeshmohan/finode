@@ -2,7 +2,7 @@
 
 ## The database
 
-Production uses **Supabase Postgres**; tests use an in-memory SQLite database per test (`tests/conftest.py` builds the schema directly and overrides `get_db_session`). Every table that belongs to a person has a `user` column holding the Supabase user id.
+Production uses **Supabase Postgres**; tests use an in-memory SQLite database per test (`backend/tests/conftest.py` builds the schema directly and overrides `get_db_session`). Every table that belongs to a person has a `user` column holding the Supabase user id.
 
 ```mermaid
 erDiagram
@@ -41,7 +41,7 @@ A few migrations refuse to run, changing nothing, when the data would not fit (f
 
 ## Configuration
 
-`app/config.py` exposes `settings` (pydantic-settings), reading `FINODE_*` environment variables and an optional `.env`. Keys without the `FINODE_` prefix are ignored, so one `.env` serves both the app and docker compose. New configuration goes in `config.py`, not into constants.
+`backend/finode/config.py` exposes `settings` (pydantic-settings), reading `FINODE_*` environment variables and an optional `.env`. Keys without the `FINODE_` prefix are ignored, so one `.env` serves both the app and docker compose. New configuration goes in `config.py`, not into constants.
 
 Main groups: database (`database_url`, `database_echo`), Supabase (`supabase_url`, `supabase_audience`, `supabase_anon_key`, `supabase_service_role_key`), sign-up (`signup_code`, `max_users`), cookies (`cookie_secure`), assistants (`mcp_rate_limit`), recurring (`recurring_interval_minutes`), the clock (`timezone`), per-person limits (`max_*`), and `api_docs`. The README lists the common ones with defaults.
 
@@ -50,11 +50,11 @@ Main groups: database (`database_url`, `database_echo`), Supabase (`supabase_url
 | | Format | Rules |
 |---|---|---|
 | **Export** | plain-text ledger journal (`/export`, `/api/export`) or CSV | always allowed |
-| **Import** | the same journal format (`app/ledger/` parses it, `services/data.py` maps it to accounts and transactions) | only while you have no transactions; preview first; all-or-nothing; unsupported input (conversions, prices, include, …) is an error with its line number |
+| **Import** | the same journal format (`backend/finode/ledger/` parses it, `services/data.py` maps it to accounts and transactions) | only while you have no transactions; preview first; all-or-nothing; unsupported input (conversions, prices, include, …) is an error with its line number |
 | **Backup** | one JSON file, `finode-backup` version 6 (`services/backup.py`) | everything you recorded: settings, accounts, contacts, transactions, recurring rules, budget plan. Access tokens, connected apps and the audit history are deliberately left out |
 | **Restore** | that file | only into an empty ledger; validated first; all-or-nothing; everything gets new ids |
 
-When you add a model or an account/budget flag, add it to the backup and to `tests/test_backup.py`, or it will silently be missing from backups.
+When you add a model or an account/budget flag, add it to the backup and to `backend/tests/data/test_backup.py`, or it will silently be missing from backups.
 
 ## Deployment
 
@@ -77,14 +77,14 @@ flowchart LR
 ```
 
 - `docker compose up -d --build` builds the image, runs `migrate`, then starts `app` behind Traefik and `backup`.
-- The **Dockerfile** is multi-stage: `uv` resolves `uv.lock` into `/opt/venv`; the runtime stage copies only that venv plus `app/`, `migrations/`, `alembic.ini` and `pyproject.toml` (needed for the entrypoint). If a new top-level file is needed at runtime, add it to the `COPY` lines.
+- The **Dockerfile** is multi-stage: `uv` resolves `uv.lock` into `/opt/venv`; the runtime stage copies only that venv plus `backend/finode/`, `backend/migrations/`, `alembic.ini` and `pyproject.toml` (needed for the entrypoint). If a new top-level file is needed at runtime, add it to the `COPY` lines.
 - The app publishes **no ports**; only Traefik reaches it, so `FORWARDED_ALLOW_IPS` trusts its `X-Forwarded-*` headers. Rate limiting depends on the real client address coming from those headers, so keep it.
 - **Nightly backup:** `scripts/db-backup.sh` dumps the `public` schema, gzips it, verifies it (gzip test and the ledger tables present) before it replaces a `.partial` file, and removes files older than `BACKUP_KEEP_DAYS` (14). Take one on demand with `docker compose run --rm -e BACKUP_ONCE=1 backup`. Logins live in Supabase Auth, not in the dump. The copy off the machine is not automated yet.
 - **Deploy checklist:** container healthy; no tracebacks in `docker compose logs app --since 3m`; `/login` answers 200 (the proxy can briefly answer 404 right after a restart).
 
 ## Background work
 
-`app/recurring_runner.py` runs in every worker (`FINODE_RECURRING_INTERVAL_MINUTES`, 0 turns it off). Due recurring occurrences are also recorded when someone opens Home, Transactions or Recurring. A unique index makes each occurrence record once however many workers race.
+`backend/finode/recurring_runner.py` runs in every worker (`FINODE_RECURRING_INTERVAL_MINUTES`, 0 turns it off). Due recurring occurrences are also recorded when someone opens Home, Transactions or Recurring. A unique index makes each occurrence record once however many workers race.
 
 ## Limits and rate limiting
 

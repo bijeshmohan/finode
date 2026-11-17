@@ -4041,7 +4041,7 @@ export interface components {
             /** Funded */
             funded: string;
             /** Lines */
-            lines: components["schemas"]["app__schemas__shared_expense__LineRead"][];
+            lines: components["schemas"]["finode__schemas__shared_expense__LineRead"][];
             /** Owed */
             owed: components["schemas"]["OwedRead"][];
             /** Shares */
@@ -5746,7 +5746,7 @@ export interface components {
              */
             id: string;
             /** Lines */
-            lines: components["schemas"]["app__schemas__shared_expense__LineRead"][];
+            lines: components["schemas"]["finode__schemas__shared_expense__LineRead"][];
             /** Owed */
             owed: components["schemas"]["OwedRead"][];
             /** Shares */
@@ -6117,7 +6117,7 @@ export interface components {
             /** From Label */
             from_label: string;
             /** From Lines */
-            from_lines: components["schemas"]["app__schemas__views__LineRead"][];
+            from_lines: components["schemas"]["finode__schemas__views__LineRead"][];
             /** Loan Like */
             loan_like: boolean;
             person: components["schemas"]["PersonRef"] | null;
@@ -6134,7 +6134,7 @@ export interface components {
             /** To Label */
             to_label: string;
             /** To Lines */
-            to_lines: components["schemas"]["app__schemas__views__LineRead"][];
+            to_lines: components["schemas"]["finode__schemas__views__LineRead"][];
             /** With Names */
             with_names: string[];
         };
@@ -6401,7 +6401,7 @@ export interface components {
          * LineRead
          * @description One line of the ledger entry that confirming will record (or recorded).
          */
-        app__schemas__shared_expense__LineRead: {
+        finode__schemas__shared_expense__LineRead: {
             /**
              * Account Id
              * Format: uuid
@@ -6417,7 +6417,7 @@ export interface components {
          * LineRead
          * @description One side's line in a transaction's details.
          */
-        app__schemas__views__LineRead: {
+        finode__schemas__views__LineRead: {
             /** Amount */
             amount: string;
             /** Name */

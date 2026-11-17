@@ -28,7 +28,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Every path Traefik sends to the API (compose.yaml; tests/test_compose_routes.py holds the two together).
+        // Every path Traefik sends to the API (compose.yaml; backend/tests/guards/test_compose_routes.py holds the two together).
         navigateFallbackDenylist: [/^\/(api|mcp)(\/|$)/, /^\/\.well-known\//, /^\/(docs|redoc|openapi\.json)$/],
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
       },

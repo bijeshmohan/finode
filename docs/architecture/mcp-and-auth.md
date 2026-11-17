@@ -13,7 +13,7 @@ Identity itself is **Supabase Auth**; finode stores no passwords. The ledger dat
 
 ## Signing in to the app
 
-`app/session.py` signs people in through Supabase's password grant and keeps the tokens in `HttpOnly` cookies (path `/`; `Secure` when `FINODE_COOKIE_SECURE` is true). The app's JavaScript never sees a token.
+`backend/finode/auth/session.py` signs people in through Supabase's password grant and keeps the tokens in `HttpOnly` cookies (path `/`; `Secure` when `FINODE_COOKIE_SECURE` is true). The app's JavaScript never sees a token.
 
 ```mermaid
 sequenceDiagram
@@ -40,11 +40,11 @@ sequenceDiagram
 - **Cookie only** (`auth.require_cookie_session`): what a token alone must never do, such as minting tokens, connecting apps, consenting for an assistant or erasing the books, refuses a bearer header even alongside a cookie.
 - A connected app's token (`client_id` claim) is refused in a cookie as anywhere outside `/mcp`.
 
-Sign-up is invite-only (`app/signup.py`): the invite code is compared in constant time and users are created, already confirmed, through Supabase's admin API with the **service key**. That key must stay server-side: never render it, log it or send it to a browser. Password reset (`app/reset.py`, `/api/auth/forgot`, `/api/auth/reset`) is off unless `FINODE_PASSWORD_RESET=true`. Sign-in and sign-up attempts are slowed per address by the in-memory limiter in `app/ratelimit.py`.
+Sign-up is invite-only (`backend/finode/auth/signup.py`): the invite code is compared in constant time and users are created, already confirmed, through Supabase's admin API with the **service key**. That key must stay server-side: never render it, log it or send it to a browser. Password reset (`backend/finode/auth/reset.py`, `/api/auth/forgot`, `/api/auth/reset`) is off unless `FINODE_PASSWORD_RESET=true`. Sign-in and sign-up attempts are slowed per address by the in-memory limiter in `backend/finode/ratelimit.py`.
 
 ## The MCP server
 
-`app/mcp_server/` serves an MCP server at `/mcp` (Streamable HTTP) built on the official `mcp` SDK. It is **stateless with JSON responses**, so any worker can answer any request. It is a plain ASGI route added in `app/main.py`; `lifespan` starts the SDK's session managers.
+`backend/finode/mcp_server/` serves an MCP server at `/mcp` (Streamable HTTP) built on the official `mcp` SDK. It is **stateless with JSON responses**, so any worker can answer any request. It is a plain ASGI route added in `backend/finode/main.py`; `lifespan` starts the SDK's session managers.
 
 | Module | Job |
 |---|---|
@@ -108,6 +108,6 @@ Details that matter:
 
 ## Isolation
 
-Every query is filtered by the user. `tests/test_isolation.py` proves it: it gives person A a ledger that uses every feature, then person B tries every route, list, form field and assistant token to reach it. A new route cannot ship without being classified there.
+Every query is filtered by the user. `backend/tests/guards/test_isolation.py` proves it: it gives person A a ledger that uses every feature, then person B tries every route, list, form field and assistant token to reach it. A new route cannot ship without being classified there.
 
 Next: [Data and operations](data-and-ops.md).

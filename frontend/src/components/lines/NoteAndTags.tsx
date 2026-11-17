@@ -9,7 +9,7 @@ import { useApi } from "../../api/context";
 import { Sheet } from "../../components/Sheet";
 import styles from "./Form.module.css";
 
-/** As the server keeps it (app/tags.py): "Goa trip" is the tag goa-trip. The server checks every tag again. */
+/** As the server keeps it (backend/finode/tags.py): "Goa trip" is the tag goa-trip. The server checks every tag again. */
 const NAME = /^[a-z0-9](?:[a-z0-9_-]{0,28}[a-z0-9])?$/;
 export const MAX_TAGS = 10;
 

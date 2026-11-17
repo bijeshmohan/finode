@@ -1,0 +1,191 @@
+"""JSON API for transactions (`/api/transactions`): record (one or a batch), read, search, change, delete, payees."""
+
+from datetime import date
+from typing import Literal
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+
+from ..auth.identity import require_authenticated_user
+from ..dependencies import Contacts, Transactions
+from ..limits import LimitReached
+from ..schemas.transaction import (
+    BatchResult,
+    PayeeDefaultRead,
+    PayeeRead,
+    PayeeSuggestions,
+    TransactionBatch,
+    TransactionCreate,
+    TransactionPreview,
+    TransactionRead,
+    TransactionUpdate,
+)
+from ..schemas.views import PaymentCategory
+from ..services.payee_suggestions import suggest
+from ..services.transaction import InvalidPostingError
+
+router = APIRouter(
+    prefix="/transactions",
+    tags=["transactions"],
+    dependencies=[Depends(require_authenticated_user)],
+)
+
+
+@router.post("/", response_model=TransactionRead | TransactionPreview, status_code=201)
+def create_transaction(
+    transaction: TransactionCreate,
+    transactions: Transactions,
+    response: Response,
+    dry_run: bool = False,
+):
+    """Record a transaction: postings whose debits equal their credits (at least two), a date (today by default), payee, note and optional `related_id`.
+    `source`, `external_id` and `source_url` say where it came from (a bank, a mail); a source's reference is used once,
+    so sending the same one again with the same date and rows answers 200 with the entry already recorded, and
+    nothing is created. The same reference with a different date or rows is a 400.
+    With `dry_run=true` every check runs but nothing is saved: the answer (200) is the entry as it would be saved."""
+    try:
+        if dry_run:
+            response.status_code = 200
+            return transactions.preview_create(transaction)
+        created, made = transactions.create_once(transaction)
+        if not made:
+            response.status_code = 200
+        return created
+    except (InvalidPostingError, LimitReached) as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
+
+
+@router.post("/batch", response_model=BatchResult, status_code=201)
+def create_transactions(batch: TransactionBatch, transactions: Transactions, response: Response, dry_run: bool = False):
+    """Record up to 50 transactions as one: all are saved or none. An entry whose `source` and `external_id` are already
+    recorded with the same date and rows is skipped (status `already_recorded`), so a batch can be sent again safely.
+    Any problem refuses the whole batch (400) naming the entries at fault. With `dry_run=true` nothing is saved and the
+    answer (200) shows what would be."""
+    try:
+        result = transactions.record_batch(batch.transactions, dry_run)
+    except (InvalidPostingError, LimitReached) as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
+    if not result.created:
+        response.status_code = 200
+    return result
+
+
+@router.get("/payees", response_model=list[PayeeRead])
+def payees(transactions: Transactions):
+    """Who you have paid or been paid by, most used first (the opening-balance entries are left out)."""
+    return [PayeeRead(payee=name, count=count) for name, count in transactions.payees()]
+
+
+@router.get("/payee-suggestions", response_model=PayeeSuggestions)
+def payee_suggestions(transactions: Transactions, contacts: Contacts, payee: str = "", only: str = ""):
+    """The Add screen's chips: names of people you pay that match what is typed (most paid first), or after an "@"
+    your people; `only=people` offers people only. Names only, never accounts."""
+    return suggest(transactions, contacts, payee, only)
+
+
+@router.get("/payee-defaults", response_model=list[PayeeDefaultRead])
+def payee_defaults(transactions: Transactions, payee: str = "", limit: int = Query(default=5, ge=1, le=20)):
+    """How payees are usually booked, most used first: the accounts of the newest entry with one account on each side
+    (so a repeat can be filled in), and the other routes seen. `payee` narrows to those that match what is typed."""
+    return transactions.payee_defaults(payee, limit)
+
+
+@router.get("/{transaction_id}", response_model=TransactionRead, status_code=200)
+def get_transaction(transaction_id: UUID, transactions: Transactions):
+    """One transaction with its postings."""
+    transaction = transactions.read(transaction_id)
+    if not transaction:
+        raise HTTPException(status_code=404, detail="transaction not found")
+    return transaction
+
+
+@router.get("/", response_model=list[TransactionRead], status_code=200)
+def get_transactions(
+    transactions: Transactions,
+    account_id: UUID | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    limit: int | None = Query(default=None, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    text: str | None = None,
+    kind: Literal["expense", "income", "transfer"] | None = None,
+    category_id: UUID | None = None,
+    payee: str | None = None,
+    source: str | None = None,
+    external_id: str | None = None,
+    tag: str | None = None,
+):
+    """Newest first. `text` matches the payee, the note or the name of an account used; `kind` is told by the accounts
+    used (spending, income or a transfer); `category_id` is a category the entry must also touch;
+    `payee` is exact, capitals aside; `source` and `external_id` find the entry a source's reference stands for; `tag` finds
+    entries whose note has that #hashtag."""
+    try:
+        return transactions.list(
+            account_id, date_from, date_to, limit, offset, text, kind, category_id, payee, source, external_id, tag
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
+
+
+@router.patch("/{transaction_id}", response_model=TransactionRead | TransactionPreview, status_code=200)
+def update_transaction(
+    transaction_id: UUID,
+    data: TransactionUpdate,
+    transactions: Transactions,
+    dry_run: bool = False,
+):
+    """Change a transaction; only the fields sent change (`related_id: null` removes the link; `source`, `external_id` and `source_url` can be set or, with null, cleared).
+    With `dry_run=true` every check runs but nothing is saved: the answer is the entry as it would read afterwards."""
+    try:
+        if dry_run:
+            return transactions.preview_update(transaction_id, data)
+        transaction = transactions.update(transaction_id, data)
+    except InvalidPostingError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from None
+    if not transaction:
+        raise HTTPException(status_code=404, detail="transaction not found")
+    return transaction
+
+
+@router.delete("/{transaction_id}", status_code=204, response_model=None)
+def delete_transaction(transaction_id: UUID, transactions: Transactions, response: Response, dry_run: bool = False):
+    """Delete a transaction for good.
+    With `dry_run=true` nothing is deleted: the answer (200) is the entry that would go."""
+    try:
+        if dry_run:
+            response.status_code = 200
+            return transactions.preview_delete(transaction_id)
+        transaction = transactions.delete(transaction_id)
+    except InvalidPostingError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+    except ValueError:
+        raise HTTPException(status_code=404, detail="transaction not found") from None
+    if not transaction:
+        raise HTTPException(status_code=404, detail="transaction not found")
+    return {"message": "transaction deleted successfully"}
+
+
+@router.get("/{transaction_id}/related", response_model=list[TransactionRead])
+def related_transactions(transaction_id: UUID, transactions: Transactions):
+    """The entries that are related to this one (refunds, reversals), oldest first."""
+    if transactions.read(transaction_id) is None:
+        raise HTTPException(status_code=404, detail="transaction not found")
+    return transactions.related(transaction_id)
+
+
+@router.post("/{transaction_id}/category", response_model=TransactionRead)
+def label_payment(transaction_id: UUID, data: PaymentCategory, transactions: Transactions):
+    """Give an entry's payments into accounts outside the budget (a loan, a fund) that no category took a category: the
+    to-do bell's fix. 400 when the entry has no payment waiting for one."""
+    if transactions.read(transaction_id) is None:
+        raise HTTPException(status_code=404, detail="transaction not found")
+    try:
+        return transactions.label_payment(transaction_id, data.category_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None

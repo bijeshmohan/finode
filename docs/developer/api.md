@@ -6,7 +6,7 @@ Everything the app and the assistants can do can be done through the JSON API un
 
 - **Sign in with a Supabase access token**: `Authorization: Bearer <token>`. An assistant's personal access token or an OAuth app's token is refused here (they work only on `/mcp`).
 - **The finode app** signs in through `/auth/sign-in` and then uses the HttpOnly session cookies it sets. A cookie request that changes anything must send `X-Finode: 1` and an `Origin` equal to the address it came in on: the app and the API share one address, and there is no CORS (see `docs/architecture/mcp-and-auth.md`).
-- **Everything is yours alone.** Every request is scoped to the signed-in person; another person's ids answer 404 (or 400 when they are named inside a request). `tests/test_isolation.py` checks this for every route.
+- **Everything is yours alone.** Every request is scoped to the signed-in person; another person's ids answer 404 (or 400 when they are named inside a request). `backend/tests/guards/test_isolation.py` checks this for every route.
 - **Amounts** are decimal strings or numbers in the person's one currency (no other currency exists); more decimals than the currency keeps are refused. **Dates** are `YYYY-MM-DD`, between 1900 and 2999. Money moves as a list of **postings** (`account`, `side` debit or credit, `amount`) whose debits equal their credits.
 - **Errors** are JSON `{"detail": ...}`: 400 for a refused change (with the reason), 404 for an unknown id, 409 when something is in use, 422 for a malformed request.
 - Routes with a trailing slash (`/accounts/`) are the collection; `/accounts/closed`, `/transactions/payees` and the like are fixed words, not ids.
@@ -226,7 +226,7 @@ ledger's own, line by line, for scripts and tools.
 
 What one screen of the finode app shows, in one call. A view is built by the server's own services
 (`services/transaction_rows.py` and the `*_view.py` modules), so the app formats nothing the server already works out (a
-row's name and second line, which way the money went, a month's totals); `tests/test_query_counts.py` holds each under a
+row's name and second line, which way the money went, a month's totals); `backend/tests/guards/test_query_counts.py` holds each under a
 ceiling.
 Add a view only for a screen that would otherwise need several calls or would have to repeat a rule of the server.
 
@@ -259,4 +259,4 @@ Add a view only for a screen that would otherwise need several calls or would ha
 
 ## Adding a route
 
-See [Conventions and how-tos](conventions.md): a handler in `app/routers/`, a schema in `app/schemas/`, a test, the classification in the isolation audit, and a row here (this table is the list of what exists: regenerate it from `app.routes` when routes change).
+See [Conventions and how-tos](conventions.md): a handler in `backend/finode/routers/`, a schema in `backend/finode/schemas/`, a test, the classification in the isolation audit, and a row here (this table is the list of what exists: regenerate it from `app.routes` when routes change).

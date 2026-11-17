@@ -1,4 +1,4 @@
-// The colour tokens: every colour the app uses (tests/test_contrast.py and the dark-mode parity guard check them).
+// The colour tokens: every colour the app uses (frontend/src/styles/tokens.test.ts and the dark-mode parity guard check them).
 import "./styles/tokens.css";
 import "./styles/base.css";
 
@@ -13,7 +13,7 @@ const root = document.getElementById("root");
 if (!root) throw new Error("index.html has no #root element");
 
 // Installable to the home screen. A registration that fails (the page navigated away meanwhile, an old browser) is
-// harmless: the app works online without it. A new version waits for the page to be left (app/update.ts), then the
+// harmless: the app works online without it. A new version waits for the page to be left (backend/finode/update.ts), then the
 // service worker takes over and the page reloads.
 const updateSW = registerSW({
   immediate: true,

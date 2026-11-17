@@ -15,7 +15,8 @@ name: finode
 
 x-finode: &finode
   image: finode:latest
-  build: .
+  build:
+    context: backend
   env_file: .env
 
 services:
