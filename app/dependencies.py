@@ -51,12 +51,18 @@ def get_db_session():
         yield session
 
 
+def origin_of(request: Request) -> str:
+    """Who is writing, as entries record it: "web" for the finode app (signed in with its cookie session), "api" for a
+    request that sends its own bearer token (a script). Assistants come through /mcp, which names them itself."""
+    return "api" if request.headers.get("authorization") else "web"
+
+
 def get_account_repository(
     request: Request,
     db: Session = Depends(get_db_session),
     user: CurrentUser = Depends(require_authenticated_user),
 ) -> AccountRepository:
-    origin = "api" if request.url.path.startswith("/api/") else "web"
+    origin = origin_of(request)
     return AccountRepository(db, user.id, origin=origin)
 
 
@@ -119,7 +125,7 @@ def get_contact_transactions(
     pr: ProfileRepository = Depends(get_profile_repository),
 ) -> TransactionService:
     """The transaction service the contact workflows use: the only one that may post to a contact's accounts."""
-    origin = "api" if request.url.path.startswith("/api/") else "web"
+    origin = origin_of(request)
     return TransactionService(tr, ar, pr, origin=origin, contacts=True)
 
 
@@ -211,7 +217,7 @@ def get_transaction_service(
     ar: AccountRepository = Depends(get_account_repository),
     pr: ProfileRepository = Depends(get_profile_repository),
 ) -> TransactionService:
-    origin = "api" if request.url.path.startswith("/api/") else "web"
+    origin = origin_of(request)
     return TransactionService(tr, ar, pr, origin=origin)
 
 

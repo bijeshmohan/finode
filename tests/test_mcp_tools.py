@@ -188,25 +188,25 @@ async def test_split_update_and_delete(session, client, books, secret):
 
 async def test_editing_a_web_entry_marks_who_changed_it(session, client, books, secret):
     created = client.post(
-        "/transactions/split",
-        data={
-            "account": [books["groceries"]["id"], books["hdfc"]["id"]],
-            "side": ["debit", "credit"],
-            "amount": ["120", "120"],
+        "/api/entries",
+        json={
+            "kind": "expense",
             "payee": "Shop",
+            "rows": [
+                {"choice": books["groceries"]["id"], "side": "debit", "amount": "120"},
+                {"choice": books["hdfc"]["id"], "side": "credit", "amount": "120"},
+            ],
         },
     )
-    assert created.status_code == 200
-    transaction_id = client.get("/api/transactions/").json()[0]["id"]
+    assert created.status_code == 201, created.text
+    transaction_id = created.json()["transaction_id"]
     async with running_app(session), mcp_client(secret) as c:
         updated = (await call(c, "update_transaction", transaction_id=transaction_id, note="eggs"))["updated"]
-    assert updated["created_via"] == "web" and updated["updated_via"] == "assistant (Claude)"
-    page = client.get(f"/transactions/{transaction_id}/edit").text
-    assert "Added by" not in page and "last changed by" not in page  # not on the edit page: it is in the details sheet
-    sheet = client.get(f"/transactions/{transaction_id}/sheet").text
-    assert "Added by the app · last changed by Claude</span>" in " ".join(sheet.split())
-    listing = client.get("/transactions").text
-    assert "Changed by Claude" in listing
+    assert updated["created_via"] == "web" and updated["updated_via"] == "assistant (Claude)", "made in the app"
+    sheet = client.get(f"/api/views/transactions/{transaction_id}").json()
+    assert (sheet["added_by"], sheet["changed_by"]) == ("the app", "Claude")
+    rows = {r["id"]: r["by_assistant"] for r in client.get("/api/views/transactions").json()["rows"]}
+    assert rows[transaction_id] == "Changed by Claude"
 
 
 async def test_search_filters(session, books, secret):

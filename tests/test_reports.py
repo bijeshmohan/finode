@@ -60,3 +60,16 @@ def test_summary_net_worth_and_period_totals(
 def test_summary_rejects_inverted_period(svc):
     with pytest.raises(ValueError, match="period start must not be after period end!"):
         svc.reports.summary(date(2026, 5, 1), date(2026, 4, 1))
+
+
+def test_the_spending_breakdown_adds_up_what_was_recorded(client, root_accounts, svc):
+    """Moved from test_web_assistants.py (step 10); the entry is recorded through the API."""
+    bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"]}).json()
+    food = post_account(client, {"name": "Food", "parent_id": root_accounts["Expenses"]}).json()
+    made = client.post("/api/transactions/", json={"postings": [leg(food, "debit", "70"), leg(bank, "credit", "70")]})
+    assert made.status_code == 201, made.text
+    report = plain(svc.reports.breakdown("Expenses"))
+    assert report["root"] == "Expenses" and report["total"] == "70.00"
+    assert report["lines"] == [{"account": "Food", "amount": "70.00"}]
+    with pytest.raises(ValueError):
+        svc.reports.breakdown("Expenses", depth=0)
