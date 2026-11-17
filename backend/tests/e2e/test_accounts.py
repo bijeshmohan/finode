@@ -208,6 +208,9 @@ def test_a_groups_heading_opens_its_page_with_its_accounts_in_a_row_and_their_tr
     page.goto("/accounts")
     kind(page, "Banks").get_by_role("link", name="Banks", exact=True).click()
     expect(page).to_have_url(re.compile(rf"/accounts/{banks['id']}$"))
+    # The address changes before the group's page replaces the Accounts page (which has its own "Accounts" heading and
+    # "Add account" links): wait for the group's own title first.
+    expect(page.get_by_role("heading", level=1, name="Banks")).to_be_visible()
     expect(page.get_by_role("heading", name="Accounts", exact=True)).to_be_visible()
     expect(page.get_by_role("link", name=re.compile("^(HDFC|SBI)"))).to_have_count(2)
     expect(page.get_by_role("link", name="Add account")).to_have_attribute(
