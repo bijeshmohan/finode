@@ -15,10 +15,9 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  font-weight: 650;
-  font-stretch: 87.5%;
-  font-size: 1.125rem;
-  letter-spacing: -0.01em;
+  font-weight: 600;
+  font-size: 1.0625rem;
+  letter-spacing: -0.02em;
   color: var(--text);
 }
 
@@ -81,10 +80,10 @@
   height: 3rem;
   margin: -1rem auto 0;
   flex: none;
-  border-radius: 50%;
+  border-radius: var(--radius);
   color: var(--on-accent);
   background: var(--accent);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow);
 }
 .tabbar a.fab :global(.icon) {
   width: 24px;

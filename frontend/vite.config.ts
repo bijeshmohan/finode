@@ -20,8 +20,8 @@ export default defineConfig({
         start_url: "/",
         scope: "/",
         display: "standalone",
-        background_color: "#ecf0ec",
-        theme_color: "#ecf0ec",
+        background_color: "#f4f5f2",
+        theme_color: "#f4f5f2",
         icons: [
           { src: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
           { src: "/favicon.svg", sizes: "any", type: "image/svg+xml" },

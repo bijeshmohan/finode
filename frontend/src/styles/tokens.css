@@ -1,31 +1,35 @@
 /* ---------- Design tokens ---------- */
-/* Passbook (2026-11-07): pale green-grey paper, blue-black ink, royal-blue ink for what you can act on; green and red only where money is in or out. */
+/* Ledger (2026-11-21): ink on near-white paper. Whatever you can act on is plain ink (no brand colour), so green for money in
+   and red for a real negative are the only colours on a screen. Figures are set in a monospaced face so they line up. */
 :root {
   --bar-h: 3px; /* every progress bar: Home, Budget, Categories */
-  --bg: #ecf0ec; /* passbook paper */
-  --surface: #fbfcfa; /* the slip a tile is printed on */
-  --surface-2: #e1e7e2;
-  --text: #172033; /* blue-black ink */
-  --muted: #5a6560;
-  --faint: #737e78;
-  --border: #d6ddd7;
-  --field-border: #c9d1ca;
-  --tile-border: #fbfcfa; /* the same as the slip: in light a tile needs no line */
-  --auto: #6b4fbf; /* text for what was added automatically (an assistant or a recurring rule) */
-  --accent: #2b3a9e; /* royal ink: what you can act on */
-  --accent-hover: #22307f;
-  --accent-soft: #e4e8f6;
-  --on-accent: #fbfcfa;
-  --danger: #b23a2e;
-  --danger-soft: #f9ebe8;
+  --bg: #f4f5f2;
+  --surface: #ffffff;
+  --surface-2: #e9ebe6;
+  --text: #16181d;
+  --muted: #565b64;
+  --faint: #71767e;
+  --border: #e3e5e0;
+  --field-border: #c9cdc6;
+  --tile-border: #e3e5e0;
+  --auto: #6b4fbf;
+  --accent: #16181d;
+  --accent-hover: #30343c;
+  --accent-soft: #e9ebe6;
+  --on-accent: #ffffff;
+  --danger: #b4372b;
+  --danger-soft: #f8e9e6;
   --warn: #8a5300;
-  --warn-soft: #f8efd8;
-  --positive: #1f7a4d;
-  --negative: #b23a2e;
-  --shadow: 0 1px 2px rgb(23 32 51 / 5%);
-  --shadow-lg: 0 6px 18px rgb(23 32 51 / 18%);
-  --radius: 20px;
-  --radius-sm: 14px;
+  --warn-soft: #f6eedb;
+  --positive: #1b7a4b;
+  --negative: #b4372b;
+  --shadow: 0 1px 2px rgb(22 24 29 / 4%);
+  --shadow-lg: 0 10px 30px rgb(22 24 29 / 16%);
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-figure: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; /* amounts that line up */
+  --radius: 14px;
+  --radius-sm: 10px; /* fields */
+  --radius-button: 10px; /* buttons; chips and switchers stay fully round */
   --topbar-h: 56px;
   --tabbar-h: 62px;
   --sidebar-w: 248px;
@@ -35,53 +39,53 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #10151f;
-    --surface: #171e2b;
-    --surface-2: #212a3a;
-    --text: #e8ecf3;
-    --muted: #949eb0;
-    --faint: #7d879a;
-    --border: #283244;
-    --field-border: #3a4559;
-    --tile-border: #222b3b;
+    --bg: #0e0f11;
+    --surface: #17191c;
+    --surface-2: #222529;
+    --text: #eceee9;
+    --muted: #9da2a9;
+    --faint: #7d828a;
+    --border: #25282c;
+    --field-border: #3b3f45;
+    --tile-border: #25282c;
     --auto: #b9a6ff;
-    --accent: #9db0ff;
-    --accent-hover: #b8c6ff;
-    --accent-soft: #222c47;
-    --on-accent: #10151f;
-    --danger: #e7826d;
-    --danger-soft: #3a2224;
+    --accent: #eceee9;
+    --accent-hover: #ffffff;
+    --accent-soft: #25282d;
+    --on-accent: #0e0f11;
+    --danger: #ef8a78;
+    --danger-soft: #3a2220;
     --warn: #e6b055;
-    --warn-soft: #382b17;
-    --positive: #5dbe8f;
-    --negative: #e7826d;
+    --warn-soft: #352a16;
+    --positive: #5cc28f;
+    --negative: #ef8a78;
     --shadow: 0 1px 2px rgb(0 0 0 / 40%);
-    --shadow-lg: 0 6px 18px rgb(0 0 0 / 55%);
+    --shadow-lg: 0 10px 30px rgb(0 0 0 / 60%);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #10151f;
-  --surface: #171e2b;
-  --surface-2: #212a3a;
-  --text: #e8ecf3;
-  --muted: #949eb0;
-  --faint: #7d879a;
-  --border: #283244;
-  --field-border: #3a4559;
-  --tile-border: #222b3b;
+  --bg: #0e0f11;
+  --surface: #17191c;
+  --surface-2: #222529;
+  --text: #eceee9;
+  --muted: #9da2a9;
+  --faint: #7d828a;
+  --border: #25282c;
+  --field-border: #3b3f45;
+  --tile-border: #25282c;
   --auto: #b9a6ff;
-  --accent: #9db0ff;
-  --accent-hover: #b8c6ff;
-  --accent-soft: #222c47;
-  --on-accent: #10151f;
-  --danger: #e7826d;
-  --danger-soft: #3a2224;
+  --accent: #eceee9;
+  --accent-hover: #ffffff;
+  --accent-soft: #25282d;
+  --on-accent: #0e0f11;
+  --danger: #ef8a78;
+  --danger-soft: #3a2220;
   --warn: #e6b055;
-  --warn-soft: #382b17;
-  --positive: #5dbe8f;
-  --negative: #e7826d;
+  --warn-soft: #352a16;
+  --positive: #5cc28f;
+  --negative: #ef8a78;
   --shadow: 0 1px 2px rgb(0 0 0 / 40%);
-  --shadow-lg: 0 6px 18px rgb(0 0 0 / 55%);
+  --shadow-lg: 0 10px 30px rgb(0 0 0 / 60%);
   color-scheme: dark;
 }

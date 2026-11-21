@@ -46,6 +46,7 @@
 }
 .calcLine b {
   font-weight: 500;
+  font-family: var(--font-figure);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }

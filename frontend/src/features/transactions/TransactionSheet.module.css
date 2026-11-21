@@ -24,6 +24,7 @@
   font-weight: 600;
   letter-spacing: -0.02em;
   white-space: nowrap;
+  font-family: var(--font-figure);
   font-variant-numeric: tabular-nums;
 }
 .income {
@@ -166,7 +167,7 @@
   justify-content: center;
   min-height: 3.125rem;
   padding: 0.5rem;
-  border-radius: 999px;
+  border-radius: var(--radius-button);
   color: var(--on-accent);
   background: var(--accent);
   font-weight: 600;

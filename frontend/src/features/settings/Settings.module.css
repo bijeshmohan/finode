@@ -1,9 +1,11 @@
 /* Settings and the pages under it (.settings, .settings-label, .setting, .setting-title, .setting-value, a.setting-link,
    .signout-row, .grid-form and .danger-title). */
 .label {
-  margin: 1.25rem 0 0.4rem 0.25rem;
-  font-size: 0.8125rem;
-  font-weight: 500;
+  margin: 1.5rem 0 0.45rem 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
   color: var(--muted);
 }
 .tile {
@@ -113,7 +115,7 @@
   min-height: var(--tap);
   padding: 0 1.25rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-button);
   background: var(--accent);
   color: var(--on-accent);
   font: inherit;
@@ -127,7 +129,7 @@
   min-height: var(--tap);
   padding: 0 1.25rem;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-button);
   background: var(--surface);
   color: var(--text);
   font: inherit;
@@ -140,7 +142,7 @@
   min-height: var(--tap);
   padding: 0 1.25rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-button);
   background: var(--danger);
   color: var(--on-accent);
   font: inherit;
@@ -228,7 +230,7 @@
   min-height: 2.25rem;
   padding: 0 0.9rem;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-button);
   background: var(--surface);
   color: var(--text);
   font: inherit;

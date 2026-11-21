@@ -6,9 +6,13 @@ import { describe, expect, it } from "vitest";
 const css = readFileSync("src/styles/base.css", "utf8");
 
 describe("base.css", () => {
-  it("uses the shared Anek Latin font", () => {
-    expect(css).toContain('font-family: "Anek Latin"');
-    expect(css).toContain("./fonts/anek-latin.woff2");
+  it("uses the app's own IBM Plex faces: Sans for text, Mono for the figures", () => {
+    expect(css).toContain('font-family: "IBM Plex Sans"');
+    expect(css).toContain('font-family: "IBM Plex Mono"');
+    for (const file of ["ibm-plex-sans", "ibm-plex-mono-medium", "ibm-plex-mono-semibold"]) {
+      expect(css).toContain(`./fonts/${file}.woff2`);
+    }
+    expect(css).toContain("var(--font-sans)");
   });
 
   it("draws the rupee sign from the app's own font, not the phone's", () => {

@@ -63,6 +63,7 @@
   flex-direction: column;
   align-items: flex-end;
   font-weight: 500;
+  font-family: var(--font-figure);
   font-variant-numeric: tabular-nums;
 }
 .income {

@@ -27,7 +27,7 @@ STATUS_BAR = """[...document.querySelectorAll('meta[name="theme-color"]')]
 
 def test_the_phones_status_bar_follows_the_device_as_the_web_pages_do(page: Page):
     """The bar above the page (theme-color) is the page's own colour in light and in dark."""
-    for scheme, colour in (("light", "#ecf0ec"), ("dark", "#10151f")):
+    for scheme, colour in (("light", "#f4f5f2"), ("dark", "#0e0f11")):
         page.emulate_media(color_scheme=scheme)
         page.goto("/sign-in")
         assert page.evaluate(STATUS_BAR) == colour, scheme

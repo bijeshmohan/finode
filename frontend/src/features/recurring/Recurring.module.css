@@ -112,7 +112,7 @@
   min-height: var(--tap);
   padding: 0 1.25rem;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-button);
   background: var(--surface);
   color: var(--text);
   font: inherit;
@@ -124,7 +124,7 @@
   min-height: var(--tap);
   padding: 0 1.25rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-button);
   background: var(--accent);
   color: var(--on-accent);
   font: inherit;
