@@ -84,7 +84,7 @@ The browser tests run with reduced motion so measured positions never catch a sc
 
 ## Offline and failure
 
-`backend/finode/Offline.tsx` shows "You're offline…" while the device has no connection. A save that cannot reach the server or that the server fails says so in plain words, and the form keeps what was typed; the server's own words show only when it gave them as JSON. There is no offline queue.
+`frontend/src/app/Offline.tsx` shows "You're offline…" while the device has no connection. A save that cannot reach the server or that the server fails says so in plain words, and the form keeps what was typed; the server's own words show only when it gave them as JSON. There is no offline queue.
 
 ## Adding to the design
 
