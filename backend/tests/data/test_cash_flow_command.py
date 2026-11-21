@@ -1,0 +1,64 @@
+"""The command a person's books are converted with (`python -m finode.commands.cash_flow`): a dry run by default, and
+the real run only with a backup on disk and nothing left undecided."""
+
+from sqlmodel import Session
+
+from finode.commands.cash_flow import main
+from finode.schemas.account import AccountUpdate
+from finode.services import account as account_service
+from tests.conftest import TEST_USER_ID
+from tests.data.test_cash_flow_conversion import _build
+
+
+def _setup(session, monkeypatch):
+    monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
+    s, ids = _build(session)
+    engine = session.get_bind()
+    return s, ids, lambda: Session(engine)
+
+
+def _names(session):
+    from tests.svc import services
+
+    session.expire_all()
+    session.info.pop("read_memory", None)  # what this session read before the command changed the books
+    return {a.name for a in services(session).accounts.ar.list()}
+
+
+def test_dry_run_prints_every_section_and_changes_nothing(session, monkeypatch, capsys):
+    _, _, factory = _setup(session, monkeypatch)
+    assert main(["--user", str(TEST_USER_ID)], factory) == 0
+    out = capsys.readouterr().out
+    for heading in ("Retired", "Moved", "Rewritten", "Deleted", "New categories", "Needs a decision"):
+        assert heading in out
+    assert "Assets:Bank Accounts:Old SBI" in out
+    assert "Home Loan" in _names(session)
+
+
+def test_apply_needs_a_backup(session, monkeypatch, tmp_path, capsys):
+    _, _, factory = _setup(session, monkeypatch)
+    assert main(["--user", str(TEST_USER_ID), "--apply"], factory) == 2
+    assert main(["--user", str(TEST_USER_ID), "--apply", "--backup", str(tmp_path / "missing.sql.gz")], factory) == 2
+    empty = tmp_path / "empty.sql.gz"
+    empty.write_bytes(b"")
+    assert main(["--user", str(TEST_USER_ID), "--apply", "--backup", str(empty)], factory) == 2
+    assert "Home Loan" in _names(session)
+
+
+def test_apply_refuses_while_something_needs_a_decision(session, monkeypatch, tmp_path, capsys):
+    _, _, factory = _setup(session, monkeypatch)
+    backup = tmp_path / "finode.sql.gz"
+    backup.write_bytes(b"dump")
+    assert main(["--user", str(TEST_USER_ID), "--apply", "--backup", str(backup)], factory) == 3
+    assert "Home Loan" in _names(session)
+
+
+def test_apply_converts(session, monkeypatch, tmp_path, capsys):
+    s, ids, factory = _setup(session, monkeypatch)
+    s.accounts.update(ids.old_sbi, AccountUpdate(on_budget=True))
+    backup = tmp_path / "finode.sql.gz"
+    backup.write_bytes(b"dump")
+    assert main(["--user", str(TEST_USER_ID), "--apply", "--backup", str(backup)], factory) == 0
+    assert "Categories made" in capsys.readouterr().out
+    names = _names(session)
+    assert "Home Loan" not in names and "Prepaid Wallet" in names
