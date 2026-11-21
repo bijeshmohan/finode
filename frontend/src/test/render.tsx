@@ -66,18 +66,21 @@ export function renderApp(path: string, answers: Answers = SIGNED_IN, seed?: (qu
 }
 
 /** One component inside the app's own providers (the session, toasts, a router) against the stubbed API. */
-export function renderInApp(ui: ReactNode, answers: Answers = SIGNED_IN) {
+export function renderInApp(ui: ReactNode, answers: Answers = SIGNED_IN, path = "/") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const router = createMemoryRouter([
-    {
-      path: "*",
-      element: (
-        <SessionProvider>
-          <ToastProvider>{ui}</ToastProvider>
-        </SessionProvider>
-      ),
-    },
-  ]);
+  const router = createMemoryRouter(
+    [
+      {
+        path: "*",
+        element: (
+          <SessionProvider>
+            <ToastProvider>{ui}</ToastProvider>
+          </SessionProvider>
+        ),
+      },
+    ],
+    { initialEntries: [path] },
+  );
   const { client, fetch } = stubClient(answers);
   render(
     <QueryClientProvider client={queryClient}>

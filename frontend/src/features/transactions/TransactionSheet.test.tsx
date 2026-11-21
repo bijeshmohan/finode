@@ -9,11 +9,12 @@ import { TransactionSheet } from "./TransactionSheet";
 const ID = "00000000-0000-4000-8000-000000000001";
 const PATH = `/api/views/transactions/${ID}`;
 
-function sheet(answer: Parameters<typeof renderInApp>[1] = {}, onClose = vi.fn()) {
-  const rendered = renderInApp(<TransactionSheet id={ID} onClose={onClose} onOpen={vi.fn()} />, {
-    ...SIGNED_IN,
-    ...answer,
-  });
+function sheet(answer: Parameters<typeof renderInApp>[1] = {}, onClose = vi.fn(), path = "/transactions") {
+  const rendered = renderInApp(
+    <TransactionSheet id={ID} onClose={onClose} onOpen={vi.fn()} />,
+    { ...SIGNED_IN, ...answer },
+    `${path}${path.includes("?") ? "&" : "?"}open=${ID}`,
+  );
   return { ...rendered, onClose };
 }
 
@@ -80,9 +81,20 @@ describe("TransactionSheet", () => {
 
   it("offers Edit, Repeat and Related for an ordinary entry", async () => {
     sheet({ [PATH]: [200, details()] });
-    expect(await screen.findByRole("link", { name: "Edit" })).toHaveAttribute("href", `/transactions/${ID}/edit`);
+    expect(await screen.findByRole("link", { name: "Edit" })).toHaveAttribute(
+      "href",
+      `/transactions/${ID}/edit?back=${encodeURIComponent("/transactions")}`,
+    );
     expect(screen.getByRole("link", { name: "Repeat" })).toHaveAttribute("href", `/transactions/new?repeat=${ID}`);
     expect(screen.getByRole("link", { name: "Related" })).toHaveAttribute("href", `/transactions/new?related=${ID}`);
+  });
+
+  it("Edit comes back to the page the sheet was opened over, without the sheet", async () => {
+    sheet({ [PATH]: [200, details()] }, vi.fn(), "/accounts/abc?month=2026-10");
+    expect(await screen.findByRole("link", { name: "Edit" })).toHaveAttribute(
+      "href",
+      `/transactions/${ID}/edit?back=${encodeURIComponent("/accounts/abc?month=2026-10")}`,
+    );
   });
 
   it("closes when the entry cannot be loaded", async () => {

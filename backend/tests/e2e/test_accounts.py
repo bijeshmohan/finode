@@ -194,6 +194,25 @@ def test_saving_an_entry_started_from_an_accounts_page_comes_back_to_it(signed_i
     expect(page.get_by_role("button", name=re.compile("Groceries")).first).to_be_visible()
 
 
+def test_editing_an_entry_from_an_accounts_page_comes_back_to_it(signed_in_page: Page, api: Api, books):
+    page = signed_in_page
+    account = books["checking"]["id"]
+    api.post(
+        "/transactions/",
+        payee="Corner shop",
+        date=str(local_today()),
+        postings=[leg(books["food"], "debit", "40"), leg(books["checking"], "credit", "40")],
+    )
+    page.goto(f"/accounts/{account}")
+    page.get_by_role("button", name=re.compile("^Corner shop")).click()
+    page.get_by_role("dialog").get_by_role("link", name="Edit", exact=True).click()
+    page.wait_for_url(re.compile(r"/transactions/.+/edit\?back="))
+    page.get_by_label("Amount", exact=True).fill("45")
+    page.get_by_role("button", name="Save changes", exact=True).click()
+    page.wait_for_url(re.compile(rf"/accounts/{account}$"))
+    expect(page.get_by_role("dialog")).to_have_count(0)
+
+
 def test_a_groups_heading_opens_its_page_with_its_accounts_in_a_row_and_their_transactions(
     signed_in_page: Page, api: Api, books
 ):

@@ -331,7 +331,7 @@ def test_repeat_and_edit_from_the_sheet(signed_in_page: Page, books, api: Api):
     assert len([t for t in api.get("/transactions/") if t["payee"] == "DMart"]) == 2
     page.get_by_role("button", name=re.compile("^DMart")).first.click()
     page.get_by_role("dialog", name="Transaction details").get_by_role("link", name="Edit", exact=True).click()
-    page.wait_for_url(re.compile(r"/edit$"))
+    page.wait_for_url(re.compile(r"/edit\?back="))
     expect(page.get_by_placeholder("Payee or Merchant?")).to_have_value("DMart")
 
 

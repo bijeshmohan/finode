@@ -2,7 +2,7 @@
 // tags, then everything else behind one "More" row so Edit stays clear of a thumb opening it. Delete asks first and is
 // for good.
 import { useEffect } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 
 import { messageOf } from "../../api/messages";
 import { useGrouping } from "../../app/currency";
@@ -101,12 +101,18 @@ function Content({
   const today = useToday();
   const grouping = useGrouping();
   const remove = useDeleteTransaction();
+  const location = useLocation();
   const { row } = d;
   const when = friendlyDate(row.date, today);
   const related = d.related_to ? [d.related_to] : d.related;
   const byAgent = d.added_by ?? d.changed_by;
   const hasMore = related.length > 0 || Boolean(d.source) || Boolean(byAgent) || row.recurring;
   const month = row.date.slice(0, 7);
+  // Saving the edit comes back to the page under this sheet (an account, a category, Home), with the sheet closed.
+  const under = new URLSearchParams(location.search);
+  under.delete("open");
+  const underSearch = under.toString();
+  const back = location.pathname + (underSearch ? `?${underSearch}` : "");
 
   return (
     <>
@@ -227,7 +233,7 @@ function Content({
       ) : (
         <>
           <div className={styles.actions}>
-            <Link className={styles.button} to={`/transactions/${row.id}/edit`}>
+            <Link className={styles.button} to={`/transactions/${row.id}/edit?back=${encodeURIComponent(back)}`}>
               Edit
             </Link>
           </div>
