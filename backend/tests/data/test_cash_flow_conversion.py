@@ -310,3 +310,27 @@ def test_a_closed_retired_account_is_retired_too(books):
     assert "Car Loan" not in {a.name for a in books.s.accounts.ar.list()}
     assert books.lines_of("Car") == [[("HDFC", "debit", None), ("Income", "credit", "Borrowed")]]
     assert books.lines_of("Car EMI") == [[("Expenses", "debit", "Car Loan"), ("HDFC", "credit", None)]]
+
+
+def test_chosen_accounts_are_retired_and_chosen_types_kept(books):
+    wallets = next(a for a in books.s.accounts.ar.list() if a.name == "Wallets")
+    plan = books.conversion.plan(
+        books.off_budget_ids(), strict=True, retire_ids={books.ids.old_sbi}, types={wallets.id: "assets.wallet"}
+    )
+    assert plan.undecided_accounts == []
+    assert "Assets:Wallets:Paytm → Assets:Prepaid Wallet:Paytm" in [f"{m.path} → {m.becomes}" for m in plan.moved]
+    books.conversion.apply(plan)
+    by_id = {a.id: a for a in books.s.accounts.ar.list()}
+    assert books.ids.old_sbi not in by_id
+    assert by_id[by_id[books.ids.paytm].parent_id].system_key == "assets.wallet"
+    assert (
+        books.lines_of("Opening balance").count([("Old SBI", "debit", None), ("Opening Balances", "credit", None)]) == 0
+    )
+
+
+def test_a_chosen_type_puts_an_account_outside_the_budget_in_it(books):
+    plan = books.conversion.plan(books.off_budget_ids(), strict=True, types={books.ids.old_sbi: "assets.cash"})
+    assert plan.undecided_accounts == []
+    books.conversion.apply(plan)
+    by_id = {a.id: a for a in books.s.accounts.ar.list()}
+    assert by_id[books.ids.old_sbi].on_budget and by_id[by_id[books.ids.old_sbi].parent_id].system_key == "assets.cash"

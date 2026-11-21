@@ -73,7 +73,18 @@ class CashFlowConversion:
         self.rr = rr
         self.categories = categories
 
-    def plan(self, off_budget_ids: set[UUID], strict: bool) -> ConversionPlan:
+    def plan(
+        self,
+        off_budget_ids: set[UUID],
+        strict: bool,
+        retire_ids: set[UUID] | None = None,
+        types: dict[UUID, str] | None = None,
+    ) -> ConversionPlan:
+        """`retire_ids`: accounts or groups the person chose to retire as well (their worth goes, like an investment's;
+        under Liabilities, like a loan's). `types`: an account's or a group's accounts' type, chosen by the person (an
+        account outside the budget given a type goes into the budget)."""
+        retire_ids = retire_ids or set()
+        types = types or {}
         accounts = self.ar.list()
         by_id = {a.id: a for a in accounts}
         roots = {a.name: a.id for a in accounts if a.parent_id is None}
@@ -105,6 +116,10 @@ class CashFlowConversion:
             if key in keyed:
                 for a in subtree(keyed[key]):
                     retired[a.id] = "loan" if key == "liabilities.loans" else "investment"
+        for chosen in retire_ids:
+            if chosen in by_id:
+                for a in subtree(by_id[chosen]):
+                    retired[a.id] = "loan" if root_name(a) == "Liabilities" else "investment"
         holding_roots = {roots.get("Assets"), roots.get("Liabilities")} - {None}
         groups = [
             a
@@ -143,12 +158,16 @@ class CashFlowConversion:
                 taken[parent.system_key].add(a.name.casefold())
         for a in leaves:
             parent = by_id[a.parent_id] if a.parent_id else None
-            if strict and a.id in off_budget_ids:
+            chosen = types.get(a.id) or (types.get(a.parent_id) if a.parent_id else None)
+            if chosen is not None and (chosen not in TYPE_KEYS or TYPE_ROOTS[chosen] != root_name(a)):
+                raise ValueError(f"'{path(a)}' cannot be a {TYPE_NAMES.get(chosen, chosen)}!")
+            if strict and a.id in off_budget_ids and chosen is None:
                 plan.undecided_accounts.append(path(a))
-            if parent is not None and parent.system_key in TYPE_KEYS:
-                work.places.append((a.id, parent.system_key, a.name))
+            here = parent.system_key if parent is not None and parent.system_key in TYPE_KEYS else None
+            if here is not None and chosen in (None, here):
+                work.places.append((a.id, here, a.name))
                 continue
-            key = "assets.bank" if root_name(a) == "Assets" else "liabilities.cards"
+            key = chosen or ("assets.bank" if root_name(a) == "Assets" else "liabilities.cards")
             name = a.name
             if name.casefold() in taken[key]:
                 name = f"{a.name} ({parent.name if parent else root_name(a)})"[:NAME_LIMIT]

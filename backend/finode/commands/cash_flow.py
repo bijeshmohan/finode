@@ -15,10 +15,12 @@ from uuid import UUID
 
 from sqlmodel import Session
 
+from ..models.account import Account
 from ..repositories import AccountRepository, ProfileRepository, TransactionRepository
 from ..repositories.recurring import RecurringRepository
 from ..schemas.cash_flow import AccountMove, ConversionPlan, EntryChange
 from ..services.account import AccountService
+from ..services.account_types import TYPE_NAMES
 from ..services.cash_flow import CashFlowConversion
 from ..services.category import CategoryService
 
@@ -54,19 +56,64 @@ def _show(plan: ConversionPlan) -> None:
     section("Needs a decision", [*plan.undecided_accounts, *changes(plan.undecided_entries)])
 
 
+def _choices(accounts: list[Account], retire: list[str], types: list[str]) -> tuple[set[UUID], dict[UUID, str]]:
+    """The accounts named by path ("Assets:Gadgets"), and the types named by name or key."""
+    by_id = {a.id: a for a in accounts}
+
+    def path(a: Account) -> str:
+        names = [a.name]
+        while a.parent_id is not None and a.parent_id in by_id:
+            a = by_id[a.parent_id]
+            names.append(a.name)
+        return ":".join(reversed(names))
+
+    by_path = {path(a): a.id for a in accounts}
+
+    def find(text: str) -> UUID:
+        if text not in by_path:
+            raise ValueError(f"no account at '{text}'!")
+        return by_path[text]
+
+    named = {name.casefold(): key for key, name in TYPE_NAMES.items()} | {key: key for key in TYPE_NAMES}
+    chosen: dict[UUID, str] = {}
+    for item in types:
+        where, _, kind = item.rpartition("=")
+        if kind.casefold() not in named:
+            raise ValueError(f"'{kind}' is not a type: use Cash, Bank Account, Credit Card or Prepaid Wallet!")
+        chosen[find(where)] = named[kind.casefold()]
+    return {find(text) for text in retire}, chosen
+
+
 def main(argv: list[str], session_factory: Callable[[], Session]) -> int:
     parser = argparse.ArgumentParser(prog="python -m finode.commands.cash_flow")
     parser.add_argument("--user", required=True, type=UUID, help="the person's id")
     parser.add_argument("--apply", action="store_true", help="carry the plan out (otherwise only show it)")
     parser.add_argument("--backup", type=Path, help="the database backup taken just before (required with --apply)")
+    parser.add_argument(
+        "--retire", action="append", default=[], metavar="PATH", help="retire this account or group too (repeatable)"
+    )
+    parser.add_argument(
+        "--as",
+        dest="types",
+        action="append",
+        default=[],
+        metavar="PATH=TYPE",
+        help="this account or group's accounts become TYPE: Cash, Bank Account, Credit Card or Prepaid Wallet",
+    )
     args = parser.parse_args(argv)
     if args.apply and (args.backup is None or not args.backup.is_file() or args.backup.stat().st_size == 0):
         _say("--apply needs --backup naming a backup file that exists and is not empty.")
         return 2
     with session_factory() as db:
         conversion = _conversion(db, args.user)
-        off_budget = {a.id for a in conversion.ar.list() if not a.on_budget}
-        plan = conversion.plan(off_budget, strict=True)
+        accounts = conversion.ar.list()
+        off_budget = {a.id for a in accounts if not a.on_budget}
+        try:
+            retire_ids, types = _choices(accounts, args.retire, args.types)
+            plan = conversion.plan(off_budget, strict=True, retire_ids=retire_ids, types=types)
+        except ValueError as e:
+            _say(f"Nothing changed: {e}")
+            return 4
         _show(plan)
         if not args.apply:
             return 0

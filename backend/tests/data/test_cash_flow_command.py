@@ -62,3 +62,27 @@ def test_apply_converts(session, monkeypatch, tmp_path, capsys):
     assert "Categories made" in capsys.readouterr().out
     names = _names(session)
     assert "Home Loan" not in names and "Prepaid Wallet" in names
+
+
+def test_retire_and_as_name_accounts_by_path(session, monkeypatch, tmp_path, capsys):
+    _, _, factory = _setup(session, monkeypatch)
+    backup = tmp_path / "finode.sql.gz"
+    backup.write_bytes(b"dump")
+    argv = [
+        "--user",
+        str(TEST_USER_ID),
+        "--retire",
+        "Assets:Bank Accounts:Old SBI",
+        "--as",
+        "Assets:Wallets=Prepaid Wallet",
+    ]
+    assert main([*argv, "--apply", "--backup", str(backup)], factory) == 0
+    names = _names(session)
+    assert "Old SBI" not in names and "Paytm" in names
+
+
+def test_an_unknown_path_or_type_changes_nothing(session, monkeypatch, capsys):
+    _, _, factory = _setup(session, monkeypatch)
+    assert main(["--user", str(TEST_USER_ID), "--retire", "Assets:Nowhere"], factory) == 4
+    assert main(["--user", str(TEST_USER_ID), "--as", "Assets:Wallets=Savings"], factory) == 4
+    assert "Home Loan" in _names(session)
