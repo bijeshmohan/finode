@@ -100,6 +100,15 @@ class AccountRepository:
         self.db.flush()
         return account
 
+    def place(self, account_id: UUID, parent_id: UUID, name: str, on_budget: bool) -> None:
+        """Put an account under another parent with a name, in or out of the budget (the cash-flow conversion: no
+        rules are checked here). Nothing is committed."""
+        account = self.read(account_id)
+        if account is not None:
+            account.parent_id, account.name, account.on_budget = parent_id, name, on_budget
+            self.db.add(account)
+            self.db.flush()
+
     def delete(self, account_id: UUID) -> Account | None:
         account = self.read(account_id)
         if not account:
