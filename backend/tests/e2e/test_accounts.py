@@ -66,6 +66,38 @@ def test_a_long_row_scrolls_sideways_on_its_own_and_the_page_does_not(signed_in_
     assert funds_rail.evaluate("el => el.scrollLeft") == 0
 
 
+def test_with_a_mouse_a_long_row_shows_a_scrollbar_to_drag_and_on_a_touch_screen_it_does_not(
+    signed_in_page: Page, api: Api, books, browser, server: str
+):
+    """A mouse cannot swipe and its wheel scrolls the page, so a desktop needs a scrollbar to reach the last cards."""
+    page = signed_in_page
+    page.set_viewport_size({"width": 1280, "height": 800})
+    long = api.post("/accounts/", name="Wallets", parent_id=books["roots"]["Assets"])
+    for number in range(8):
+        api.post("/accounts/", name=f"Wallet {number}", parent_id=long["id"])
+    page.goto("/accounts")
+    expect(kind(page, "Wallets")).to_contain_text("8 accounts")
+    rail = kind(page, "Wallets").locator("div").filter(has=page.get_by_role("link", name="Add account")).last
+    assert rail.evaluate("el => el.scrollWidth > el.clientWidth + 1"), "eight cards run past a desktop's edge too"
+    # Headless browsers hide every scrollbar, so the test reads the style that shows it rather than measuring it.
+    assert rail.evaluate("el => getComputedStyle(el).scrollbarWidth") == "thin", "a scrollbar to drag"
+
+    phone = browser.new_context(
+        viewport={"width": 390, "height": 844}, base_url=server, reduced_motion="reduce", has_touch=True, is_mobile=True
+    )
+    try:
+        touch = phone.new_page()
+        touch.context.add_cookies(page.context.cookies())
+        touch.goto("/accounts")
+        expect(kind(touch, "Wallets")).to_contain_text("8 accounts")
+        rail = kind(touch, "Wallets").locator("div").filter(has=touch.get_by_role("link", name="Add account")).last
+        assert rail.evaluate("el => getComputedStyle(el).scrollbarWidth") == "none", (
+            "a touch screen swipes, with no bar"
+        )
+    finally:
+        phone.close()
+
+
 def test_the_kinds_have_room_between_them_and_a_heading_larger_than_a_cards_name(signed_in_page: Page, api: Api, books):
     page = signed_in_page
     nested(api, books)
