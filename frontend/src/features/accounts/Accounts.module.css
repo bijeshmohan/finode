@@ -40,6 +40,29 @@
 .rail::-webkit-scrollbar {
   display: none;
 }
+/* A mouse cannot swipe and its wheel scrolls the page, so with a mouse or trackpad the row shows a thin scrollbar
+   to drag (touch screens keep it hidden). */
+@media (hover: hover) and (pointer: fine) {
+  .rail {
+    scrollbar-width: thin;
+    scrollbar-color: var(--field-border) transparent;
+    padding-bottom: 0.625rem;
+  }
+  .rail::-webkit-scrollbar {
+    display: block;
+    height: 0.5rem;
+  }
+  .rail::-webkit-scrollbar-thumb {
+    background: var(--field-border);
+    border-radius: 999px;
+  }
+  .rail::-webkit-scrollbar-thumb:hover {
+    background: var(--faint);
+  }
+  .rail::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
 .card {
   position: relative;
   flex: none;
