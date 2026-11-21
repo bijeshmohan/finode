@@ -88,4 +88,4 @@ History, undo and Recently deleted · savings goals · budget targets and notes 
 
 ## Git
 
-Commit only when asked; branch off `develop` (`feature/…`, `chore/…`), PRs go to `main`.
+Commit only when asked; branch off `develop` (`feature/…`, `chore/…`), PRs go to `develop`; only releases go to `main`.
