@@ -95,7 +95,9 @@
 }
 .cardBalance {
   font-size: 1.15rem;
-  font-weight: 700;
+  font-family: var(--font-figure);
+  font-weight: 500;
+  letter-spacing: -0.03em;
 }
 .cardLine {
   font-size: 0.75rem;
@@ -176,6 +178,7 @@
   margin: 0;
   font-size: 1.35rem;
   font-weight: 600;
+  font-family: var(--font-figure);
   font-variant-numeric: tabular-nums;
 }
 .billDue {

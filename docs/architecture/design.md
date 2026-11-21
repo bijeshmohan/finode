@@ -6,7 +6,7 @@ finode looks the way it does on purpose: **calm, minimal and quick to enter**. T
 
 1. **Phones first.** Every page is one column that works on a phone; from 60rem up a fixed sidebar replaces the top bar and tab bar and the column is centred in the space beside it. Nothing floats over the page.
 2. **Fewer boxes.** Removing something or adding whitespace is preferred to adding a border, badge or card. A box earns its place only when it groups things that need telling apart.
-3. **Colour means money.** Green and red appear only for money coming in or going out (and for an overspent category or an error). Actions are royal-blue ink (`#2b3a9e` in light, periwinkle in dark), and so are the progress bars. Violet marks what was added automatically (an assistant or a recurring rule).
+3. **Colour means money.** Green and red appear only for money coming in or going out (and for an overspent category or an error). Actions are plain ink (`#16181d` in light, off-white in dark), with no brand colour, and so are the progress bars. Violet marks what was added automatically (an assistant or a recurring rule).
 4. **One of each part.** There is one switcher, one row, one tile, one sheet, one empty state. New pages reuse them; they do not draw their own.
 5. **Calm motion.** Short, quiet transitions that explain a change (a chip gliding, a sheet rising). All of it switches off under `prefers-reduced-motion`.
 6. **Nothing is lost on a failed save.** Forms are never cleared on an error, and the page says the entry is still there.
@@ -23,9 +23,9 @@ The tokens are CSS variables in `frontend/src/styles/tokens.css`, loaded first b
 | Meaning | `--positive`, `--negative`, `--danger`, `--danger-soft`, `--warn`, `--warn-soft`, `--auto` |
 | Shape and size | `--radius` (20px, tiles and sheets), `--radius-sm` (14px, fields), `--tap` (44px), `--topbar-h`, `--tabbar-h`, `--sidebar-w`, `--bar-h` (3px, every progress bar) |
 
-**Dark mode.** There are three blocks: the light tokens on `:root`, an automatic `prefers-color-scheme: dark` block, and a manual `[data-theme="dark"]` block. The two dark blocks must define the same tokens (a test compares them). The choice is per browser (`lib/theme.ts`, in `localStorage`), applied by `index.html` before the first paint. `favicon.svg` is royal ink, periwinkle in dark; `apple-touch-icon.png` is still the older blue mark.
+**Dark mode.** There are three blocks: the light tokens on `:root`, an automatic `prefers-color-scheme: dark` block, and a manual `[data-theme="dark"]` block. The two dark blocks must define the same tokens (a test compares them). The choice is per browser (`lib/theme.ts`, in `localStorage`), applied by `index.html` before the first paint. `favicon.svg` is ink, off-white in dark; `apple-touch-icon.png` is the same ink mark.
 
-**Type.** Anek Latin, self-hosted (`frontend/src/styles/fonts/anek-latin.woff2`, one variable file with weight 400–700 and width 75–100 %, Latin plus the rupee sign; the `@font-face` is in `styles/base.css`, and the build gives the file a hashed name). The big figures use the condensed width (`font-stretch: 75%`); see "The passbook look" in `reference/ui-look.md`. Text inputs are 16px or more so iOS does not zoom.
+**Type.** IBM Plex Sans for text and IBM Plex Mono for amounts, self-hosted (`frontend/src/styles/fonts/`, Latin plus the rupee sign; the `@font-face` rules are in `styles/base.css`, and the build gives the files hashed names). See "The Ledger look" in `reference/ui-look.md`. Text inputs are 16px or more so iOS does not zoom.
 
 ## Page anatomy
 

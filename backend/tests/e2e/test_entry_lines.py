@@ -69,7 +69,7 @@ def test_a_row_is_removed_from_its_own_sheet_and_one_category_is_the_whole_amoun
     expect(rows(page, "Spent on").first).to_have_text(re.compile(r"Rent$"))
 
 
-def test_the_settings_sheet_has_two_cells_a_done_pill_and_a_red_remove_below_it(signed_in_page: Page, books):
+def test_the_settings_sheet_has_two_cells_a_done_button_and_a_red_remove_below_it(signed_in_page: Page, books):
     page = signed_in_page
     page.goto("/transactions/new")
     page.get_by_label("Amount", exact=True).fill("1250")
@@ -92,7 +92,12 @@ def test_the_settings_sheet_has_two_cells_a_done_pill_and_a_red_remove_below_it(
     expect(remove).to_be_in_viewport()  # the sheet has finished rising
     done_box, remove_box = done.bounding_box(), remove.bounding_box()
     assert done_box and remove_box and remove_box["y"] > done_box["y"], "Remove sits below Done"
-    assert done.evaluate("el => getComputedStyle(el).borderRadius") == "999px", "a pill"
+    button_corner = page.evaluate(
+        "getComputedStyle(document.documentElement).getPropertyValue('--radius-button').trim()"
+    )
+    assert done.evaluate("el => getComputedStyle(el).borderRadius") == button_corner, (
+        "a button's corners, from the token"
+    )
     red = page.evaluate(
         """() => { const probe = document.createElement('span'); probe.style.color = 'var(--negative)';
         document.body.append(probe); const c = getComputedStyle(probe).color; probe.remove(); return c; }"""

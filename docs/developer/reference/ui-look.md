@@ -22,7 +22,7 @@ For INR the whole part of an amount is grouped the Indian way (`12,34,567.00`), 
 
 ## The rupee sign and what was added automatically
 
-For INR the unit is the rupee sign, **in front**; in a large figure (`components/Figure`: Home, Budgets' Ready to assign, an account's balance) it is smaller (0.62 of the digits), muted and raised. Other currencies keep their code after the amount; the amounts in lists carry no unit. The sign comes from our own font (`anek-latin.woff2` carries U+20B9). What an assistant or a recurring rule added is **violet** (`--auto`): the "Recurring" / "Added by Claude" line under a row and the matching facts in the details sheet.
+For INR the unit is the rupee sign, **in front**; in a large figure (`components/Figure`: Home, Budgets' Ready to assign, an account's balance) it is smaller (0.62 of the digits), muted and raised. Other currencies keep their code after the amount; the amounts in lists carry no unit. The sign comes from our own fonts (both IBM Plex files carry U+20B9). What an assistant or a recurring rule added is **violet** (`--auto`): the "Recurring" / "Added by Claude" line under a row and the matching facts in the details sheet.
 
 ## Signs and the pace notch
 
@@ -46,19 +46,19 @@ Rows are grouped into soft rounded tiles (`components/Tile`: `--surface` with a 
 
 `--muted` is `#5a6560` in light (5.3 : 1 on the paper, 5.9 : 1 on a tile, 4.8 : 1 on a grey chip) and `#949eb0` in dark; `--faint` (3.7 : 1) is for placeholders and glyphs, not sentences. `frontend/src/styles/tokens.test.ts` fails if `--muted` drops under 4.5 : 1 in either theme.
 
-## The passbook look (2026-11-07)
+## The Ledger look (2026-11-21)
 
-The look comes from an Indian bank passbook: pale green-grey paper (`--bg` `#ecf0ec`), white slips for tiles (`--surface` `#fbfcfa`), blue-black ink for text (`--text` `#172033`) and **royal-blue ink for whatever you can act on** (`--accent` `#2b3a9e`: buttons, the docked "+", the chosen switcher chip, focus and every progress bar). Dark is "night ink": a blue-black page (`#10151f`) with a periwinkle accent (`#9db0ff`). Green and red mean only money in and out; an overspent bar stays red.
+Replaced the passbook look (2026-11-07) on the owner's pick of three directions (proposal: https://claude.ai/artifact/7G2Jcdo9rEDwWyLARcPzCy). **Ink on near-white paper, and no brand colour**: the page is `--bg` `#f4f5f2`, tiles are white (`--surface`) with a hairline (`--tile-border`), text is ink (`--text` `#16181d`), and **whatever you can act on is the same ink** (`--accent`: the primary button, the docked "+", the chosen switcher chip, focus and every progress bar). Dark is the mirror: a near-black page (`#0e0f11`), off-white ink (`#eceee9`) for text and actions. Because the interface itself has no colour, **green (money in) and red (a real negative) are the only colours on a screen**, and violet only marks what was added automatically.
 
-**Type** is Anek Latin (OFL), one variable font, weight 400–700 and width 75–100 % (`frontend/src/styles/fonts/anek-latin.woff2`, about 65 KB, Latin plus ₹ and tabular figures; `README.txt` says how it was cut). Titles and the wordmark are 87.5 % wide; **the big figures are condensed** (75 %, weight 650). That figure is the one loud thing on a screen; keep everything else quiet.
+**Type** is IBM Plex (OFL), self-hosted in `frontend/src/styles/fonts/` (`README.txt` says how each file was cut; about 40 KB for all three): **IBM Plex Sans** (variable, weight 400–700) for text (`--font-sans`), and **IBM Plex Mono** (500 and 600) for amounts (`--font-figure`), so every figure in a list lines up at the decimal point like a passbook column. The big figures (Home, Budgets, Accounts, an account, the Add screen's amount) are Mono 500 at 2.5rem with tight tracking: a monospaced figure is wide, so do not make it bigger, or a crore no longer fits a phone. That figure is the one loud thing on a screen; keep everything else quiet.
 
-**Corners** follow what a thing is: tiles and sheets `--radius` (20px), fields `--radius-sm` (14px), chips, switchers and buttons fully round.
+**Labels** over a figure, a day's heading in a list, the Add screen's "Paid from" / "Spent on" and Settings' section names are small **uppercase** labels (0.72–0.75rem, weight 600, `letter-spacing: 0.07em`, `--muted`).
 
-The mock-up the owner approved: https://claude.ai/artifact/GoV9wYTkHZbkuYZNT9vBFp
+**Corners** follow what a thing is: tiles and sheets `--radius` (14px), fields `--radius-sm` (10px), buttons `--radius-button` (10px), the docked "+" a rounded square (`--radius`); chips and switchers stay fully round.
 
 ## Colours and dark mode
 
-Every colour is a token in `frontend/src/styles/tokens.css`. Both dark blocks (the automatic `prefers-color-scheme` one and the chosen `data-theme="dark"` one) define the same tokens (`frontend/src/styles/tokens.test.ts`). The look (auto, light, dark) is chosen on Settings and kept in this browser (`lib/theme.ts`); `index.html` applies it before the first paint. Form fields use `--field-border`, stronger than the hairline `--border` in dark. `favicon.svg` follows the ink palette in both themes; the phone's status bar takes the page's own colour (`theme-color`).
+Every colour is a token in `frontend/src/styles/tokens.css`. Both dark blocks (the automatic `prefers-color-scheme` one and the chosen `data-theme="dark"` one) define the same tokens (`frontend/src/styles/tokens.test.ts`). The look (auto, light, dark) is chosen on Settings and kept in this browser (`lib/theme.ts`); `index.html` applies it before the first paint. Form fields use `--field-border`, stronger than the hairline `--border` in dark. `favicon.svg` and `apple-touch-icon.png` follow the ink palette (`favicon.svg` in both themes); the phone's status bar takes the page's own colour (`theme-color`).
 
 ## One design system (2026-10-23)
 

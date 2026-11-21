@@ -136,6 +136,7 @@
   font: inherit;
   font-size: max(16px, 1rem);
   text-align: right;
+  font-family: var(--font-figure);
   font-variant-numeric: tabular-nums;
 }
 .remove {
@@ -235,7 +236,7 @@
   align-items: center;
   min-height: var(--tap);
   padding: 0 1.25rem;
-  border-radius: 999px;
+  border-radius: var(--radius-button);
   color: var(--on-accent);
   background: var(--accent);
   font-weight: 600;
@@ -286,7 +287,7 @@
   min-height: var(--tap);
   margin-top: 1rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-button);
   color: var(--on-accent);
   background: var(--accent);
   font: inherit;

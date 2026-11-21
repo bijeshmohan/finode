@@ -70,7 +70,7 @@
 .secondary {
   flex: 1;
   min-height: var(--tap);
-  border-radius: 999px;
+  border-radius: var(--radius-button);
   font: inherit;
   font-weight: 600;
   cursor: pointer;

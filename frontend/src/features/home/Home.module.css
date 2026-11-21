@@ -45,16 +45,19 @@
 }
 .glanceLabel {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
   color: var(--muted);
 }
 .glanceFigure {
   margin: 0.5rem 0 0;
-  font-size: 3.375rem;
-  font-weight: 650;
-  font-stretch: 75%;
-  letter-spacing: -0.025em;
-  line-height: 1.05;
+  font-family: var(--font-figure);
+  font-size: 2.5rem;
+  font-weight: 500;
+  letter-spacing: -0.05em;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
 .glanceFigure small {
