@@ -32,7 +32,7 @@ On a phone, the bottom bar has four tabs with a **+** in the middle:
 |---|---|
 | **Home** | one number (what is left to spend this month) and your recent transactions |
 | **Budgets** | give every rupee a job (Budgets); see what is Ready to assign |
-| **Accounts** | where your money is: banks, cash, cards, loans |
+| **Accounts** | where your money is: bank accounts, cash, credit cards and prepaid wallets |
 | **Categories** | what you spend on and earn from, and how much, month by month |
 | **+** | add a transaction |
 

@@ -69,7 +69,10 @@ def test_the_books_balance_through_every_kind_of_change(
     assert result["balanced"], result["problems"]
     assert result["currency"] == "INR" and result["debit"] == result["credit"] == "1555.00"
     by_account = {line["account"]: line for line in result["lines"]}
-    assert by_account["Assets:checking"]["debit"] == "1400.00" and by_account["Assets:checking"]["credit"] == "155.00"
+    assert (
+        by_account["Assets:Bank Account:checking"]["debit"] == "1400.00"
+        and by_account["Assets:Bank Account:checking"]["credit"] == "155.00"
+    )
     assert by_account["Equity:Opening Balances"]["credit"] == "500.00"
 
 
@@ -253,12 +256,12 @@ def test_the_database_refuses_a_posting_that_is_not_positive(client, session, ac
 
 JOURNAL = """\
 2026-01-01 Opening
-    Assets:Bank:HDFC    1000
+    Assets:Bank Account:HDFC    1000
     Equity:Opening Balances
 
 2026-01-05 Groceries
     Expenses:Food    40
-    Assets:Bank:HDFC
+    Assets:Bank Account:HDFC
 """
 
 

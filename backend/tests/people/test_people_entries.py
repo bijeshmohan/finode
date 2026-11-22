@@ -4,16 +4,14 @@ any of these and back, all saved through /api/entries and the people routes the 
 
 import pytest
 
-from tests.books import category
+from tests.books import category, post_account
 
 OK = (200, 201)
 
 
 @pytest.fixture
 def bank(client, root_accounts):
-    return client.post(
-        "/api/accounts/", json={"name": "HDFC", "parent_id": root_accounts["Assets"], "balance": "10000"}
-    ).json()
+    return post_account(client, {"name": "HDFC", "parent_id": root_accounts["Assets"], "balance": "10000"}).json()
 
 
 def person(client, name="Alice", **extra):
@@ -258,8 +256,6 @@ def test_a_persons_accounts_stay_off_the_accounts_page_and_the_pickers(client, b
     options = {o["id"] for g in view(client, "entry-form")["groups"] for o in g["options"]}
     assert alice["receivable_account_id"] not in options and alice["payable_account_id"] not in options
     assert client.get(f"/api/accounts/{alice['receivable_account_id']}").json()["contact_account"] is True
-    refused = client.post("/api/accounts/", json={"name": "Sub", "parent_id": alice["receivable_account_id"]})
-    assert refused.status_code == 400 and "belongs to a contact" in refused.json()["detail"]
 
 
 def test_an_entry_made_through_a_person_is_looked_after_on_their_page(client, bank):
@@ -296,7 +292,7 @@ def test_a_transfer_to_or_from_a_person_on_the_add_screen(client, bank):
 
 def test_the_rules_of_a_transfer_with_a_person(client, bank):
     alice = person(client)
-    cash = client.post("/api/accounts/", json={"name": "Cash", "parent_id": bank["parent_id"]}).json()
+    cash = post_account(client, {"name": "Cash", "parent_id": bank["parent_id"]}).json()
 
     def attempt(**data):
         return save(client, {**rows(bank, alice), "kind": "transfer", **data})

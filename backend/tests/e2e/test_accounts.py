@@ -5,12 +5,10 @@ import re
 from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 
-import pytest
 from playwright.sync_api import Page, expect
 
 from finode.clock import local_today
 from finode.models.account import Account
-from finode.services import account as account_service
 
 from ..books import leg
 from .conftest import Api
@@ -28,34 +26,32 @@ def kind(page: Page, name: str):
 
 
 def nested(api: Api, books):
-    banks = api.post("/accounts/", name="Banks", parent_id=books["roots"]["Assets"])
-    api.post("/accounts/", name="HDFC", parent_id=banks["id"], balance="100")
-    api.post("/accounts/", name="SBI", parent_id=banks["id"], balance="50")
-    savings = api.post("/accounts/", name="Savings", parent_id=books["roots"]["Assets"])
-    api.post("/accounts/", name="Rainy", parent_id=savings["id"])
-    return banks, savings
+    """Two Prepaid Wallets and a Cash account beside the books' Bank Accounts and card."""
+    api.post("/accounts/", name="HDFC", type="assets.wallet", balance="100")
+    api.post("/accounts/", name="SBI", type="assets.wallet", balance="50")
+    api.post("/accounts/", name="Rainy", type="assets.cash")
+    groups = {a["system_key"]: a for a in api.get("/accounts/") if a["system_key"]}
+    return groups["assets.wallet"], groups["assets.cash"]
 
 
 def test_every_kind_is_a_row_of_cards_under_its_heading(signed_in_page: Page, api: Api, books):
     page = signed_in_page
     nested(api, books)
     page.goto("/accounts")
-    expect(kind(page, "Banks")).to_contain_text("2 accounts")
+    expect(kind(page, "Prepaid Wallet")).to_contain_text("2 accounts")
     assert {"HDFC", "SBI", "Rainy", "Checking", "Cash"} <= set(cards(page))
     assert "Opening Balances" not in cards(page), "Equity is not listed"
     assert page.locator("main details").count() == 0, "nothing folds"
-    expect(page.locator("main h2").first).to_have_text("Banks")
+    expect(page.locator("main h2")).to_have_text(["Bank Account", "Cash", "Credit Card", "Prepaid Wallet"])
 
 
 def test_a_long_row_scrolls_sideways_on_its_own_and_the_page_does_not(signed_in_page: Page, api: Api, books):
     page = signed_in_page
-    long = api.post("/accounts/", name="Wallets", parent_id=books["roots"]["Assets"])
     for number in range(8):
-        api.post("/accounts/", name=f"Wallet {number}", parent_id=long["id"])
-    short = api.post("/accounts/", name="Funds", parent_id=books["roots"]["Assets"])
-    api.post("/accounts/", name="Fund A", parent_id=short["id"])
+        api.post("/accounts/", name=f"Wallet {number}", type="assets.wallet")
+    api.post("/accounts/", name="Fund A", type="assets.cash")
     page.goto("/accounts")
-    wallets, funds = kind(page, "Wallets"), kind(page, "Funds")
+    wallets, funds = kind(page, "Prepaid Wallet"), kind(page, "Cash")
     expect(wallets).to_contain_text("8 accounts")
     rail = wallets.locator("div").filter(has=page.get_by_role("link", name="Add account")).last
     assert rail.evaluate("el => el.scrollWidth > el.clientWidth + 1"), "eight cards run past the edge"
@@ -72,12 +68,11 @@ def test_with_a_mouse_a_long_row_shows_a_scrollbar_to_drag_and_on_a_touch_screen
     """A mouse cannot swipe and its wheel scrolls the page, so a desktop needs a scrollbar to reach the last cards."""
     page = signed_in_page
     page.set_viewport_size({"width": 1280, "height": 800})
-    long = api.post("/accounts/", name="Wallets", parent_id=books["roots"]["Assets"])
     for number in range(8):
-        api.post("/accounts/", name=f"Wallet {number}", parent_id=long["id"])
+        api.post("/accounts/", name=f"Wallet {number}", type="assets.wallet")
     page.goto("/accounts")
-    expect(kind(page, "Wallets")).to_contain_text("8 accounts")
-    rail = kind(page, "Wallets").locator("div").filter(has=page.get_by_role("link", name="Add account")).last
+    expect(kind(page, "Prepaid Wallet")).to_contain_text("8 accounts")
+    rail = kind(page, "Prepaid Wallet").locator("div").filter(has=page.get_by_role("link", name="Add account")).last
     assert rail.evaluate("el => el.scrollWidth > el.clientWidth + 1"), "eight cards run past a desktop's edge too"
     # Headless browsers hide every scrollbar, so the test reads the style that shows it rather than measuring it.
     assert rail.evaluate("el => getComputedStyle(el).scrollbarWidth") == "thin", "a scrollbar to drag"
@@ -89,8 +84,10 @@ def test_with_a_mouse_a_long_row_shows_a_scrollbar_to_drag_and_on_a_touch_screen
         touch = phone.new_page()
         touch.context.add_cookies(page.context.cookies())
         touch.goto("/accounts")
-        expect(kind(touch, "Wallets")).to_contain_text("8 accounts")
-        rail = kind(touch, "Wallets").locator("div").filter(has=touch.get_by_role("link", name="Add account")).last
+        expect(kind(touch, "Prepaid Wallet")).to_contain_text("8 accounts")
+        rail = (
+            kind(touch, "Prepaid Wallet").locator("div").filter(has=touch.get_by_role("link", name="Add account")).last
+        )
         assert rail.evaluate("el => getComputedStyle(el).scrollbarWidth") == "none", (
             "a touch screen swipes, with no bar"
         )
@@ -102,9 +99,9 @@ def test_the_kinds_have_room_between_them_and_a_heading_larger_than_a_cards_name
     page = signed_in_page
     nested(api, books)
     page.goto("/accounts")
-    expect(kind(page, "Banks")).to_be_visible()
+    expect(kind(page, "Prepaid Wallet")).to_be_visible()
     size = page.locator("main h2").first.evaluate("e => parseFloat(getComputedStyle(e).fontSize)")
-    name = kind(page, "Banks").get_by_role("link", name=re.compile("HDFC")).locator("span").first
+    name = kind(page, "Prepaid Wallet").get_by_role("link", name=re.compile("HDFC")).locator("span").first
     assert size > name.evaluate("e => parseFloat(getComputedStyle(e).fontSize)") + 2
     gaps = page.locator("main section").evaluate_all(
         "els => els.slice(1).map((e, i) => Math.round(e.getBoundingClientRect().top - els[i].getBoundingClientRect().bottom))"
@@ -114,12 +111,12 @@ def test_the_kinds_have_room_between_them_and_a_heading_larger_than_a_cards_name
 
 def test_a_card_opens_the_account_and_the_add_card_opens_the_form_on_that_kind(signed_in_page: Page, api: Api, books):
     page = signed_in_page
-    banks, _ = nested(api, books)
+    nested(api, books)
     page.goto("/accounts")
-    expect(kind(page, "Banks").get_by_role("link", name="Add account")).to_have_attribute(
-        "href", f"/accounts/new?parent={banks['id']}"
+    expect(kind(page, "Prepaid Wallet").get_by_role("link", name="Add account")).to_have_attribute(
+        "href", "/accounts/new?type=assets.wallet"
     )
-    kind(page, "Banks").get_by_role("link", name=re.compile("HDFC")).click()
+    kind(page, "Prepaid Wallet").get_by_role("link", name=re.compile("HDFC")).click()
     page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
     expect(page.get_by_role("heading", level=1, name="HDFC")).to_be_visible()
 
@@ -153,14 +150,14 @@ def test_closing_an_account_from_its_page(signed_in_page: Page, books):
     expect(page.get_by_role("link", name=re.compile("Checking"))).to_be_visible()
     assert "Cash" not in cards(page)
     page.get_by_role("button", name="Load more").click()
-    expect(page.get_by_role("link", name=re.compile("^Cash"))).to_be_visible()
+    expect(page.get_by_role("link", name=re.compile("^Cash closed"))).to_be_visible()
 
 
 def test_the_cards_of_a_row_are_the_same_size(signed_in_page: Page, api: Api, books):
     page = signed_in_page
     nested(api, books)
     page.goto("/accounts")
-    expect(kind(page, "Banks")).to_be_visible()
+    expect(kind(page, "Prepaid Wallet")).to_be_visible()
     sizes = page.locator("main section a[href^='/accounts/']:not([href*='new'])").evaluate_all(
         "els => els.filter(e => !e.closest('h2')).map(e => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)].join('x') })"
     )
@@ -201,12 +198,11 @@ def test_load_more_loads_the_next_chunk_in_place(signed_in_page: Page, api: Api,
 
 def test_going_back_from_an_account_lands_on_the_accounts_page(signed_in_page: Page, api: Api, books):
     page = signed_in_page
-    group = api.post("/accounts/", name="Cards", parent_id=books["roots"]["Liabilities"])
-    api.post("/accounts/", name="Visa Gold", parent_id=group["id"], balance="50")
+    api.post("/accounts/", name="Visa Gold", type="liabilities.cards", balance="50")
     page.goto("/accounts")
     page.get_by_role("link", name=re.compile("Visa Gold")).click()
     page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
-    expect(page.locator("header p").first).to_have_text("Cards")
+    expect(page.locator("header p").first).to_have_text("Credit Card")
     page.locator("main").get_by_role("link", name="Accounts").click()
     page.wait_for_url(re.compile(r"/accounts$"))
 
@@ -245,11 +241,11 @@ def test_editing_an_entry_from_an_accounts_page_comes_back_to_it(signed_in_page:
     expect(page.get_by_role("dialog")).to_have_count(0)
 
 
-def test_a_groups_heading_opens_its_page_with_its_accounts_in_a_row_and_their_transactions(
+def test_a_types_heading_opens_its_page_with_its_accounts_in_a_row_and_their_transactions(
     signed_in_page: Page, api: Api, books
 ):
     page = signed_in_page
-    banks, _ = nested(api, books)
+    wallets, _ = nested(api, books)
     hdfc = next(a for a in api.get("/accounts/") if a["name"] == "HDFC")
     api.post(
         "/transactions/",
@@ -257,16 +253,13 @@ def test_a_groups_heading_opens_its_page_with_its_accounts_in_a_row_and_their_tr
         postings=[leg(books["cash"], "debit", "10"), leg(hdfc, "credit", "10")],
     )
     page.goto("/accounts")
-    kind(page, "Banks").get_by_role("link", name="Banks", exact=True).click()
-    expect(page).to_have_url(re.compile(rf"/accounts/{banks['id']}$"))
-    # The address changes before the group's page replaces the Accounts page (which has its own "Accounts" heading and
-    # "Add account" links): wait for the group's own title first.
-    expect(page.get_by_role("heading", level=1, name="Banks")).to_be_visible()
+    kind(page, "Prepaid Wallet").get_by_role("link", name="Prepaid Wallet", exact=True).click()
+    expect(page).to_have_url(re.compile(rf"/accounts/{wallets['id']}$"))
+    # The address changes before the type's page replaces the Accounts page (which has its own "Accounts" heading and
+    # "Add account" links): wait for the type's own title first.
+    expect(page.get_by_role("heading", level=1, name="Prepaid Wallet")).to_be_visible()
     expect(page.get_by_role("heading", name="Accounts", exact=True)).to_be_visible()
     expect(page.get_by_role("link", name=re.compile("^(HDFC|SBI)"))).to_have_count(2)
-    expect(page.get_by_role("link", name="Add account")).to_have_attribute(
-        "href", f"/accounts/new?parent={banks['id']}"
-    )
     expect(page.get_by_role("heading", name="Transactions")).to_be_visible()
     expect(page.get_by_role("button", name=re.compile("Gadget Store"))).to_contain_text("HDFC")
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "only the row scrolls sideways"
@@ -334,103 +327,36 @@ def test_pay_bill_opens_the_form_with_the_card_and_the_amount(signed_in_page: Pa
     expect(page.get_by_role("button", name=re.compile("^To(?! do)"))).to_contain_text("Amex")
 
 
-@pytest.fixture
-def with_groups(monkeypatch):
-    """A new profile gets the five built-in groups (asked for before the person signs in, as their books start then)."""
-    monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
-
-
-def test_an_empty_page_shows_the_five_shelves_and_each_adds_an_account_of_its_kind(with_groups, signed_in_page: Page):
+def test_an_empty_page_shows_the_four_types_and_each_adds_an_account_of_its_type(signed_in_page: Page):
     page = signed_in_page
     page.goto("/accounts")
-    expect(page.locator("main h2")).to_have_text(["Bank Accounts", "Cash", "Credit Cards", "Investments", "Loans"])
-    expect(kind(page, "Bank Accounts").get_by_role("link", name="Add account")).to_have_attribute(
-        "href", re.compile(r"/accounts/new\?parent=")
+    expect(page.locator("main h2")).to_have_text(["Bank Account", "Cash", "Credit Card", "Prepaid Wallet"])
+    expect(kind(page, "Prepaid Wallet").get_by_role("link", name="Add account")).to_have_attribute(
+        "href", "/accounts/new?type=assets.wallet"
     )
+    kind(page, "Prepaid Wallet").get_by_role("link", name="Add account").click()
+    page.wait_for_url(re.compile(r"/accounts/new\?type=assets.wallet$"))
+    expect(page.get_by_role("radio", name="Prepaid Wallet")).to_have_attribute("aria-checked", "true")
 
 
-# ---- the account and group forms ----------------------------------------------------------------------------------
+# ---- the account form ----------------------------------------------------------------------------------
 
 
 def chip(page: Page, name: str):
-    return page.get_by_role("group", name="Kind of account").get_by_role("button", name=name, exact=True)
+    return page.get_by_role("radiogroup", name="Kind of account").get_by_role("radio", name=name, exact=True)
 
 
-def test_the_new_account_form_asks_about_the_budget_by_its_kind(signed_in_page: Page, api: Api, books):
+def test_the_days_are_asked_only_for_a_credit_card(signed_in_page: Page, books):
     page = signed_in_page
-    banks = api.post("/accounts/", name="Banks", parent_id=books["roots"]["Assets"])
-    api.post("/accounts/", name="HDFC", parent_id=banks["id"])
-    loans = api.post("/accounts/", name="Loans", parent_id=books["roots"]["Liabilities"])
-    api.post("/accounts/", name="Old loan", parent_id=loans["id"])
-    page.goto("/accounts/new")
-    box = page.get_by_role("checkbox", name=re.compile("Part of the budget"))
-    expect(chip(page, "Banks")).to_be_visible()
-    expect(box).to_have_count(0)  # no kind chosen yet
-    chip(page, "Banks").click()
-    expect(box).to_be_checked()
-    expect(page.get_by_label("Current balance")).to_be_visible()
-    chip(page, "Loans").click()
-    expect(box).not_to_be_checked()  # a loan or card starts outside the budget
-    expect(page.get_by_label("Amount you owe now")).to_be_visible()
-    expect(chip(page, "Loans")).to_have_attribute("aria-pressed", "true")
-    expect(chip(page, "Banks")).to_have_attribute("aria-pressed", "false")
-    page.get_by_label("Name").fill("Car loan")
-    page.get_by_role("button", name="Add account").click()
-    page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
-    loan = next(a for a in api.get("/accounts/") if a["name"] == "Car loan")
-    assert loan["on_budget"] is False and loan["parent_id"] == loans["id"]
-
-
-def test_the_budget_box_works_when_the_form_opens_on_a_type_or_a_kind(signed_in_page: Page, books):
-    page = signed_in_page
-    for url in ("/accounts/new?root=assets", f"/accounts/new?parent={books['checking']['id']}"):
-        page.goto(url)
-        box = page.get_by_role("checkbox", name=re.compile("Part of the budget"))
-        expect(box).to_be_checked()
-        box.uncheck()
-        expect(box).not_to_be_checked()
-
-
-def test_a_group_is_made_from_the_foot_of_the_page_and_its_accounts_start_as_it_says(
-    signed_in_page: Page, api: Api, books
-):
-    page = signed_in_page
-    page.goto("/accounts")
-    page.get_by_role("link", name="New group").click()
-    expect(page).to_have_url(re.compile(r"/accounts/new-group$"))
-    page.get_by_label("Name").fill("Family")
-    page.get_by_role("button", name="Create group").click()
-    expect(page.get_by_role("alert")).to_contain_text("choose")  # nothing was chosen for the person
-    page.get_by_text("Money I own").click()
-    page.get_by_text("Part of the budget").click()
-    page.get_by_role("button", name="Create group").click()
-    expect(page).to_have_url(re.compile(r"/accounts$"))
-    shelf = kind(page, "Family")
-    expect(shelf).to_contain_text("0.00 · 0 accounts")
-    shelf.get_by_role("link", name="Add account").click()
-    expect(chip(page, "Family")).to_have_attribute("aria-pressed", "true")
-    expect(page.get_by_role("checkbox", name=re.compile("Part of the budget"))).to_be_checked()
-    page.get_by_label("Name").fill("Mom's wallet")
-    page.get_by_role("button", name="Add account").click()
-    expect(page.get_by_role("heading", level=1, name="Mom's wallet")).to_be_visible()
-    assert next(a for a in api.get("/accounts/") if a["name"] == "Mom's wallet")["on_budget"] is True
-
-
-def test_the_days_are_asked_only_for_a_card_or_loan(signed_in_page: Page, api: Api, books):
-    page = signed_in_page
-    cards_group = api.post("/accounts/", name="Cards", parent_id=books["roots"]["Liabilities"])
-    api.post("/accounts/", name="Visa Gold", parent_id=cards_group["id"])
-    banks = api.post("/accounts/", name="Banks", parent_id=books["roots"]["Assets"])
-    api.post("/accounts/", name="HDFC", parent_id=banks["id"])
     page.goto("/accounts/new")
     days = page.get_by_label("Statement day")
-    expect(chip(page, "Cards")).to_be_visible()
+    expect(chip(page, "Credit Card")).to_be_visible()
     expect(days).to_have_count(0)
-    chip(page, "Cards").click()
+    chip(page, "Credit Card").click()
     expect(days).to_be_visible()
-    chip(page, "Banks").click()
+    chip(page, "Bank Account").click()
     expect(days).to_have_count(0)
-    chip(page, "Cards").click()
+    chip(page, "Credit Card").click()
     page.get_by_label("Name").fill("Amex")
     page.get_by_label("Statement day").fill("10")
     page.get_by_label("Payment due day").fill("28")
@@ -445,32 +371,3 @@ def test_a_new_account_without_a_kind_is_told_to_choose_one(signed_in_page: Page
     page.get_by_label("Name").fill("Nowhere")
     page.get_by_role("button", name="Add account").click()
     expect(page.get_by_role("alert")).to_contain_text("kind")
-
-
-def test_a_groups_own_page_adds_inside_it(with_groups, signed_in_page: Page, api: Api):
-    page = signed_in_page
-    page.goto("/accounts")
-    expect(page.locator("main h2").first).to_have_text("Bank Accounts")
-    group = next(a for a in api.get("/accounts/") if a["name"] == "Investments")
-    page.goto(f"/accounts/{group['id']}")
-    page.get_by_role("link", name="Add account").click()
-    page.wait_for_url(re.compile(r"/accounts/new\?parent="))
-    expect(chip(page, "Investments")).to_have_attribute("aria-pressed", "true")
-    expect(page.get_by_role("checkbox", name=re.compile("Part of the budget"))).not_to_be_checked()
-
-
-def test_the_budget_line_follows_the_group_chosen(with_groups, signed_in_page: Page):
-    page = signed_in_page
-    page.goto("/accounts/new")
-    box = page.get_by_role("checkbox", name=re.compile("Part of the budget"))
-    chip(page, "Bank Accounts").click()
-    expect(box).to_be_checked()
-    chip(page, "Investments").click()
-    expect(box).not_to_be_checked()
-    chip(page, "Cash").click()
-    expect(box).to_be_checked()
-    page.get_by_label("Name").fill("Wallet")
-    page.get_by_role("button", name="Add account").click()
-    page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
-    page.goto("/accounts")
-    expect(page.get_by_role("link", name=re.compile("^Wallet"))).to_be_visible()

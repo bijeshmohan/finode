@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { groups, ids } from "./fixtures";
-import { canSwap, KINDS, keepsChoice, offered, rowCategoryShown, screenOrder } from "./kinds";
+import { canSwap, KINDS, keepsChoice, offered, screenOrder } from "./kinds";
 
 const titles = (kind: Parameters<typeof offered>[0], side: "credit" | "debit") =>
   offered(kind, side, groups).map((g) => g.title);
@@ -9,7 +9,7 @@ const titles = (kind: Parameters<typeof offered>[0], side: "credit" | "debit") =
 describe("what each kind offers", () => {
   it("an expense is paid from accounts and spent on categories", () => {
     expect([KINDS.expense.credit.title, KINDS.expense.debit.title]).toEqual(["Paid from", "Spent on"]);
-    expect(titles("expense", "credit")).toEqual(["Assets", "Liabilities"]);
+    expect(titles("expense", "credit")).toEqual(["Bank Account", "Credit Card"]);
     expect(titles("expense", "debit")).toEqual(["Expenses"]);
   });
 
@@ -21,7 +21,7 @@ describe("what each kind offers", () => {
   });
 
   it("a transfer moves between accounts and people; other offers everything", () => {
-    expect(titles("transfer", "debit")).toEqual(["Assets", "Liabilities", "People"]);
+    expect(titles("transfer", "debit")).toEqual(["Bank Account", "Credit Card", "People"]);
     expect(titles("other", "credit")).toEqual(groups.map((g) => g.title));
   });
 
@@ -38,14 +38,5 @@ describe("what each kind offers", () => {
     expect(keepsChoice("transfer", "credit", ids.bank, groups)).toBe(true);
     expect(keepsChoice("income", "credit", ids.bank, groups)).toBe(false);
     expect(keepsChoice("income", "credit", null, groups)).toBe(true);
-  });
-});
-
-describe("the category of a payment into a loan or fund", () => {
-  it("shows only when money leaves the budget into an account outside it", () => {
-    expect(rowCategoryShown(ids.loan, ids.bank, groups)).toBe(true);
-    expect(rowCategoryShown(ids.bank, ids.loan, groups)).toBe(false);
-    expect(rowCategoryShown(ids.card, ids.bank, groups)).toBe(false);
-    expect(rowCategoryShown(ids.loan, null, groups)).toBe(false);
   });
 });

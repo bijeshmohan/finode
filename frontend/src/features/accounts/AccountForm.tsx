@@ -1,6 +1,7 @@
-// Adding or editing an account. The kind chips choose where it sits; the budget box and a card's
-// days follow the chosen kind as the server describes it (can_budget, can_bill, budget_default). An edit sends only
-// what changed: a new balance records an adjustment against Opening Balances, so it is never sent unchanged.
+// Adding or editing an account. A new one picks its type first (Bank Account, Cash, Credit Card or Prepaid Wallet, in
+// the person's order); an account keeps its type. A Credit Card takes its bill days. Every account is part of the
+// budget. An edit sends only what changed: a new balance records an adjustment against Opening Balances, so it is never
+// sent unchanged.
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
@@ -8,6 +9,7 @@ import { messageOf } from "../../api/messages";
 import { useGrouping, usePlaces, useSymbol } from "../../app/currency";
 import { useToast } from "../../app/toast";
 import { AmountField } from "../../components/AmountField";
+import { Chips } from "../../components/Chips";
 import { Icon } from "../../components/Icon";
 import { LoadError } from "../../components/LoadError";
 import { groupAmount, tidyAmount } from "../../lib/amount";
@@ -16,6 +18,7 @@ import look from "../../components/Page.module.css";
 import form from "../../components/Forms.module.css";
 import {
   type AccountFormView,
+  type AccountType,
   type AccountUpdate,
   useAccountForm,
   useAddAccountFromForm,
@@ -43,29 +46,17 @@ function FormBody({ view, accountId }: { view: AccountFormView; accountId: strin
   const remove = useDeleteAccount(accountId ?? "");
   const editing = view.editing;
   const [name, setName] = useState(view.name);
-  const [parent, setParent] = useState(view.parent_id);
+  const [type, setType] = useState<AccountType | null>(view.type);
   const [balance, setBalance] = useState(view.balance ? groupAmount(view.balance, grouping) : "");
-  const [onBudget, setOnBudget] = useState(view.on_budget);
-  const [groupBudget, setGroupBudget] = useState(view.new_accounts_in_budget ?? false);
   const [statement, setStatement] = useState(view.statement_day?.toString() ?? "");
   const [due, setDue] = useState(view.due_day?.toString() ?? "");
   const [rounding, setRounding] = useState<Rounding>(view.bill_rounding);
   const [note, setNote] = useState(view.details ?? "");
   const [problem, setProblem] = useState<string | null>(null);
-  const chosen = view.parent_options.find((k) => k.id === parent) ?? view.kinds.find((k) => k.id === parent);
-  // A new account follows the kind chosen; an edit keeps what the server said of the account itself.
-  const canBudget = editing ? view.can_budget : (chosen?.can_budget ?? false);
-  const canBill = editing ? view.can_bill : (chosen?.can_bill ?? false);
-  const root = editing ? view.root_name : (chosen?.root ?? null);
-  const balanceLabel = root === "Liabilities" ? "Amount you owe now" : editing ? "Balance" : "Current balance";
+  const canBill = type === "liabilities.cards";
+  const balanceLabel = canBill ? "Amount you owe now" : editing ? "Balance" : "Current balance";
   const pending = add.isPending || update.isPending;
   const back = editing && accountId ? `/accounts/${accountId}` : "/accounts";
-
-  const choose = (id: string) => {
-    setParent(id);
-    const kind = view.parent_options.find((k) => k.id === id) ?? view.kinds.find((k) => k.id === id);
-    if (kind && !editing) setOnBudget(kind.budget_default);
-  };
 
   const submit = () => {
     setProblem(null);
@@ -78,17 +69,16 @@ function FormBody({ view, accountId }: { view: AccountFormView; accountId: strin
     const plainBalance = balance.trim() ? tidyAmount(balance, places).replace(/,/g, "") : "";
     const details = note.trim() || null;
     if (!editing) {
-      if (!parent) {
+      if (!type) {
         setProblem("choose what kind of account it is!");
         return;
       }
       add.mutate(
         {
           name: name.trim(),
-          parent_id: parent,
+          type,
           details,
           balance: plainBalance || "0",
-          ...(canBudget ? { on_budget: onBudget } : {}),
           ...(canBill ? { statement_day: statementDay ?? null, due_day: dueDay ?? null } : {}),
           bill_rounding: canBill ? rounding : "none",
         },
@@ -107,12 +97,8 @@ function FormBody({ view, accountId }: { view: AccountFormView; accountId: strin
     const changes: AccountUpdate = {};
     if (name.trim() !== view.name) changes.name = name.trim();
     if (details !== view.details) changes.details = details;
-    if (parent && parent !== view.parent_id) changes.parent_id = parent;
-    if (!view.is_group && plainBalance && view.balance !== null && !sameAmount(plainBalance, view.balance))
+    if (plainBalance && view.balance !== null && !sameAmount(plainBalance, view.balance))
       changes.balance = plainBalance;
-    if (canBudget && onBudget !== view.on_budget) changes.on_budget = onBudget;
-    if (view.new_accounts_in_budget !== null && groupBudget !== view.new_accounts_in_budget)
-      changes.new_accounts_in_budget = groupBudget;
     if (
       canBill &&
       (statementDay !== view.statement_day || dueDay !== view.due_day || rounding !== view.bill_rounding)
@@ -165,82 +151,31 @@ function FormBody({ view, accountId }: { view: AccountFormView; accountId: strin
             }}
           />
         </label>
-        {(view.kinds.length > 0 || view.placed) && (
+        {!editing && (
           <div className={form.field}>
-            {view.placed ? (
-              <>
-                <span>{view.placed.label}</span>
-                <span className={form.inside}>{view.placed.value}</span>
-              </>
-            ) : (
-              <>
-                <span>Kind</span>
-                <div className={form.chips} role="group" aria-label="Kind of account">
-                  {view.kinds.map((k) => (
-                    <button
-                      key={k.id}
-                      type="button"
-                      className={form.chip}
-                      aria-pressed={k.id === parent}
-                      onClick={() => {
-                        choose(k.id);
-                      }}
-                    >
-                      {k.name}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-        {!view.is_group && (
-          <div className={form.field}>
-            <AmountField
-              id="account-balance"
-              label={balanceLabel}
-              value={balance}
-              onChange={setBalance}
-              places={places}
-              grouping={grouping}
-            />
-            {editing && (
-              <span className={form.hint}>Changing this records an adjustment against Opening Balances.</span>
-            )}
-          </div>
-        )}
-        {canBudget && !view.is_group && (
-          <label className={form.check}>
-            <span>
-              Part of the budget <span className={form.hint}>Money you assign to categories</span>
-            </span>
-            <input
-              type="checkbox"
-              checked={onBudget}
-              onChange={(event) => {
-                setOnBudget(event.target.checked);
+            <span>Kind</span>
+            <Chips
+              label="Kind of account"
+              options={view.types.map((t) => ({ value: t.key, label: t.name }))}
+              value={type ?? ""}
+              onChange={(value) => {
+                setType(value as AccountType);
               }}
             />
-          </label>
+          </div>
         )}
-        {view.new_accounts_in_budget !== null && (
-          <label className={form.check}>
-            <span>
-              Part of the budget{" "}
-              <span className={form.hint}>
-                Accounts you add here start with this choice. Existing accounts keep theirs
-              </span>
-            </span>
-            <input
-              type="checkbox"
-              checked={groupBudget}
-              onChange={(event) => {
-                setGroupBudget(event.target.checked);
-              }}
-            />
-          </label>
-        )}
-        {canBill && !view.is_group && (
+        <div className={form.field}>
+          <AmountField
+            id="account-balance"
+            label={balanceLabel}
+            value={balance}
+            onChange={setBalance}
+            places={places}
+            grouping={grouping}
+          />
+          {editing && <span className={form.hint}>Changing this records an adjustment against Opening Balances.</span>}
+        </div>
+        {canBill && (
           <div className={form.billDays}>
             <label>
               Statement day
@@ -338,26 +273,20 @@ function FormBody({ view, accountId }: { view: AccountFormView; accountId: strin
             <Icon name="trash" />
             Delete account
           </button>
-          <p className={form.dangerHint}>
-            Only accounts without transactions or sub-accounts can be deleted. A group can be deleted while it is empty.
-          </p>
+          <p className={form.dangerHint}>Only an account without transactions can be deleted.</p>
         </section>
       )}
     </>
   );
 }
 
-/** /accounts/new (?parent=, ?root=) and /accounts/:accountId/edit. */
+/** /accounts/new (?type=) and /accounts/:accountId/edit. */
 export function AccountForm() {
   const { accountId } = useParams();
   const [params] = useSearchParams();
-  const query: { account_id?: string; parent?: string; root?: string } = accountId ? { account_id: accountId } : {};
-  if (!accountId) {
-    const parent = params.get("parent");
-    const root = params.get("root");
-    if (parent) query.parent = parent;
-    if (root) query.root = root;
-  }
+  const query: { account_id?: string; type?: string } = accountId ? { account_id: accountId } : {};
+  const type = params.get("type");
+  if (!accountId && type) query.type = type;
   const view = useAccountForm(query);
   if (view.isError) return <LoadError error={view.error} onRetry={() => void view.refetch()} />;
   if (!view.data) return <h1 className="sr-only">{accountId ? "Edit account" : "Add account"}</h1>;

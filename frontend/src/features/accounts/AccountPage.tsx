@@ -57,10 +57,10 @@ function AccountMenu({
         <Icon name="edit" />
         Edit
       </Link>
-      {view.can_add_child && !view.closed_on && (
-        <Link to={`/accounts/new?parent=${view.id}`}>
+      {view.add_url && !view.closed_on && (
+        <Link to={view.add_url}>
           <Icon name="plus" />
-          {view.is_group ? "Add account" : "Add sub-account"}
+          Add account
         </Link>
       )}
       {view.closed_on ? (
@@ -240,8 +240,8 @@ export function AccountPage() {
             {view.cards.map((c) => (
               <AccountCard key={c.id} card={c} />
             ))}
-            {view.can_add_child && !view.closed_on && (
-              <Link className={`${styles.card} ${styles.addCard}`} to={`/accounts/new?parent=${view.id}`}>
+            {view.add_url && !view.closed_on && (
+              <Link className={`${styles.card} ${styles.addCard}`} to={view.add_url}>
                 <Icon name="plus" />
                 Add account
               </Link>

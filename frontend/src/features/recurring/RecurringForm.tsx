@@ -188,7 +188,7 @@ function RuleScreen({ view, recurringId }: { view: RecurringFormView; recurringI
 
   const send = () => {
     setProblem(null);
-    const lines = linesBody(state, view.groups, places);
+    const lines = linesBody(state, places);
     if (lines.problem !== undefined) {
       setProblem(lines.problem);
       return;
@@ -243,7 +243,7 @@ function RuleScreen({ view, recurringId }: { view: RecurringFormView; recurringI
           state={state}
           update={update}
           groups={view.groups}
-          accountParents={view.account_parents}
+          accountTypes={view.account_types}
           categoryParents={view.category_parents}
           dated={false}
         >

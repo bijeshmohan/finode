@@ -21,16 +21,17 @@ backup restore of a file made before the change (not strict: it decides by the r
 import builtins
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import cast
 from uuid import UUID
 
 from ..models.account import Account
+from ..models.category import BudgetCategory
 from ..models.transaction import Posting, PostingSide
 from ..repositories import TransactionRepository
 from ..repositories.recurring import RecurringRepository
-from ..schemas.account import AccountCreate
+from ..repositories.shared_expense import SharedExpenseRepository
+from ..schemas.account import AccountBase
 from ..schemas.cash_flow import AccountMove, ConversionPlan, ConversionResult, EntryChange
-from ..schemas.category import CategoryCreate, CategoryKindName, CategoryRead
+from ..schemas.category import CategoryRead
 from .account import AccountService
 from .account_types import RETIRED_KEYS, TYPE_KEYS, TYPE_NAMES, TYPE_ROOTS
 from .category import CategoryService
@@ -59,6 +60,7 @@ class _Work:
     rules: list[tuple[UUID, dict[UUID, tuple[Target, CategoryRef | None]]]] = field(default_factory=list)
     ends: list[UUID] = field(default_factory=list)
     accounts_to_delete: list[UUID] = field(default_factory=list)
+    retired_accounts: list[UUID] = field(default_factory=list)  # the investment and loan accounts among them
     new_categories: dict[tuple[str, str], str] = field(default_factory=dict)  # (name in one form, kind) → name
     reopen: set[UUID] = field(default_factory=set)
 
@@ -79,11 +81,14 @@ class CashFlowConversion:
         strict: bool,
         retire_ids: set[UUID] | None = None,
         types: dict[UUID, str] | None = None,
+        group_ids: set[UUID] | None = None,
     ) -> ConversionPlan:
         """`retire_ids`: accounts or groups the person chose to retire as well (their worth goes, like an investment's;
         under Liabilities, like a loan's). `types`: an account's or a group's accounts' type, chosen by the person (an
-        account outside the budget given a type goes into the budget)."""
+        account outside the budget given a type goes into the budget). `group_ids`: accounts that were groups (from a
+        backup, which says so even of an empty one); an account with accounts in it is a group anyway."""
         retire_ids = retire_ids or set()
+        group_ids = group_ids or set()
         types = types or {}
         accounts = self.ar.list()
         by_id = {a.id: a for a in accounts}
@@ -127,7 +132,7 @@ class CashFlowConversion:
             if a.parent_id in holding_roots
             and a.id not in contacts
             and a.id not in retired
-            and (a.system_key is not None or a.new_accounts_in_budget is not None or children[a.id])
+            and (a.system_key is not None or a.id in group_ids or children[a.id])
         ]
         group_ids = {a.id for a in groups}
         leaves = [
@@ -308,6 +313,7 @@ class CashFlowConversion:
 
         for a in sorted((by_id[i] for i in retired), key=depth, reverse=True):
             work.accounts_to_delete.append(a.id)
+            work.retired_accounts.append(a.id)
             plan.retired.append(AccountMove(account_id=a.id, path=path(a), becomes="deleted"))
         for a in groups:
             if a.system_key not in TYPE_KEYS:
@@ -319,7 +325,8 @@ class CashFlowConversion:
         plan._work = work
         return plan
 
-    def apply(self, plan: ConversionPlan) -> ConversionResult:
+    def apply(self, plan: ConversionPlan, *, commit: bool = True) -> ConversionResult:
+        """Carry `plan` out. `commit=False` leaves the commit to the caller (a restore, which saves everything at once)."""
         work: _Work = plan._work
         if work is None:
             raise ConversionRefused("work out a plan first!")
@@ -329,10 +336,14 @@ class CashFlowConversion:
 
         made: dict[tuple[str, str], UUID] = {}
         for (key, kind), name in work.new_categories.items():
-            made[(key, kind)] = self.categories.create(CategoryCreate(name=name, kind=cast(CategoryKindName, kind))).id
+            category = BudgetCategory(user_id=self.ar.uid, name=name, kind=kind)
+            made[(key, kind)] = self.categories.cr.add(category).id
             result.categories_made.append(name)
         for category_id in work.reopen:
-            self.categories.reopen(category_id)
+            reopened = self.categories.cr.read(category_id)
+            if reopened is not None:
+                reopened.closed_on = None
+                self.ar.db.add(reopened)
 
         def category(ref: CategoryRef | None) -> UUID | None:
             if ref is None or isinstance(ref, UUID):
@@ -342,18 +353,15 @@ class CashFlowConversion:
         groups: dict[str, UUID] = {}
         for key, group_id in work.type_groups.items():
             if group_id is None:
-                created = self.ar.create(
-                    AccountCreate(name=TYPE_NAMES[key], parent_id=work.roots[TYPE_ROOTS[key]]),
-                    new_accounts_in_budget=True,
-                )
+                created = self.ar.create(AccountBase(name=TYPE_NAMES[key], parent_id=work.roots[TYPE_ROOTS[key]]))
                 created.system_key = key
                 self.ar.db.add(created)
                 group_id = created.id
             groups[key] = group_id
         for group_id, name in work.renames.items():
-            self.ar.place(group_id, work.roots[TYPE_ROOTS[_key_of(work, group_id)]], name, False)
+            self.ar.place(group_id, work.roots[TYPE_ROOTS[_key_of(work, group_id)]], name)
         for account_id, key, name in work.places:
-            self.ar.place(account_id, groups[key], name, True)
+            self.ar.place(account_id, groups[key], name)
 
         targets = {"Expenses": work.roots["Expenses"], "Income": work.roots["Income"]}
         if any(target == "Opening Balances" for _, target, _ in work.retargets):
@@ -373,10 +381,17 @@ class CashFlowConversion:
             self.rr.end(recurring_id)
         result.recurring_ended = len(work.ends)
 
+        # A shared bill a retired account paid towards: the money now comes from Income (Borrowed or Redeemed).
+        bills = SharedExpenseRepository(self.ar.db, self.ar.uid)
+        for account_id in work.retired_accounts:
+            bills.repoint_account(account_id, work.roots["Income"])
         for account_id in work.accounts_to_delete:
             self.ar.delete(account_id)
         result.accounts_deleted = len(work.accounts_to_delete)
-        self.ar.db.commit()
+        if commit:
+            self.ar.db.commit()
+        else:
+            self.ar.db.flush()
         return result
 
 

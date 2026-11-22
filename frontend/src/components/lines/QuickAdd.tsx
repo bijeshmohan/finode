@@ -1,5 +1,6 @@
-// A new account or category made from the Add screen's picker: the server
-// checks the name and where it goes; once made, it is chosen on the row the picker was opened from.
+// A new account or category made from the Add screen's picker: an account is one of the four types (those of the side
+// the picker was opened for come first), a category goes under a group or none. The server checks the name; once made,
+// it is chosen on the row the picker was opened from.
 import { useState } from "react";
 
 import { messageOf } from "../../api/messages";
@@ -8,30 +9,32 @@ import { Icon } from "../../components/Icon";
 import { Sheet } from "../../components/Sheet";
 import { tidyAmount } from "../../lib/amount";
 import styles from "./QuickAdd.module.css";
-import { type CategoryParent, type ParentOption, useAddAccount, useAddCategory } from "./queries";
+import { type AccountTypeOption, type CategoryParent, useAddAccount, useAddCategory } from "./queries";
 
 export type QuickKind = { what: "account"; root: string } | { what: "category"; kind: "spending" | "earning" };
 
 interface QuickAddProps {
   making: QuickKind;
-  accountParents: ParentOption[];
+  accountTypes: AccountTypeOption[];
   categoryParents: CategoryParent[];
   onMade: (id: string) => void;
   onClose: () => void;
 }
 
-export function QuickAdd({ making, accountParents, categoryParents, onMade, onClose }: QuickAddProps) {
+export function QuickAdd({ making, accountTypes, categoryParents, onMade, onClose }: QuickAddProps) {
   const places = usePlaces();
   const addAccount = useAddAccount();
   const addCategory = useAddCategory();
   const account = making.what === "account";
   const title = account ? "New account" : "New category";
   const [name, setName] = useState("");
-  const [parent, setParent] = useState<string>(
-    account ? (accountParents.find((p) => p.depth === 0 && p.root === making.root)?.id ?? "") : "",
+  // All four types, starting on the one the side was opened for (its first heading: "Bank Account" for Paid from).
+  const offered = accountTypes;
+  const [parent, setParent] = useState<string>("");
+  const [type, setType] = useState<AccountTypeOption["key"] | "">(
+    account ? (offered.find((t) => t.name === making.root)?.key ?? offered[0]?.key ?? "") : "",
   );
   const [balance, setBalance] = useState("");
-  const chosen = accountParents.find((p) => p.id === parent);
   const pending = addAccount.isPending || addCategory.isPending;
   const error = addAccount.error ?? addCategory.error;
   const made = (created: { id: string }) => {
@@ -41,11 +44,9 @@ export function QuickAdd({ making, accountParents, categoryParents, onMade, onCl
 
   const submit = () => {
     if (making.what === "account") {
-      const opening = chosen?.opening_balance && balance.trim() ? tidyAmount(balance, places).replace(/,/g, "") : "0";
-      addAccount.mutate(
-        { name: name.trim(), parent_id: parent || null, balance: opening, bill_rounding: "none" },
-        { onSuccess: made },
-      );
+      if (!type) return;
+      const opening = balance.trim() ? tidyAmount(balance, places).replace(/,/g, "") : "0";
+      addAccount.mutate({ name: name.trim(), type, balance: opening, bill_rounding: "none" }, { onSuccess: made });
     } else {
       addCategory.mutate({ name: name.trim(), kind: making.kind, parent_id: parent || null }, { onSuccess: made });
     }
@@ -84,19 +85,17 @@ export function QuickAdd({ making, accountParents, categoryParents, onMade, onCl
         </label>
         {account ? (
           <label>
-            Belongs under
+            Kind
             <select
               required
-              value={parent}
+              value={type}
               onChange={(event) => {
-                setParent(event.target.value);
+                setType(event.target.value as AccountTypeOption["key"]);
               }}
             >
-              {parent === "" && <option value="">Choose…</option>}
-              {accountParents.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {"   ".repeat(p.depth)}
-                  {p.name}
+              {offered.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.name}
                 </option>
               ))}
             </select>
@@ -121,7 +120,7 @@ export function QuickAdd({ making, accountParents, categoryParents, onMade, onCl
             </select>
           </label>
         )}
-        {account && chosen?.opening_balance && (
+        {account && (
           <label>
             Current balance
             <input

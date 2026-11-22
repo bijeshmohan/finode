@@ -5,16 +5,14 @@ from decimal import Decimal
 
 import pytest
 
-from tests.books import category
+from tests.books import category, post_account
 
 MISSING = "00000000-0000-4000-8000-0000000000aa"
 
 
 @pytest.fixture
 def bank(client, root_accounts):
-    return client.post(
-        "/api/accounts/", json={"name": "HDFC", "parent_id": root_accounts["Assets"], "balance": "100000"}
-    ).json()
+    return post_account(client, {"name": "HDFC", "parent_id": root_accounts["Assets"], "balance": "100000"}).json()
 
 
 def contact(client, name, **extra):

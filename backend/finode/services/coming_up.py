@@ -15,6 +15,7 @@ from ..schemas.recurring import RecurringPostingData
 from ..schemas.transaction import PostingBase, PostingCreate
 from . import schedule
 from .account import AccountService
+from .account_types import in_budget as budgeted
 from .budget import BudgetError, month_end
 from .recurring import RecurringService
 from .transaction import TransactionService
@@ -37,7 +38,7 @@ class ComingUpService:
             raise BudgetError(f"look at most {MAX_DAYS_AHEAD} days ahead!")
         accounts = self.accounts.ar.list()
         by_id = {a.id: a for a in accounts}
-        in_budget = {a.id for a in accounts if a.on_budget}
+        in_budget = {a.id for a in accounts if budgeted(a, by_id)}
         roots = {a.id: AccountService.root_name(a, by_id) for a in accounts}
         items: list[ComingUpItem] = []
 

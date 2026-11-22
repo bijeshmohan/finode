@@ -9,7 +9,6 @@ import { TransactionsPage } from "../features/transactions/TransactionsPage";
 import { AccountForm } from "../features/accounts/AccountForm";
 import { AccountPage } from "../features/accounts/AccountPage";
 import { AccountsPage } from "../features/accounts/AccountsPage";
-import { GroupForm } from "../features/accounts/GroupForm";
 import { BudgetPage } from "../features/budget/BudgetPage";
 import { ComingUpPage } from "../features/budget/ComingUpPage";
 import { GroupPage, OldGroupAddress } from "../features/budget/GroupPage";
@@ -89,7 +88,6 @@ export const routes: RouteObject[] = [
               },
               { path: "/accounts", element: <AccountsPage />, handle: { title: "Accounts" } },
               { path: "/accounts/new", element: <AccountForm />, handle: { title: "Add account" } },
-              { path: "/accounts/new-group", element: <GroupForm />, handle: { title: "New group" } },
               { path: "/accounts/:accountId/edit", element: <AccountForm />, handle: { title: "Edit account" } },
               { path: "/budget", element: <BudgetPage />, handle: { title: "Budgets" } },
               { path: "/budget/move", element: <MovePage />, handle: { title: "Move money" } },

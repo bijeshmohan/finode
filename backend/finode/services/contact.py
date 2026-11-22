@@ -19,7 +19,6 @@ from ..models.utils import utc_now
 from ..repositories.contact import ContactRepository
 from ..repositories.obligation import ObligationRepository
 from ..repositories.shared_expense import SharedExpenseRepository
-from ..schemas.account import AccountCreate
 from ..schemas.contact import ContactCreate, ContactDeleteResult, ContactRead, ContactUpdate
 from .account import AccountService
 from .contact_errors import (
@@ -185,10 +184,7 @@ class ContactService:
                 Contact(user_id=self.ar.uid, name=data.name, email=data.email, phone=data.phone, notes=data.notes)
             )
             for role, root, label in ((RECEIVABLE, "Assets", "Due from"), (PAYABLE, "Liabilities", "Due to")):
-                account = self.accounts.create(
-                    AccountCreate(name=f"{label} {data.name}", parent_id=self._root(root), on_budget=False),
-                    commit=False,
-                )
+                account = self.accounts.create_contact_account(f"{label} {data.name}", root, commit=False)
                 self.cr.link(contact.id, account.id, role)
             self.db.commit()
         except Exception:

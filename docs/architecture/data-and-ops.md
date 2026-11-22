@@ -20,7 +20,7 @@ erDiagram
 | Table | Holds |
 |---|---|
 | `profiles` | one row per person: names and currency. Per-person settings are typed columns here, not a key-value store. |
-| `accounts` | the account tree (parent, `on_budget`, `closed_on`, `payment_category_id`, `system_key` for the built-in groups, note) |
+| `accounts` | the account tree (parent, `closed_on`, `system_key` for the four account types, pinned, a card's bill days, note) |
 | `transactions`, `postings` | the ledger (see [The ledger](ledger.md)) |
 | `budget_allocations` | the plan (see [The budget](budget.md)) |
 | `recurring_transactions`, `recurring_postings` | recurring rules, simple or split |

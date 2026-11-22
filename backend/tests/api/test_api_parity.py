@@ -194,31 +194,6 @@ def test_move_and_copy_budget_money(client, books):
     assert float(line(client.get("/api/budget/", params={"month": next_month}).json(), "Food")["assigned"]) == 70
 
 
-def test_include_an_account_in_the_budget(client, books):
-    out = post_account(client, {"name": "Outside", "parent_id": books["bank"]["parent_id"], "on_budget": False}).json()
-    done = client.post(f"/api/budget/accounts/{out['id']}/include")
-    assert done.status_code == 200 and client.get(f"/api/accounts/{out['id']}").json()["on_budget"] is True
-    assert client.post(f"/api/budget/accounts/{MISSING}/include").status_code == 404
-
-
-def test_give_a_payment_a_category_from_the_bell(client, books):
-    loan = post_account(client, {"name": "Loan", "parent_id": books["spare"]["parent_id"], "on_budget": False}).json()
-    made = entry(client, books, amount="500", to="spare")
-    paid = client.post(
-        "/api/transactions/",
-        json={"postings": [leg(loan, "debit", "300"), leg(books["bank"], "credit", "300")]},
-    ).json()
-    assert client.get("/api/views/todo").json()["uncategorised"][0]["transaction_id"] == paid["id"]
-    done = client.post(f"/api/transactions/{paid['id']}/category", json={"category_id": books["food"]["id"]})
-    assert done.status_code == 200 and client.get("/api/views/todo").json()["uncategorised"] == []
-    refused = client.post(f"/api/transactions/{made['id']}/category", json={"category_id": books["food"]["id"]})
-    assert refused.status_code == 400
-    assert (
-        client.post(f"/api/transactions/{MISSING}/category", json={"category_id": books["food"]["id"]}).status_code
-        == 404
-    )
-
-
 def test_a_group_budget(client, books, root_accounts):
     dining = post_account(client, {"name": "Dining", "parent_id": root_accounts["Expenses"]}).json()
     cafe = post_account(client, {"name": "Cafe", "parent_id": dining["id"]}).json()
@@ -235,7 +210,7 @@ def test_summary_and_breakdown(client, books):
     entry(client, books, "30")
     entry(client, books, "70", to="rent")
     summary = client.get("/api/reports/summary").json()
-    assert float(summary["expenses"]) == 100 and float(summary["net_worth"]) == 4900
+    assert float(summary["expenses"]) == 100 and float(summary["cash_on_hand"]) == 4900
     breakdown = client.get("/api/reports/breakdown").json()
     assert breakdown["root"] == "Expenses" and float(breakdown["total"]) == 100
     assert float(breakdown["lines"][0]["amount"]) == 70, "largest first"

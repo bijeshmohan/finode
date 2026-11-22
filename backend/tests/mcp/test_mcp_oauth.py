@@ -94,7 +94,7 @@ async def test_an_allowed_app_can_use_mcp(session, jwts, root_accounts):
     async with running_app(session), mcp_client(token) as c:
         names = {t.name for t in (await c.list_tools()).tools}
         assert {"get_overview", "record_transaction"} <= names
-        assert payload(await c.call_tool("get_overview", {}))["net_worth"] == "0.00"
+        assert payload(await c.call_tool("get_overview", {}))["cash_on_hand"] == "0.00"
 
 
 async def test_the_users_choice_of_read_only_is_enforced(session, jwts):

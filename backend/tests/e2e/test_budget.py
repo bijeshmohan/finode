@@ -263,16 +263,17 @@ def test_the_month_pill_sits_on_the_same_line_on_home_and_the_other_pages(signed
 def test_the_head_is_the_same_on_accounts_categories_and_budgets(signed_in_page: Page, books):
     page = signed_in_page
     spots = {}
-    for path, label in (("/accounts", "Net worth"), ("/categories", "Spent so far"), ("/budget", "Ready to assign")):
+    accounts = re.compile(r"^\d+ accounts?$")
+    for path, label in (("/accounts", accounts), ("/categories", "Spent so far"), ("/budget", "Ready to assign")):
         page.goto(path)
         title = page.locator("main h1").first.bounding_box()
-        top = page.get_by_text(label, exact=True).bounding_box()
+        top = (
+            page.get_by_text(label) if isinstance(label, re.Pattern) else page.get_by_text(label, exact=True)
+        ).bounding_box()
         assert title and top
         spots[path] = (round(title["y"]), round(top["y"]))
     assert len({s[0] for s in spots.values()}) == 1, f"the titles line up: {spots}"
-    assert spots["/accounts"][1] == spots["/budget"][1], (
-        f"the label sits under the title where there is no switcher: {spots}"
-    )
+    assert spots["/accounts"][1] <= spots["/budget"][1], f"the quiet line sits under the title: {spots}"
 
 
 def test_a_group_opens_its_page_and_its_budget_cannot_go_below_its_categories(signed_in_page: Page, api: Api, books):

@@ -165,7 +165,7 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
       });
       return;
     }
-    const lines = linesBody(state, groups, places);
+    const lines = linesBody(state, places);
     if (lines.problem !== undefined) {
       setProblem(lines.problem);
       return;
@@ -207,7 +207,7 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
           state={state}
           update={update}
           groups={groups}
-          accountParents={form.account_parents}
+          accountTypes={form.account_types}
           categoryParents={form.category_parents}
           dated
           autoFocus={!editing && onComputer()}

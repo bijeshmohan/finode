@@ -33,7 +33,7 @@ Every list page opens the same way:
 
 1. **Title row** (`components/Page.module.css`): the title, and the month pill at the right where the page has a month. It is the same height on every page, so titles line up.
 2. **Switcher** (full width, `Chips`): Spending · Earning on Categories. Accounts, Budgets, Transactions and Settings have none.
-3. **Head**: a small label above one large figure, and one quiet line under it. Budgets: Ready to assign. Accounts: Net worth. Categories: Spent so far / Earned.
+3. **Head**: a small label above one large figure, and one quiet line under it. Budgets: Ready to assign. Categories: Spent so far / Earned. Accounts has no figure (2026-11-22: no net worth), only the title and its quiet count of accounts.
 4. **The list**, in tiles.
 5. **A dashed "+ Add …" row** at the end where something can be added.
 

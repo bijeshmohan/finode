@@ -14,14 +14,14 @@ export const ids = {
 
 export const groups: PickGroup[] = [
   {
-    title: "Assets",
+    title: "Bank Account",
     options: [{ id: ids.bank, label: "Bank", budget: true, balance: "5000.00" }],
   },
   {
-    title: "Liabilities",
+    title: "Credit Card",
     options: [
       { id: ids.card, label: "Visa", budget: true, balance: "-200.00" },
-      { id: ids.loan, label: "Home Loan", budget: false, balance: "-90000.00" },
+      { id: ids.loan, label: "Amex", budget: true, balance: "-90000.00" },
     ],
   },
   { title: "People", options: [{ id: ids.ada, label: "Ada", budget: false, balance: "0.00" }] },

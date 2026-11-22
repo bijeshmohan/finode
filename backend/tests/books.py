@@ -22,11 +22,24 @@ class Made:
         return self.response.json()
 
 
+def type_ids(client):
+    """The four account types' groups, by key ("assets.bank", "assets.cash", "liabilities.cards", "assets.wallet")."""
+    return {a["system_key"]: a["id"] for a in client.get("/api/accounts/").json() if a.get("system_key")}
+
+
 def post_account(client, body):
     """Create an account, or a category when the account would sit under Expenses or Income (or inside a category):
-    those hold categories now. `body` is what POST /api/accounts/ takes."""
-    roots = {a["id"]: a["name"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
+    those hold categories now. `body` is what POST /api/accounts/ took before the four types (a `parent_id`): an
+    account asked for straight under Assets or Liabilities becomes a Bank Account or a Credit Card, one asked for inside
+    another account takes that account's type (every account is one of the four types)."""
+    every = client.get("/api/accounts/").json()
+    roots = {a["id"]: a["name"] for a in every if a["parent_id"] is None}
+    types = {a["id"]: a["system_key"] for a in every if a.get("system_key")}
+    types |= {a["id"]: a["type"] for a in every if a.get("type")}  # inside another account: beside it, as its type
     parent = body.get("parent_id")
+    if roots.get(parent) in ("Assets", "Liabilities") or parent in types:
+        key = types.get(parent) or ("assets.bank" if roots[parent] == "Assets" else "liabilities.cards")
+        body = {k: v for k, v in body.items() if k not in ("parent_id", "on_budget")} | {"type": key}
     kinds = {c["id"]: c["kind"] for c in client.get("/api/categories/", params={"include_closed": True}).json()}
     if roots.get(parent) in ("Expenses", "Income") or parent in kinds:
         kind = ("spending" if roots[parent] == "Expenses" else "earning") if parent in roots else kinds[parent]

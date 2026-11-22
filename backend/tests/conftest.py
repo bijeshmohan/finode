@@ -10,7 +10,7 @@ from finode.auth.identity import CookieSession, CurrentUser, require_authenticat
 from finode.dependencies import get_db_session
 from finode.main import app
 
-from .books import category
+from .books import category, post_account
 
 TEST_USER_ID = UUID("00000000-0000-4000-8000-000000000001")
 
@@ -52,14 +52,6 @@ def never_the_real_database(monkeypatch: pytest.MonkeyPatch, _scratch_engine):
 
     monkeypatch.setattr(dependencies, "engine", _scratch_engine)
     monkeypatch.setattr(context, "session_factory", lambda: Session(_scratch_engine))
-
-
-@pytest.fixture(autouse=True)
-def plain_new_profiles(monkeypatch: pytest.MonkeyPatch):
-    """Most tests build their own accounts, so a new profile starts without the built-in groups."""
-    from finode.services import account as account_service
-
-    monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", False)  # most tests build their own accounts
 
 
 @pytest.fixture(autouse=True)
@@ -118,9 +110,9 @@ def root_accounts(client: TestClient) -> dict[str, str]:
 
 @pytest.fixture
 def account(client: TestClient, root_accounts: dict[str, str]) -> dict:
-    response = client.post(
-        "/api/accounts/",
-        json={"name": "checking", "details": None, "parent_id": root_accounts["Assets"]},
+    response = post_account(
+        client,
+        {"name": "checking", "details": None, "type": "assets.bank"},
     )
     assert response.status_code == 201
     return response.json()
@@ -128,9 +120,9 @@ def account(client: TestClient, root_accounts: dict[str, str]) -> dict:
 
 @pytest.fixture
 def other_account(client: TestClient, root_accounts: dict[str, str]) -> dict:
-    response = client.post(
-        "/api/accounts/",
-        json={"name": "savings", "details": None, "parent_id": root_accounts["Assets"]},
+    response = post_account(
+        client,
+        {"name": "savings", "details": None, "type": "assets.bank"},
     )
     assert response.status_code == 201
     return response.json()

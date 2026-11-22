@@ -1,5 +1,5 @@
-"""What the Accounts page and an account's own page show: the kinds of account as rows of cards, each card's quiet line,
-net worth, and an account's balance, bill, coming-up entries and register. The finode app's views
+"""What the Accounts page and an account's own page show: the four types as rows of cards, each card's quiet line,
+and an account's balance, bill, coming-up entries and register. The finode app's views
 (/api/views/accounts) read from here."""
 
 from __future__ import annotations
@@ -12,27 +12,26 @@ from uuid import UUID
 
 from ..schemas.account import CardBill
 from . import cards
-from .account import MAX_ACCOUNT_DEPTH, AccountService, RegisterPage
+from .account import AccountService, RegisterPage
 from .account_tree import Node, build_tree, without_contacts
+from .account_types import TYPE_KEYS, TYPE_NAMES
 from .transaction_rows import RegisterRow, UpcomingItem, account_register_row, is_inflow
 
 # An account whose newest entry is older than this says so on its card; a newer one has nothing to add.
 STALE_DAYS = 30
 
-# The kinds the Accounts page lists, in this order; a group the person made follows them, then the plain accounts.
-KIND_ORDER = ("assets.bank", "assets.cash", "liabilities.cards", "assets.investments", "liabilities.loans")
-
 
 @dataclass
 class Kind:
-    """One row of cards on the Accounts page: a kind of account (Bank Accounts, Credit Cards...) and its accounts."""
+    """One row of cards on the Accounts page: one of the four types (Bank Account, Cash...) and its accounts."""
 
     name: str
     root: str  # Assets or Liabilities: a liability reads "owed"
     items: list[Node]
     total: Decimal
-    group_id: UUID | None = None  # the group; none for the plain accounts that sit directly under a type
-    closed: bool = False  # the group itself was closed
+    type: str
+    group_id: UUID
+    closed: bool = False  # the type itself was closed (never: kept for older books)
 
     @property
     def owed(self) -> bool:
@@ -40,7 +39,7 @@ class Kind:
 
     @property
     def add_url(self) -> str:
-        return f"/accounts/new?parent={self.group_id}" if self.group_id else f"/accounts/new?root={self.root.lower()}"
+        return f"/accounts/new?type={self.type}"
 
     @property
     def open_count(self) -> int:
@@ -71,16 +70,6 @@ def root_of(roots: list[Node], node: Node) -> Node:
     return next(r for r in roots if any(n is node for n in r.walk()))
 
 
-def starts(roots: list[Node]) -> dict[UUID, str]:
-    """For each group, how an account made in it starts: "budget" (part of the budget) or "outside" it."""
-    return {
-        n.account.id: "budget" if n.account.new_accounts_in_budget else "outside"
-        for r in roots
-        for n in r.walk()
-        if n.account.new_accounts_in_budget is not None
-    }
-
-
 def load(accounts: AccountService, account_id: UUID) -> tuple[list[Node], Node]:
     """The person's accounts as a tree, and the one asked for; LookupError when it is not theirs."""
     roots = build_tree(accounts.list())
@@ -90,41 +79,23 @@ def load(accounts: AccountService, account_id: UUID) -> tuple[list[Node], Node]:
     return roots, node
 
 
-def kind_groups(roots: list[Node]) -> list[Node]:
-    """The groups an account can be made under (the form's Kind chips, the page's rows): the built-in ones in the page's
-    order, then the ones the person made."""
-    found = [
-        child
-        for root in roots
-        if root.account.name in ("Assets", "Liabilities")
-        for child in root.children
-        if child.is_group
-    ]
-    place = {key: i for i, key in enumerate(KIND_ORDER)}
-    return sorted(found, key=lambda n: (place.get(n.account.system_key or "", len(place)), n.account.name.lower()))
-
-
-def kinds(roots: list[Node]) -> list[Kind]:
-    """The accounts as the page lists them: a kind per group (an empty one too), then the plain accounts that sit
-    directly under Assets or Liabilities."""
+def kinds(roots: list[Node], order: list[str] | None = None) -> list[Kind]:
+    """The accounts as the page lists them: a row per type in the person's order (an empty one too)."""
     root_name = {id(n): r.account.name for r in roots for n in r.walk()}
-    found = [
+    by_key = {n.account.system_key: n for r in roots for n in r.children if n.account.system_key in TYPE_KEYS}
+    return [
         Kind(
             g.account.name,
             root_name[id(g)],
             g.children,
             g.account.balance,
+            key,
             g.account.id,
             g.account.closed_on is not None,
         )
-        for g in kind_groups(roots)
+        for key in order or list(TYPE_KEYS)
+        if (g := by_key.get(key)) is not None
     ]
-    for root in roots:
-        loose = [c for c in root.children if c.kind != "fixed" and not c.children]
-        if loose and root.account.name in ("Assets", "Liabilities"):
-            name = "Other" if root.account.name == "Assets" else "Other you owe"
-            found.append(Kind(name, root.account.name, loose, sum((n.account.balance for n in loose), Decimal("0.00"))))
-    return found
 
 
 def mark_closed(roots: list[Node]) -> None:
@@ -164,37 +135,31 @@ class AccountsPage:
     kinds: list[Kind]
     # The accounts the person pinned, in the order of the rows below (the same cards again, no totals).
     pinned: list[Node]
-    net_worth: Decimal
     notes: dict[UUID, CardNote]
     # Whether any account is closed: "Load more" then shows them.
     has_closed: bool
-    # What the quiet line under the figure counts: the open accounts.
+    # What the quiet line under the title counts: the open accounts.
     account_count: int
-    # Whether any open account feeds the budget: the line under the figure then explains the dot beside them.
-    has_budget_accounts: bool
 
 
 def accounts_page(accounts: AccountService, today: date) -> AccountsPage:
     roots = without_contacts(build_tree(accounts.list()))
     mark_closed(roots)
     shown = [r for r in roots if r.account.name in ("Assets", "Liabilities")]
-    balance = {r.account.name: r.account.balance for r in shown}
     leaves = [n for r in shown for n in r.walk() if n.depth > 0 and not n.is_group]
     last, bills = accounts.glance(today)
-    rows = kinds(shown)
+    rows = kinds(shown, accounts.type_order())
     return AccountsPage(
         kinds=rows,
         pinned=[n for k in rows for n in k.items if n.account.pinned and not n.closed],
-        net_worth=balance.get("Assets", Decimal("0.00")) - balance.get("Liabilities", Decimal("0.00")),
         notes=card_notes([n for k in rows for n in k.items], last, bills, today),
         has_closed=any(n.closed for n in leaves),
         account_count=sum(1 for n in leaves if not n.closed),
-        has_budget_accounts=any(n.account.on_budget and not n.closed for n in leaves),
     )
 
 
 def sub_line(node: Node, root: Node) -> str:
-    """What an account's page says under its name: the kind it sits in (Bank Accounts, Credit Cards...), never the type's
+    """What an account's page says under its name: the type it is (Bank Account, Credit Card...), never the type's
     own name; for a group, whether it is built in and what it holds."""
     trail = node.path.split(" › ")
     owed = root.account.name == "Liabilities"
@@ -219,7 +184,8 @@ class AccountPage:
     balance_after: Decimal | None
     bill: CardBill | None
     can_set_days: bool
-    can_add_child: bool
+    # Where "Add account" goes on a type's own page (that type chosen); none on any other page.
+    add_url: str | None
     # The pin button in the header: an open account that holds entries; a group, a root or a closed account has none.
     can_pin: bool
     # Part of a group's balance that was posted to the group itself.
@@ -257,9 +223,6 @@ def account_page(accounts: AccountService, account_id: UUID, today: date, offset
         for e in page.upcoming
     ]
     signs = {e.change > 0 for e in page.upcoming}
-    at_limit = node.kind != "system" and node.depth >= MAX_ACCOUNT_DEPTH
-    # Asset and liability accounts with their own postings cannot gain sub-accounts.
-    has_own_postings = node.is_leaf and page.has_any and node.kind != "root"
     bill = None
     can_set_days = False
     if root.account.name == "Liabilities" and node.kind == "user" and node.postable:
@@ -280,7 +243,7 @@ def account_page(accounts: AccountService, account_id: UUID, today: date, offset
         balance_after=page.upcoming[-1].balance if page.upcoming else None,
         bill=bill,
         can_set_days=can_set_days,
-        can_add_child=node.kind != "system" and not at_limit and not has_own_postings,
+        add_url=f"/accounts/new?type={node.account.system_key}" if node.account.system_key in TYPE_KEYS else None,
         can_pin=node.kind == "user"
         and not node.is_group
         and not node.account.closed_on
@@ -296,120 +259,32 @@ def account_page(accounts: AccountService, account_id: UUID, today: date, offset
 
 # ---- the account form ---------------------------------------------------------------------------------------------
 
-ACCOUNT_ROOTS = ("Assets", "Liabilities", "Equity")
-
-
-def with_parent(groups: list[Node], roots: list[Node], parent: UUID | None) -> list[Node]:
-    """The form's choices of where an account sits: the kinds, and the account's current parent when that is not a kind
-    (a type itself, or an account it is being made inside), so saving never moves it by accident."""
-    if parent is None or any(g.account.id == parent for g in groups):
-        return groups
-    found = find(roots, parent)
-    return [*groups, *([found] if found else [])]
-
-
-def placed(groups: list[Node], parent: Node | None) -> tuple[str, str] | None:
-    """When a new account is opened for somewhere that is not a kind, what the form says instead of the kind chips: "Other"
-    for the plain accounts of a type, or the account it is made inside."""
-    if parent is None or any(g.account.id == parent.account.id for g in groups):
-        return None
-    if parent.kind == "root":
-        return ("Kind", "Other" if parent.account.name == "Assets" else "Other you owe")
-    return ("Inside", parent.account.name)
-
-
-@dataclass
-class KindChoice:
-    """One place a new account can go, with what the form then asks: whether it can be part of the budget, whether it
-    takes a card's statement and due days, and whether the budget box starts ticked (an asset starts in the budget, a
-    card or loan outside it, and under a built-in group as that group says)."""
-
-    node: Node
-    root: str
-    can_budget: bool
-    can_bill: bool
-    budget_default: bool
-
 
 @dataclass
 class AccountForm:
-    node: Node | None  # the account being edited
-    parent_id: UUID | None
-    kinds: list[KindChoice]
-    placed: tuple[str, str] | None
-    parent_options: list[KindChoice]
-    root_name: str | None
-    can_budget: bool
-    can_bill: bool
-    on_budget: bool
-    starts: dict[UUID, str]
-    root_of: dict[UUID, str]
+    """Where the account form starts: the account being edited (none for a new one), its type (or the one a new account
+    was opened for: a type's own "+ Add account"), and the four types in the person's order for a new account to pick."""
+
+    node: Node | None
+    type: str | None
+    types: list[tuple[str, str]]  # (key, name)
 
 
-def _choice(node: Node, root_of: dict[UUID, str], group_starts: dict[UUID, str]) -> KindChoice:
-    root = root_of.get(node.account.id, "")
-    start = group_starts.get(node.account.id)
-    return KindChoice(
-        node=node,
-        root=root,
-        can_budget=root in ("Assets", "Liabilities"),
-        can_bill=root == "Liabilities",
-        budget_default=start == "budget" if start is not None else root == "Assets",
-    )
+def _types(order: list[str]) -> list[tuple[str, str]]:
+    return [(key, TYPE_NAMES[key]) for key in order]
 
 
-def new_account_form(accounts: AccountService, parent: UUID | None, root: str = "") -> AccountForm:
-    """The form for a new account. It asks what kind it is (a built-in group or one the person made); nothing is chosen
-    until the person does, unless the link says (a kind's own "Add account", or a type's)."""
-    everything = without_contacts(build_tree(accounts.list()))
-    roots = [r for r in everything if r.account.name in ACCOUNT_ROOTS]
-    root_names = {n.account.id: r.account.name for r in roots for n in r.walk()}
-    only = next((r.account.name for r in roots if r.account.name.lower() == root.lower()), None)
-    if only and (parent is None or root_names.get(parent) != only):
-        # Opened for plain accounts under a type: they sit directly under that type.
-        parent = next(r.account.id for r in roots if r.account.name == only)
-    groups = [g for g in kind_groups(roots) if g.account.closed_on is None]
-    group_starts = starts(everything)
-    chosen_root = root_names.get(parent) if parent else None
+def new_account_form(accounts: AccountService, type: str | None, order: list[str] | None = None) -> AccountForm:
+    """The form for a new account: nothing is chosen until the person picks a type, unless the link says."""
     return AccountForm(
-        node=None,
-        parent_id=parent,
-        kinds=[_choice(g, root_names, group_starts) for g in groups],
-        placed=placed(groups, find(roots, parent) if parent else None),
-        parent_options=[_choice(n, root_names, group_starts) for n in with_parent(groups, roots, parent)],
-        root_name=chosen_root,
-        can_budget=chosen_root in ("Assets", "Liabilities"),
-        can_bill=chosen_root == "Liabilities",
-        on_budget=(group_starts.get(parent) == "budget")
-        if parent is not None and parent in group_starts
-        else chosen_root == "Assets",
-        starts=group_starts,
-        root_of=root_names,
+        node=None, type=type if type in TYPE_KEYS else None, types=_types(order or accounts.type_order())
     )
 
 
 def edit_account_form(accounts: AccountService, account_id: UUID) -> AccountForm:
-    """The form for an account the person made. Where it sits is a kind; a group (an account with accounts inside) stays
-    where it is. LookupError for one that is not theirs or not theirs to edit (a type, a built-in group)."""
-    roots, node = load(accounts, account_id)
-    if node.kind != "user":
+    """The form for an account the person made; it keeps its type. LookupError for one that is not theirs or not theirs to
+    edit (a type itself, a root, Opening Balances, a person's account)."""
+    _, node = load(accounts, account_id)
+    if node.kind != "user" or node.account.type is None:
         raise LookupError("account not found")
-    root = root_of(roots, node)
-    root_names = {n.account.id: root.account.name for n in root.walk()}
-    group_starts = starts(roots)
-    mine = [g for g in kind_groups([root]) if not node.is_group and g.account.closed_on is None]
-    return AccountForm(
-        node=node,
-        parent_id=node.account.parent_id,
-        kinds=[_choice(g, root_names, group_starts) for g in mine],
-        placed=None,
-        parent_options=[]
-        if node.is_group
-        else [_choice(n, root_names, group_starts) for n in with_parent(mine, [root], node.account.parent_id)],
-        root_name=root.account.name,
-        can_budget=root.account.name in ("Assets", "Liabilities") and not node.is_group,
-        can_bill=root.account.name == "Liabilities" and not node.is_group,
-        on_budget=node.account.on_budget,
-        starts=group_starts,
-        root_of=root_names,
-    )
+    return AccountForm(node=node, type=node.account.type, types=[])

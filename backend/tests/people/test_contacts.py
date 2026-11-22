@@ -2,14 +2,14 @@
 
 import pytest
 
+from tests.books import post_account
+
 MISSING = "00000000-0000-4000-8000-0000000000aa"
 
 
 @pytest.fixture
 def bank(client, root_accounts):
-    return client.post(
-        "/api/accounts/", json={"name": "HDFC", "parent_id": root_accounts["Assets"], "balance": "1000"}
-    ).json()
+    return post_account(client, {"name": "HDFC", "parent_id": root_accounts["Assets"], "balance": "1000"}).json()
 
 
 def make(client, name="Alice", **extra):
@@ -31,7 +31,7 @@ def test_a_contact_gets_its_two_accounts(client, root_accounts):
     due_from, due_to = account(client, alice["receivable_account_id"]), account(client, alice["payable_account_id"])
     assert due_from["name"] == "Due from Alice" and due_from["parent_id"] == root_accounts["Assets"]
     assert due_to["name"] == "Due to Alice" and due_to["parent_id"] == root_accounts["Liabilities"]
-    assert due_from["on_budget"] is False and due_to["on_budget"] is False, "money owed is not money in the budget"
+    assert due_from["type"] is None and due_to["type"] is None, "money owed is not money in the budget"
 
 
 def test_names_are_unique_clean_and_short(client):
@@ -41,14 +41,6 @@ def test_names_are_unique_clean_and_short(client):
     for name in ("", "   ", "A:B", "x" * 31):
         assert client.post("/api/contacts/", json={"name": name}).status_code == 422
     assert make(client, "x" * 30)["name"] == "x" * 30, "30 characters fit in 'Due from …'"
-
-
-def test_a_name_an_account_already_has_is_refused_and_nothing_is_left_behind(client, root_accounts):
-    client.post("/api/accounts/", json={"name": "Due to Bob", "parent_id": root_accounts["Liabilities"]})
-    assert client.post("/api/contacts/", json={"name": "Bob"}).status_code == 400
-    assert client.get("/api/contacts/").json() == []
-    names = [a["name"] for a in client.get("/api/accounts/").json()]
-    assert "Due from Bob" not in names, "the first account was rolled back with the second"
 
 
 def test_list_get_and_update(client):
@@ -77,7 +69,7 @@ def test_renaming_a_contact_renames_both_accounts(client):
 def test_the_two_accounts_cannot_be_changed_from_the_accounts_side(client, root_accounts):
     alice = make(client)
     due_from = alice["receivable_account_id"]
-    other = client.post("/api/accounts/", json={"name": "Wallet", "parent_id": root_accounts["Assets"]}).json()
+    other = post_account(client, {"name": "Wallet", "parent_id": root_accounts["Assets"]}).json()
     assert client.patch(f"/api/accounts/{due_from}", json={"name": "Hacked"}).status_code == 400
     assert client.post(f"/api/accounts/{due_from}/close").status_code == 400
     assert client.delete(f"/api/accounts/{due_from}").status_code == 400

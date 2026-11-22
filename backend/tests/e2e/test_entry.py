@@ -31,11 +31,11 @@ def offered(page: Page, title: str) -> list[str]:
 def test_the_kind_buttons_narrow_the_pickers(signed_in_page: Page, books):
     page = signed_in_page
     page.goto("/transactions/new")
-    assert (offered(page, "Paid from"), offered(page, "Spent on")) == (["Assets", "Liabilities"], ["Expenses"])
+    assert (offered(page, "Paid from"), offered(page, "Spent on")) == (["Bank Account", "Credit Card"], ["Expenses"])
     page.get_by_role("button", name="Income", exact=True).click()
-    assert (offered(page, "Earned from"), offered(page, "Paid into")) == (["Income"], ["Assets", "Liabilities"])
+    assert (offered(page, "Earned from"), offered(page, "Paid into")) == (["Income"], ["Bank Account", "Credit Card"])
     page.get_by_role("button", name="Transfer", exact=True).click()
-    assert offered(page, "From") == ["Assets", "Liabilities"]
+    assert offered(page, "From") == ["Bank Account", "Credit Card"]
     page.get_by_role("button", name="Transfer", exact=True).click()  # tapping the selected kind again selects nothing
     expect(page.locator("[aria-pressed=true]", has_text="Transfer")).to_have_count(0)
     assert len(offered(page, "From")) == 5, "no kind offers every account"
@@ -258,22 +258,6 @@ def test_pressing_an_option_keeps_the_search_focused_so_the_sheet_does_not_move(
     page.mouse.down()
     expect(search).to_be_focused()
     page.mouse.up()
-
-
-def test_the_category_line_shows_only_when_money_leaves_the_budget(signed_in_page: Page, books, api: Api):
-    page = signed_in_page
-    loan = api.post("/accounts/", name="Home Loan", parent_id=books["roots"]["Liabilities"], on_budget=False)
-    assert loan
-    page.goto("/transactions/new")
-    page.get_by_role("button", name="Transfer", exact=True).click()
-    choose(page, "From", "Checking")
-    expect(page.get_by_role("button", name=re.compile("^Category"))).to_have_count(0)
-    choose(page, "To", "Home Loan")
-    category = page.get_by_role("button", name=re.compile("^Category"))
-    expect(category).to_contain_text("No category")  # nothing is filled in
-    category.click()
-    page.get_by_role("dialog", name="Category").get_by_role("button", name=re.compile("Rent")).click()
-    expect(category).to_contain_text("Rent")
 
 
 def test_choosing_tags_and_making_a_new_one(signed_in_page: Page, books, api: Api):

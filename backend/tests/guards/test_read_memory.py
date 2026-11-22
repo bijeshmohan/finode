@@ -33,9 +33,8 @@ def test_a_second_read_in_the_same_session_does_not_ask_the_database(session):
 
 def test_an_account_created_after_a_read_shows_up_in_the_next_one(session):
     s = services(session)
-    root = next(a for a in s.accounts.list() if a.name == "Assets")
     before = {a.name for a in AccountRepository(session, TEST_USER_ID).list()}
-    s.accounts.create(AccountCreate(name="Fresh", parent_id=root.id))
+    s.accounts.create(AccountCreate(name="Fresh", type="assets.bank"))
     after = {a.name for a in AccountRepository(session, TEST_USER_ID).list()}
     assert "Fresh" not in before and "Fresh" in after
 
@@ -76,4 +75,4 @@ def test_one_person_never_sees_anothers_remembered_rows(session):
     mine = services(session)
     mine.accounts.list()
     theirs = AccountRepository(session, other)
-    assert theirs.list() == [] and len(AccountRepository(session, TEST_USER_ID).list()) == 5
+    assert theirs.list() == [] and len(AccountRepository(session, TEST_USER_ID).list()) == 9

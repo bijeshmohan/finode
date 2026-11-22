@@ -327,3 +327,32 @@
   font-size: 0.85rem;
   font-weight: 400;
 }
+/* The order of the account types: one row each, the move buttons at the right. */
+.order {
+  display: flex;
+  flex-direction: column;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.order li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: var(--tap);
+}
+.order li + li {
+  border-top: 1px solid var(--tile-border);
+}
+.orderButtons {
+  display: flex;
+  gap: 0.4rem;
+}
+.orderButtons :global(.icon) {
+  width: 1rem;
+  height: 1rem;
+}
+.up :global(.icon) {
+  transform: rotate(180deg);
+}

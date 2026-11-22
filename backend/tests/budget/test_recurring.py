@@ -198,8 +198,10 @@ def test_a_rule_that_cannot_be_recorded_is_refused_or_reported(client, accounts,
     assert bad.status_code == 400 and "differ" in bad.json()["detail"]
     wallet = post_account(client, {"name": "Wallet", "parent_id": root_accounts["Assets"]}).json()["id"]
     created = rule(client, {**accounts, "bank": wallet}, start_date="2999-01-01")
-    # the source later gains a sub-account, so it can no longer be posted to
-    assert post_account(client, {"name": "Sub", "parent_id": wallet}).status_code == 201
+    # the source is later closed behind the rule's back (the app refuses it while a rule uses it)
+    from finode.models.account import Account
+
+    session.exec(Account.__table__.update().where(Account.id == UUID(wallet)).values(closed_on=date(2025, 12, 31)))
     session.exec(
         RecurringTransaction.__table__.update().values(start_date=date(2026, 1, 1), next_date=date(2026, 1, 1))
     )

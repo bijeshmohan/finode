@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from tests.books import leg, post_account
+from tests.books import leg
 from tests.budget.test_recurring import accounts, rule  # noqa: F401  (fixtures and helpers)
 
 FAKE_TODAY = date(2999, 11, 2)
@@ -99,24 +99,6 @@ def test_a_paused_or_ended_rule_is_not_coming_up(client, accounts, fake_today):
         ("2999-11-05", "Short"),
         ("2999-11-06", "Short"),
     ]
-
-
-def test_only_what_touches_the_budget_is_listed(client, accounts, root_accounts, fake_today):
-    outside = post_account(
-        client, {"name": "House fund", "parent_id": root_accounts["Assets"], "on_budget": False, "balance": "500"}
-    ).json()
-    other = post_account(client, {"name": "Locker", "parent_id": root_accounts["Assets"], "on_budget": False}).json()
-    moved = client.post(
-        "/api/transactions/",
-        json={
-            "date": "2999-11-09",
-            "payee": "Between",
-            "postings": [leg(other, "debit", "50"), leg(outside, "credit", "50")],
-        },
-    )
-    assert moved.status_code == 201, moved.text
-    entry(client, accounts, "2999-11-08", payee="Counted")
-    assert [i["payee"] for i in coming(client)["items"]] == ["Counted"]
 
 
 def test_money_in_is_marked_and_a_mixed_list_has_no_total(client, accounts, root_accounts, fake_today):

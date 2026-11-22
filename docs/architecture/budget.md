@@ -11,7 +11,7 @@ Only these things are stored:
 | Stored | Where |
 |---|---|
 | The plan: how much each expense category is *assigned* in each month | `budget_allocations` (user, month = first day, category, amount; unique per month and category) |
-| Which asset or liability accounts are part of the budget | the flag `accounts.on_budget` |
+| Which accounts are part of the budget | nothing: every account of the four types is (`account_types.in_budget`) |
 
 Everything else is **derived on demand** from postings and the plan, so editing a transaction can never leave the budget stale.
 
@@ -20,7 +20,7 @@ Everything else is **derived on demand** from postings and the plan, so editing 
 For a month and an expense category:
 
 - **Assigned** — what you gave the category this month.
-- **Activity** — postings to the category in transactions that touch a budget account. Spending paid from an account outside the budget is ignored (and reported as "left out").
+- **Activity** — postings to the category in transactions that touch a budget account. An entry that touches no budget account (only a person's accounts) is not the budget's business.
 - **Available** — what you can still spend:
   `max(0, last month's available) + assigned − activity`
 - **Ready to assign** — money in budget accounts that has no job yet:
@@ -53,18 +53,14 @@ flowchart LR
 
 The Budgets page (then Plans) was once three sections, Spend, Build (money moved into funds and loans paid down) and Earn (expected income). Build and Earn were removed on 2026-10-22: moving money between accounts does not change net worth, only income does, and the envelopes already covered the rest. Migration `c4e6a8b0d2f4` dropped `accounts.saving` and the profile's section switches and deleted the plan rows of funds, loans and income accounts (the ledger was not touched). A fund or loan payment is budgeted as spending through the **category on its line** (nothing is filled in for the person). Savings goals (their own `goals` and `goal_allocations` tables and a **Goals** chip) came after and were removed on 2026-11-05; the identity is now `ready_to_assign = money_in_accounts − reserved_for_cards − Σ available − assigned to later months`.
 
-## Budget accounts, tracking accounts and liabilities
+## Budget accounts (2026-11-22)
 
-| Kind of account | In the budget? | Effect |
-|---|---|---|
-| Asset (bank, cash, wallet) flagged `on_budget` | Yes (default for new asset accounts holding a currency) | Its balance is the cash you can assign. |
-| Asset **not** flagged | Tracking only | Appears in net worth, not in the budget. |
-| Credit card (liability) flagged `on_budget` | Yes, opted in | Purchases count as category spending; the debt is subtracted from cash and shown under **Cards to pay**. |
-| Loan or other liability **not** in the budget | Tracking | A payment into it carries a **category** on its line (EMI, SIP): in a transaction touching a budget account it counts as spending in that category. Nothing fills the category in: it is the person's choice on the Add screen, a recurring rule's, an assistant's or an import's; credits, such as the loan paying out, carry none. A payment left without one is listed in the bell. |
+| Kind of account | Effect |
+|---|---|
+| Bank Account, Cash, Prepaid Wallet | Its balance is the cash you can assign. |
+| Credit Card | Purchases count as category spending the day they are made; the debt is subtracted from cash and shown under **Cards to pay**. |
 
-Reports: the breakdown, the Categories page and the overview's `spent` are **by category** (a payment into a loan is spending in its category, as the Budget does); the overview's `expenses` is the books' view, where paying into a loan is no expense and only the interest the lender charges is.
-
-Spending on an unflagged card is not counted in a category; it is reported as `left_out` and the page offers "Add to budget" for that account.
+Every account is one of these four and part of the budget; there are no tracking accounts, no net worth, and no investment or loan accounts. An EMI, a SIP or a deposit is spending in its category; money borrowed into the bank is income under Borrowed, an investment sold income under Redeemed. Reports: the breakdown, the Categories page and the overview's `spent` and `expenses` are the same money, by category; the overview's `cash_on_hand` replaces net worth.
 
 Credit cards need no assigning. The collapsible credit-accounts row on Home shows what is owed at the month's end (`BudgetCard.owed`), with the month's charged and paid; it is the same arithmetic, made visible.
 

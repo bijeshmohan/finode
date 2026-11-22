@@ -79,10 +79,3 @@ def copy_previous_month(data: BudgetCopy, budget: Budget):
 def assign_group(category_id: UUID, data: GroupAssign, budget: Budget):
     """Set a group's budget for a month: at least what its subcategories add up to; the rest is the group's own money."""
     return _run(budget.assign_group, data.month, category_id, data.total)
-
-
-@router.post("/accounts/{account_id}/include", response_model=BudgetRead)
-def include_account(account_id: UUID, budget: Budget, month: date | None = None):
-    """Make an account part of the budget (its money and its spending count from now on)."""
-    _run(budget.include_account, account_id)
-    return _run(budget.view, month)

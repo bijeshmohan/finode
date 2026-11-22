@@ -2,16 +2,14 @@
 
 import pytest
 
-from tests.books import category
+from tests.books import category, post_account
 
 MISSING = "00000000-0000-4000-8000-0000000000aa"
 
 
 @pytest.fixture
 def bank(client, root_accounts):
-    return client.post(
-        "/api/accounts/", json={"name": "HDFC", "parent_id": root_accounts["Assets"], "balance": "10000"}
-    ).json()
+    return post_account(client, {"name": "HDFC", "parent_id": root_accounts["Assets"], "balance": "10000"}).json()
 
 
 @pytest.fixture
@@ -308,7 +306,6 @@ def test_paying_back_a_share_of_a_bill_a_friend_paid_counts_in_the_budget_then(c
     settle(client, alice, bank, "300", direction="sent")
     assert float(line()["activity"]) == 300, "paid back: the spending reaches the budget"
     assert balance(client, bank["id"]) == 9700
-    assert client.get("/api/budget/").json()["uncategorised"] == []
 
 
 def test_paying_back_a_share_the_budget_already_saw_is_not_counted_twice(client, bank, alice):

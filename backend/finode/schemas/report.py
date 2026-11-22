@@ -11,9 +11,8 @@ class SummaryRead(BaseModel):
     currency: str
     period_start: Date
     period_end: Date
-    assets: Decimal
-    liabilities: Decimal
-    net_worth: Decimal
+    # Money in the Bank Account, Cash and Prepaid Wallet accounts less what is owed on the Credit Cards, now.
+    cash_on_hand: Decimal
     income: Decimal
     # What the books call expenses: money that went out on the Expenses accounts (paying into a loan is not one).
     expenses: Decimal

@@ -133,18 +133,6 @@ def test_the_month_in_the_pill_goes_straight_to_that_month(signed_in_page: Page,
     expect(page.get_by_text("Spent in February")).to_be_visible()
 
 
-def test_the_head_is_the_same_on_accounts_and_categories(signed_in_page: Page, books):
-    page = signed_in_page
-    spots = {}
-    for path, label in (("/accounts", "Net worth"), ("/categories", "Spent so far")):
-        page.goto(path)
-        title = page.locator("main h1").first.bounding_box()
-        hero = page.get_by_text(label, exact=True).bounding_box()
-        assert title and hero
-        spots[path] = (round(title["y"]), round(hero["height"]))
-    assert len(set(spots.values())) == 1, f"the titles line up and the labels match: {spots}"
-
-
 def test_under_on_the_category_form_can_be_none(signed_in_page: Page, api: Api, books):
     page = signed_in_page
     group = api.post("/categories/", name="Food", kind="spending")

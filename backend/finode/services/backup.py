@@ -34,7 +34,7 @@ from ..repositories.obligation import ObligationRepository
 from ..repositories.recurring import RecurringRepository
 from ..repositories.shared_expense import SharedExpenseRepository
 from ..repositories.transaction import NewEntry
-from ..schemas.account import AccountCreate, BillRounding
+from ..schemas.account import AccountBase, BillRounding
 from ..schemas.backup import (
     FORMAT,
     READS,
@@ -60,6 +60,9 @@ from ..schemas.backup import (
 from ..schemas.transaction import PostingCreate, TransactionCreate
 from ..tags import clean_names, split_note
 from .account import MAX_ACCOUNT_DEPTH, OPENING_BALANCES_ACCOUNT_NAME, AccountService
+from .account_types import RETIRED_KEYS, type_order
+from .cash_flow import CashFlowConversion
+from .category import CategoryService
 
 ROOTS = ("Assets", "Liabilities", "Equity", "Income", "Expenses")
 
@@ -103,6 +106,7 @@ class BackupService:
                 first_name=profile.first_name,
                 last_name=profile.last_name,
                 default_currency=profile.currency,
+                account_type_order=type_order(profile.account_type_order),
             ),
             accounts=[
                 BackupAccount(
@@ -110,13 +114,11 @@ class BackupService:
                     parent_id=a.parent_id,
                     name=a.name,
                     details=a.details,
-                    on_budget=a.on_budget,
                     closed_on=a.closed_on,
                     statement_day=a.statement_day,
                     due_day=a.due_day,
                     bill_rounding=cast(BillRounding, a.bill_rounding),
                     system_key=a.system_key,
-                    new_accounts_in_budget=a.new_accounts_in_budget,
                     pinned=a.pinned,
                 )
                 for a in accounts
@@ -721,6 +723,7 @@ class BackupService:
             if currency is None:
                 raise ValueError(f"unknown currency '{fields.default_currency}'!")
             profile.currency = currency.code
+            profile.account_type_order = ",".join(type_order(",".join(fields.account_type_order or [])))
             db.add(profile)
             self.accounts.reset_defaults()
 
@@ -730,27 +733,13 @@ class BackupService:
             for a in file.accounts:
                 if a.parent_id is None:
                     ids[a.id] = roots[a.name].id
-            # The built-in groups: the ones a file carries (by key) map onto the person's own. An empty built-in group whose
-            # name the file uses for an account of its own (a plain "Cash" under Assets) steps aside for it.
+            # The four types: the ones a file carries (by key) map onto the person's own.
             fixed = {a.system_key: a for a in self.accounts.ensure_roots() if a.system_key is not None}
-            by_id_now = {a.id: a for a in self.accounts.ensure_roots()}
             kept: set[UUID] = set()
             for a in file.accounts:
                 if a.system_key in fixed:
                     ids[a.id] = fixed[a.system_key].id
                     kept.add(a.id)
-            taken = {
-                (by_old[a.parent_id].name, a.name)
-                for a in file.accounts
-                if a.parent_id is not None and a.id not in kept and by_old[a.parent_id].parent_id is None
-            }
-            self.accounts.release_fixed_parents(
-                [
-                    f.id
-                    for f in fixed.values()
-                    if (by_id_now[cast(UUID, f.parent_id)].name, f.name) in taken and f.id not in ids.values()
-                ]
-            )
             opening = None
             closed: list[tuple[Account, date]] = []
             for a in sorted(file.accounts, key=lambda a: self._depth(a, by_old) or 0):
@@ -765,7 +754,7 @@ class BackupService:
                     ids[a.id] = opening.id
                     continue
                 created = self.ar.create(
-                    AccountCreate(
+                    AccountBase(
                         name=a.name,
                         details=a.details,
                         parent_id=ids[a.parent_id],
@@ -773,10 +762,10 @@ class BackupService:
                         due_day=a.due_day,
                         bill_rounding=a.bill_rounding,
                     ),
-                    on_budget=a.on_budget,
-                    new_accounts_in_budget=a.new_accounts_in_budget,
                     pinned=a.pinned,
                 )
+                if a.system_key in RETIRED_KEYS:  # Investments or Loans, from a file made before the four types
+                    created.system_key = a.system_key
                 ids[a.id] = created.id
                 if a.closed_on is not None:
                     closed.append((created, a.closed_on))
@@ -894,6 +883,38 @@ class BackupService:
             plan = {(row.month, cats[row.category_id]): row.amount for row in self._spending_plan(file)}
             self.br.add_many((month, category_id, amount) for (month, category_id), amount in plan.items())
             self._apply_party(file, contact_ids, made, ids, cats)
+            # A file made before the four types: its investments and loans, own groups and accounts outside the budget
+            # become today's books by the same conversion a person's books went through (deciding what it cannot ask).
+            db.flush()
+            # An account the file kept outside the budget (a home loan, a fund, a property) tracked a worth: it is retired
+            # like an investment or a loan, never put in the budget as a Bank Account or a Credit Card.
+            people = {a for c in file.contacts for a in (c.receivable_account, c.payable_account)}
+            parents = {a.parent_id for a in file.accounts if a.parent_id is not None}
+            groups = {
+                ids[a.id]
+                for a in file.accounts
+                if a.id in ids and (a.new_accounts_in_budget is not None or a.id in parents or a.system_key)
+            }
+            outside = {
+                ids[a.id]
+                for a in file.accounts
+                if a.parent_id is not None
+                and a.id in ids
+                and a.on_budget is False  # said so by a file from before the four types; newer files say nothing
+                and a.id not in people
+                and ids[a.id] not in groups
+                and a.name != OPENING_BALANCES_ACCOUNT_NAME
+            }
+            conversion = CashFlowConversion(self.accounts, self.tr, self.rr, CategoryService(self.accounts))
+            conversion.apply(
+                conversion.plan(
+                    outside,
+                    strict=False,
+                    retire_ids=outside,
+                    group_ids=groups,
+                ),
+                commit=False,
+            )
             db.commit()
         except Exception:
             db.rollback()

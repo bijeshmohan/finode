@@ -61,8 +61,7 @@
   text-transform: uppercase;
   color: var(--muted);
 }
-.rowPick,
-.rowCategory {
+.rowPick {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -206,14 +205,6 @@
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
-}
-.rowCategory {
-  border-top: 1px solid var(--surface-2);
-  font-weight: 400;
-}
-.rowCategory > span:first-child {
-  color: var(--muted);
-  font-size: 0.875rem;
 }
 .placeholder {
   color: var(--faint);

@@ -5,7 +5,7 @@ import { type ReactNode, useState } from "react";
 import { Link } from "react-router";
 
 import { Icon } from "../../components/Icon";
-import { labelOf } from "../../components/lines/kinds";
+import { ACCOUNT_GROUPS, labelOf } from "../../components/lines/kinds";
 import { PeopleSheet } from "./PeopleSheet";
 import { Picker } from "../../components/lines/Picker";
 import type { PickGroup } from "../../components/lines/queries";
@@ -215,7 +215,7 @@ export function ExpenseShareEditor({ share, people, groups, onChange }: ExpenseP
         label="You paid from"
         empty="Choose…"
         value={share.accountId}
-        groups={only(groups, ["Assets", "Liabilities"])}
+        groups={only(groups, ACCOUNT_GROUPS)}
         onChange={(accountId) => {
           set({ accountId });
         }}
@@ -341,7 +341,7 @@ export function IncomeShareEditor({ share, people, groups, onChange }: IncomePro
         label="Paid into"
         empty="Choose…"
         value={share.accountId}
-        groups={only(groups, ["Assets", "Liabilities"])}
+        groups={only(groups, ACCOUNT_GROUPS)}
         onChange={(accountId) => {
           set({ accountId });
         }}

@@ -1,16 +1,7 @@
 """Pinned accounts: a flag the person sets from an account's page; the Accounts page lists pinned accounts again in a
 Pinned row at its top, and each stays in its own group row."""
 
-import pytest
-
-from finode.services import account as account_service
 from tests.books import post_account
-from tests.ledger.test_account_groups import in_group, make_group
-
-
-@pytest.fixture(autouse=True)
-def new_person(monkeypatch):
-    monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
 
 
 def group(client, key):
@@ -34,9 +25,7 @@ def test_an_account_is_pinned_and_unpinned(client):
 
 
 def test_only_an_open_account_can_be_pinned_never_a_group_or_a_root(client, root_accounts):
-    mine = make_group(client).json()
-    inside = in_group(client, mine, "Wallet").json()
-    assert pin(client, mine).status_code == 400
+    inside = post_account(client, {"name": "Wallet", "parent_id": group(client, "assets.cash")["id"]}).json()
     assert pin(client, group(client, "assets.cash")).status_code == 400
     assert client.patch(f"/api/accounts/{root_accounts['Assets']}", json={"pinned": True}).status_code == 400
     assert pin(client, inside).status_code == 200
@@ -83,7 +72,7 @@ def test_an_accounts_page_says_whether_it_is_pinned_and_can_be(client):
 
 
 def test_a_group_or_a_closed_account_cannot_be_pinned(client):
-    mine = make_group(client).json()
+    mine = group(client, "assets.wallet")
     assert client.get(f"/api/views/accounts/{mine['id']}").json()["can_pin"] is False
     assert pin(client, mine).status_code == 400
     account = bank(client)

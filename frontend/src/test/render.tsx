@@ -15,7 +15,7 @@ import { ToastProvider } from "../app/toast";
  * a function of the request's URL for answers that depend on the query (a promise of one, for an answer that comes
  * late). */
 type Answer = [number, unknown] | Error | "never";
-export type Answers = Record<string, Answer | ((url: URL) => Answer | Promise<Answer>)>;
+export type Answers = Record<string, Answer | ((url: URL, request: Request) => Answer | Promise<Answer>)>;
 
 export const SIGNED_IN: Answers = {
   "/api/auth/session": [
@@ -28,7 +28,7 @@ export function stubClient(answers: Answers) {
   const fetch = vi.fn(async (request: Request) => {
     const url = new URL(request.url);
     const given = answers[url.pathname];
-    const answer = typeof given === "function" ? await given(url) : given;
+    const answer = typeof given === "function" ? await given(url, request) : given;
     if (answer instanceof Error) return Promise.reject(answer);
     if (answer === "never") return new Promise<Response>(() => undefined);
     const [status, body] = answer ?? [404, { detail: "Not Found" }];

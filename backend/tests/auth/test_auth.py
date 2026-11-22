@@ -92,7 +92,7 @@ def test_users_can_only_access_their_own_data(session: Session):
             ).json()
 
             authenticate_as(USER_B_ID)
-            assert len(client.get("/api/accounts/").json()) == 5
+            assert len(client.get("/api/accounts/").json()) == 9, "the roots and the four types"
             assert client.get("/api/transactions/").json() == []
             assert client.get(f"/api/accounts/{account['id']}").status_code == 404
             assert client.get(f"/api/transactions/{transaction['id']}").status_code == 404

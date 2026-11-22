@@ -54,12 +54,12 @@ export function useAccountAction() {
 }
 
 export type AccountFormView = components["schemas"]["AccountFormView"];
-export type KindChoice = components["schemas"]["KindChoiceRead"];
+export type AccountType = components["schemas"]["AccountCreate"]["type"];
 export type AccountCreate = components["schemas"]["AccountCreate"];
 export type AccountUpdate = components["schemas"]["AccountUpdate"];
 
-/** Where the account form starts: `account_id` to edit, otherwise opened for a kind (`parent`) or a type (`root`). */
-export function useAccountForm(query: { account_id?: string; parent?: string; root?: string }) {
+/** Where the account form starts: `account_id` to edit, otherwise a new account, opened for a `type` or not. */
+export function useAccountForm(query: { account_id?: string; type?: string }) {
   const api = useApi();
   return useQuery({
     queryKey: [...VIEWS, "account-form", query],
@@ -105,14 +105,5 @@ export function useDeleteAccount(id: string) {
       queryClient.removeQueries({ queryKey: [...VIEWS, "account-form"] });
       await queryClient.invalidateQueries({ queryKey: VIEWS });
     },
-  });
-}
-
-export function useAddGroup() {
-  const api = useApi();
-  const refresh = useRefresh();
-  return useMutation({
-    mutationFn: (body: components["schemas"]["GroupCreate"]) => data(api.POST("/api/accounts/groups", { body })),
-    onSuccess: refresh,
   });
 }

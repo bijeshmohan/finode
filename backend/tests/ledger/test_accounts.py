@@ -21,7 +21,7 @@ def test_create_account(client: TestClient, root_accounts: dict[str, str]):
     data = response.json()
     assert data["name"] == "checking"
     assert data["details"] == "main account"
-    assert data["parent_id"] == root_accounts["Assets"]
+    assert data["type"] == "assets.bank"
     assert data["balance"] == "100.50"
     assert "id" in data
 
@@ -79,8 +79,8 @@ def test_list_accounts(client: TestClient, account: dict, other_account: dict):
     response = client.get("/api/accounts/")
     assert response.status_code == 200
     data = response.json()
-    # 5 root accounts + 2 created by fixtures
-    assert len(data) == 7
+    # 5 root accounts + the 4 types + 2 created by fixtures
+    assert len(data) == 11
     aids = {item["id"] for item in data}
     assert account["id"] in aids
     assert other_account["id"] in aids
@@ -104,13 +104,15 @@ def test_filter_accounts_by_invalid_type(client: TestClient):
 
 
 def test_list_accounts_empty(client: TestClient):
-    # Empty DB lists only the 5 system root accounts
+    # Empty books list the 5 system root accounts and the 4 types
     response = client.get("/api/accounts/")
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 5
     names = {item["name"] for item in data}
-    assert names == {"Assets", "Expenses", "Equity", "Income", "Liabilities"}
+    assert names == {
+        *("Assets", "Expenses", "Equity", "Income", "Liabilities"),
+        *("Bank Account", "Cash", "Credit Card", "Prepaid Wallet"),
+    }
 
 
 def test_update_account_metadata(client: TestClient, account: dict):
@@ -175,89 +177,8 @@ def test_delete_account_not_found(client: TestClient):
     assert response.status_code == 404
 
 
-def test_create_child_account(client: TestClient, root_accounts: dict[str, str]):
-    parent = post_account(client, {"name": "parent_acc", "parent_id": root_accounts["Assets"]}).json()
-
-    child = post_account(client, {"name": "child_acc", "parent_id": parent["id"], "balance": "50.00"})
-    assert child.status_code == 201
-    child_data = child.json()
-    assert child_data["parent_id"] == parent["id"]
-
-
-def test_create_child_account_parent_not_found(client: TestClient):
-    child = post_account(client, {"name": "child_acc", "parent_id": str(uuid4())})
-    assert child.status_code == 400
-    assert child.json()["detail"] == "parent account not found!"
-
-
-def test_create_root_account_without_parent_fails(client: TestClient):
-    response = post_account(client, {"name": "no_parent_root"})
-    assert response.status_code == 400
-    assert response.json()["detail"] == "parent_id is required for all user-created accounts!"
-
-
-def test_update_parent_id(client: TestClient, root_accounts: dict[str, str]):
-    acc1 = post_account(client, {"name": "acc1", "parent_id": root_accounts["Assets"]}).json()
-    acc2 = post_account(client, {"name": "acc2", "parent_id": root_accounts["Assets"]}).json()
-
-    update = client.patch(f"/api/accounts/{acc2['id']}", json={"parent_id": acc1["id"]})
-    assert update.status_code == 200
-    assert update.json()["parent_id"] == acc1["id"]
-
-
-def test_detect_cycle_self(client: TestClient, root_accounts: dict[str, str]):
-    acc = post_account(client, {"name": "acc", "parent_id": root_accounts["Assets"]}).json()
-
-    update = client.patch(f"/api/accounts/{acc['id']}", json={"parent_id": acc["id"]})
-    assert update.status_code == 400
-    assert update.json()["detail"] == "an account cannot be its own parent!"
-
-
-def test_detect_cycle_multi(client: TestClient, root_accounts: dict[str, str]):
-    a = post_account(client, {"name": "A", "parent_id": root_accounts["Assets"]}).json()
-    b = post_account(client, {"name": "B", "parent_id": a["id"]}).json()
-
-    # Try setting A's parent to B
-    update = client.patch(f"/api/accounts/{a['id']}", json={"parent_id": b["id"]})
-    assert update.status_code == 400
-    assert update.json()["detail"] == "cyclic parent relationship detected!"
-
-
-def test_parent_balance_aggregation(client: TestClient, root_accounts: dict[str, str]):
-    parent = post_account(client, {"name": "parent", "parent_id": root_accounts["Assets"]}).json()
-
-    child = post_account(client, {"name": "child", "parent_id": parent["id"]}).json()
-
-    sibling = post_account(client, {"name": "sibling", "parent_id": parent["id"], "balance": "50.00"}).json()
-
-    client.patch(f"/api/accounts/{child['id']}", json={"balance": "20.00"})
-
-    p_get = client.get(f"/api/accounts/{parent['id']}").json()
-    assert p_get["balance"] == "70.00"
-
-    c_get = client.get(f"/api/accounts/{child['id']}").json()
-    assert c_get["balance"] == "20.00"
-
-    s_get = client.get(f"/api/accounts/{sibling['id']}").json()
-    assert s_get["balance"] == "50.00"
-
-
-def test_delete_parent_account_fails(client: TestClient, root_accounts: dict[str, str]):
-    parent = post_account(client, {"name": "parent", "parent_id": root_accounts["Assets"]}).json()
-    post_account(client, {"name": "child", "parent_id": parent["id"]})
-
-    response = client.delete(f"/api/accounts/{parent['id']}")
-    assert response.status_code == 409
-    assert response.json()["detail"] == "account has sub-accounts"
-
-
 def test_system_root_modifications_fail(client: TestClient, root_accounts: dict[str, str]):
     root_id = root_accounts["Assets"]
-
-    # Try to change parent of root
-    r1 = client.patch(f"/api/accounts/{root_id}", json={"parent_id": root_accounts["Expenses"]})
-    assert r1.status_code == 400
-    assert r1.json()["detail"] == "cannot change parent of a root account!"
 
     # Try to rename root
     r2 = client.patch(f"/api/accounts/{root_id}", json={"name": "New Assets"})
@@ -273,39 +194,8 @@ def test_system_root_modifications_fail(client: TestClient, root_accounts: dict[
 def test_root_accounts_are_provisioned_once(client: TestClient):
     first = client.get("/api/accounts/").json()
     second = client.get("/api/accounts/").json()
-    assert len(first) == len(second) == 5
+    assert len(first) == len(second) == 9
     assert {a["id"] for a in first} == {a["id"] for a in second}
-
-
-def test_move_account_to_different_root_fails(client: TestClient, account: dict, root_accounts: dict[str, str]):
-    response = client.patch(
-        f"/api/accounts/{account['id']}",
-        json={"parent_id": root_accounts["Liabilities"]},
-    )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "cannot move account under a different root account!"
-    assert client.get(f"/api/accounts/{account['id']}").json()["parent_id"] == root_accounts["Assets"]
-
-
-def test_move_account_under_account_of_different_root_fails(
-    client: TestClient, account: dict, root_accounts: dict[str, str]
-):
-    card = post_account(client, {"name": "card", "parent_id": root_accounts["Liabilities"]}).json()
-    response = client.patch(
-        f"/api/accounts/{account['id']}",
-        json={"parent_id": card["id"]},
-    )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "cannot move account under a different root account!"
-
-
-def test_move_account_within_same_root(client: TestClient, account: dict, other_account: dict):
-    response = client.patch(
-        f"/api/accounts/{account['id']}",
-        json={"parent_id": other_account["id"]},
-    )
-    assert response.status_code == 200
-    assert response.json()["parent_id"] == other_account["id"]
 
 
 def test_set_balance_of_root_account_fails(client: TestClient, root_accounts: dict[str, str]):
@@ -314,34 +204,8 @@ def test_set_balance_of_root_account_fails(client: TestClient, root_accounts: di
     assert response.json()["detail"] == "cannot set balance of a root account!"
 
 
-def test_set_balance_of_account_with_sub_accounts_fails(
-    client: TestClient, account: dict, root_accounts: dict[str, str]
-):
-    post_account(client, {"name": "child", "parent_id": account["id"]})
-    response = client.patch(f"/api/accounts/{account['id']}", json={"balance": "10.00"})
-    assert response.status_code == 400
-    assert response.json()["detail"] == "cannot set balance of an account with sub-accounts!"
-
-
 def _opening_balances(client: TestClient) -> dict:
     return next(a for a in client.get("/api/accounts/").json() if a["name"] == "Opening Balances")
-
-
-def test_create_sub_account_under_account_with_postings_fails(client: TestClient, root_accounts: dict[str, str]):
-    parent = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "100.00"}).json()
-
-    response = post_account(client, {"name": "child", "parent_id": parent["id"]})
-    assert response.status_code == 400
-    assert response.json()["detail"] == "cannot add sub-accounts to 'bank' because it has postings!"
-
-
-def test_move_account_under_account_with_postings_fails(client: TestClient, root_accounts: dict[str, str]):
-    target = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "100.00"}).json()
-    moving = post_account(client, {"name": "cash", "parent_id": root_accounts["Assets"]}).json()
-
-    response = client.patch(f"/api/accounts/{moving['id']}", json={"parent_id": target["id"]})
-    assert response.status_code == 400
-    assert response.json()["detail"] == "cannot add sub-accounts to 'bank' because it has postings!"
 
 
 def test_opening_balances_account_is_created_under_equity(client: TestClient, root_accounts: dict[str, str]):
@@ -368,10 +232,6 @@ def test_opening_balances_account_cannot_be_renamed_moved_or_deleted(client: Tes
     assert renamed.status_code == 400
     assert renamed.json()["detail"] == "cannot change name of system account 'Opening Balances'!"
 
-    moved = client.patch(url, json={"parent_id": root_accounts["Assets"]})
-    assert moved.status_code == 400
-    assert moved.json()["detail"] == "cannot move system account 'Opening Balances'!"
-
     deleted = client.delete(url)
     assert deleted.status_code == 400
     assert deleted.json()["detail"] == "cannot delete system account 'Opening Balances'!"
@@ -384,27 +244,6 @@ def test_opening_balances_account_allows_metadata_update(client: TestClient, roo
     response = client.patch(f"/api/accounts/{opening['id']}", json={"details": "notes"})
     assert response.status_code == 200
     assert response.json()["details"] == "notes"
-
-
-def test_cannot_add_sub_account_under_opening_balances(client: TestClient, root_accounts: dict[str, str]):
-    post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "100.00"})
-    opening = _opening_balances(client)
-
-    response = post_account(client, {"name": "child", "parent_id": opening["id"]})
-    assert response.status_code == 400
-    assert response.json()["detail"] == "cannot add sub-accounts to system account 'Opening Balances'!"
-
-
-def test_cannot_duplicate_opening_balances_account(client: TestClient, root_accounts: dict[str, str]):
-    post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"], "balance": "100.00"})
-    other = post_account(client, {"name": "reserve", "parent_id": root_accounts["Equity"]}).json()
-
-    created = post_account(client, {"name": "Opening Balances", "parent_id": root_accounts["Equity"]})
-    assert created.status_code == 400
-
-    renamed = client.patch(f"/api/accounts/{other['id']}", json={"name": "Opening Balances"})
-    assert renamed.status_code == 400
-    assert renamed.json()["detail"] == "system account 'Opening Balances' already exists!"
 
 
 def _transfer(client: TestClient, debit: dict, credit: dict, amount: str, date: str, payee: str):
@@ -459,7 +298,7 @@ def test_account_register_not_found(session):
 
 
 def test_an_opening_balance_that_is_not_a_number_is_refused_and_nothing_is_made(client, root_accounts):
-    made = client.post("/api/accounts/", json={"name": "x", "parent_id": root_accounts["Assets"], "balance": "abc"})
+    made = post_account(client, {"name": "x", "parent_id": root_accounts["Assets"], "balance": "abc"})
     assert made.status_code == 422
     assert all(a["name"] != "x" for a in client.get("/api/accounts/").json())
 
@@ -473,13 +312,7 @@ def test_saving_an_account_unchanged_records_nothing(client, root_accounts, acco
     assert client.get("/api/transactions/").json() == []
 
 
-def test_a_new_account_is_in_the_budget_as_asked_and_by_its_kind_when_not(client, root_accounts):
-    def made(name, parent, **extra):
-        answer = client.post("/api/accounts/", json={"name": name, "parent_id": root_accounts[parent], **extra})
-        assert answer.status_code == 201, answer.text
-        return answer.json()["on_budget"]
-
-    assert made("Savings", "Assets", on_budget=True) is True
-    assert made("Fund", "Assets", on_budget=False) is False, "left out as asked"
-    assert made("Car loan", "Liabilities") is False, "a loan starts outside the budget"
-    assert made("Wallet", "Assets") is True, "nothing asked: an asset starts in"
+def test_every_new_account_is_in_the_budget_whatever_was_asked(client: TestClient):
+    asked = post_account(client, {"name": "Old SBI", "type": "assets.bank", "on_budget": False}).json()
+    assert asked["type"] == "assets.bank"
+    assert "on_budget" not in asked, "there is no flag left to read"

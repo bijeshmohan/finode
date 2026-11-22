@@ -49,26 +49,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/accounts/groups": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create Group
-         * @description Make a group, a shelf for accounts: under Assets (money you own) or Liabilities (money you owe). `new_accounts_in_budget` is what an account made in it starts as. A group has no balance and can be empty.
-         */
-        post: operations["create_group_api_accounts_groups_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/accounts/{account_id}": {
         parameters: {
             query?: never;
@@ -506,26 +486,6 @@ export interface paths {
         get: operations["get_budget_api_budget__get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/budget/accounts/{account_id}/include": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Include Account
-         * @description Make an account part of the budget (its money and its spending count from now on).
-         */
-        post: operations["include_account_api_budget_accounts__account_id__include_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1437,7 +1397,7 @@ export interface paths {
         };
         /**
          * Get Summary
-         * @description Net worth now, plus income and expenses for a period (the current month so far by default).
+         * @description Cash on hand now, plus income and expenses for a period (the current month so far by default).
          */
         get: operations["get_summary_api_reports_summary_get"];
         put?: never;
@@ -1917,27 +1877,6 @@ export interface paths {
         patch: operations["update_transaction_api_transactions__transaction_id__patch"];
         trace?: never;
     };
-    "/api/transactions/{transaction_id}/category": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Label Payment
-         * @description Give an entry's payments into accounts outside the budget (a loan, a fund) that no category took a category: the
-         *     to-do bell's fix. 400 when the entry has no payment waiting for one.
-         */
-        post: operations["label_payment_api_transactions__transaction_id__category_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/transactions/{transaction_id}/related": {
         parameters: {
             query?: never;
@@ -1995,9 +1934,8 @@ export interface paths {
         };
         /**
          * Account Form View
-         * @description Where the account form starts: editing `account_id`, or a new account (opened for a kind with `parent`, or for the
-         *     plain accounts of a type with `root` = `assets` or `liabilities`). The `kinds` (and `parent_options`) say for each
-         *     place whether an account there can be part of the budget, takes a card's days, and starts in the budget.
+         * @description Where the account form starts: editing `account_id` (it keeps its type), or a new account, with `type` already
+         *     chosen when the form was opened for one (a type's "+ Add account"). `types` are the four to pick from, in order.
          */
         get: operations["account_form_view_api_views_account_form_get"];
         put?: never;
@@ -2017,9 +1955,9 @@ export interface paths {
         };
         /**
          * Accounts View
-         * @description The Accounts page: net worth, the pinned accounts, and a row of cards per kind (Bank Accounts, Credit Cards…, then
-         *     the groups the person made, then the plain accounts), each card with its balance and its one quiet line (a bill, no
-         *     entries yet, none for a month). Closed accounts are listed too, marked, for "Load more".
+         * @description The Accounts page: the pinned accounts, and a row of cards per type (Bank Account, Cash, Credit Card, Prepaid
+         *     Wallet, in the person's order), each card with its balance and its one quiet line (a bill, no entries yet, none for
+         *     a month). Closed accounts are listed too, marked, for "Load more".
          */
         get: operations["accounts_view_api_views_accounts_get"];
         put?: never;
@@ -2528,8 +2466,6 @@ export interface components {
             /** Name */
             name: string;
             note: components["schemas"]["CardNoteRead"] | null;
-            /** On Budget */
-            on_budget: boolean;
             /** Pinned */
             pinned: boolean;
         };
@@ -2552,12 +2488,13 @@ export interface components {
             due_day?: number | null;
             /** Name */
             name: string;
-            /** On Budget */
-            on_budget?: boolean | null;
-            /** Parent Id */
-            parent_id?: string | null;
             /** Statement Day */
             statement_day?: number | null;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "assets.bank" | "assets.cash" | "liabilities.cards" | "assets.wallet";
         };
         /** AccountFormView */
         AccountFormView: {
@@ -2568,35 +2505,20 @@ export interface components {
              * @enum {string}
              */
             bill_rounding: "none" | "nearest" | "up";
-            /** Can Bill */
-            can_bill: boolean;
-            /** Can Budget */
-            can_budget: boolean;
             /** Details */
             details: string | null;
             /** Due Day */
             due_day: number | null;
             /** Editing */
             editing: boolean;
-            /** Is Group */
-            is_group: boolean;
-            /** Kinds */
-            kinds: components["schemas"]["KindChoiceRead"][];
             /** Name */
             name: string;
-            /** New Accounts In Budget */
-            new_accounts_in_budget: boolean | null;
-            /** On Budget */
-            on_budget: boolean;
-            /** Parent Id */
-            parent_id: string | null;
-            /** Parent Options */
-            parent_options: components["schemas"]["KindChoiceRead"][];
-            placed: components["schemas"]["PlacedRead"] | null;
-            /** Root Name */
-            root_name: string | null;
             /** Statement Day */
             statement_day: number | null;
+            /** Type */
+            type: ("assets.bank" | "assets.cash" | "liabilities.cards" | "assets.wallet") | null;
+            /** Types */
+            types: components["schemas"]["AccountTypeChoice"][];
         };
         /** AccountRead */
         AccountRead: {
@@ -2631,13 +2553,6 @@ export interface components {
             id: string;
             /** Name */
             name: string;
-            /** New Accounts In Budget */
-            new_accounts_in_budget?: boolean | null;
-            /**
-             * On Budget
-             * @default false
-             */
-            on_budget: boolean;
             /** Parent Id */
             parent_id?: string | null;
             /**
@@ -2649,11 +2564,41 @@ export interface components {
             statement_day?: number | null;
             /** System Key */
             system_key?: string | null;
+            /** Type */
+            type?: ("assets.bank" | "assets.cash" | "liabilities.cards" | "assets.wallet") | null;
             /**
              * Updated
              * Format: date-time
              */
             updated: string;
+        };
+        /**
+         * AccountTypeChoice
+         * @description One of the four types a new account can be (the form's switcher).
+         */
+        AccountTypeChoice: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "assets.bank" | "assets.cash" | "liabilities.cards" | "assets.wallet";
+            /** Name */
+            name: string;
+        };
+        /**
+         * AccountTypeOption
+         * @description What a new account made from the Add screen's "New account" sheet can be: one of the four types.
+         */
+        AccountTypeOption: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "assets.bank" | "assets.cash" | "liabilities.cards" | "assets.wallet";
+            /** Name */
+            name: string;
+            /** Root */
+            root: string;
         };
         /** AccountUpdate */
         AccountUpdate: {
@@ -2667,12 +2612,6 @@ export interface components {
             due_day?: number | null;
             /** Name */
             name?: string | null;
-            /** New Accounts In Budget */
-            new_accounts_in_budget?: boolean | null;
-            /** On Budget */
-            on_budget?: boolean | null;
-            /** Parent Id */
-            parent_id?: string | null;
             /** Pinned */
             pinned?: boolean | null;
             /** Statement Day */
@@ -2683,6 +2622,8 @@ export interface components {
          * @description An account's (or a group's) own page.
          */
         AccountView: {
+            /** Add Url */
+            add_url: string | null;
             /** Badge */
             badge: ("system" | "closed") | null;
             /** Balance */
@@ -2692,8 +2633,6 @@ export interface components {
             bill: components["schemas"]["CardBill"] | null;
             /** Bill Soon */
             bill_soon: boolean;
-            /** Can Add Child */
-            can_add_child: boolean;
             /** Can Edit */
             can_edit: boolean;
             /** Can Pin */
@@ -2742,14 +2681,10 @@ export interface components {
         AccountsView: {
             /** Account Count */
             account_count: number;
-            /** Has Budget Accounts */
-            has_budget_accounts: boolean;
             /** Has Closed */
             has_closed: boolean;
             /** Kinds */
             kinds: components["schemas"]["KindRow"][];
-            /** Net Worth */
-            net_worth: string;
             /** Pinned */
             pinned: components["schemas"]["AccountCard"][];
         };
@@ -3073,20 +3008,6 @@ export interface components {
             /** Pace */
             pace: number | null;
         };
-        /** BudgetLeftOut */
-        BudgetLeftOut: {
-            /**
-             * Account Id
-             * Format: uuid
-             */
-            account_id: string;
-            /** Entries */
-            entries: number;
-            /** Path */
-            path: string;
-            /** Spent */
-            spent: string;
-        };
         /** BudgetLine */
         BudgetLine: {
             /** Activity */
@@ -3166,15 +3087,6 @@ export interface components {
             copyable: string;
             /** Currency */
             currency: string;
-            /** Ignored Accounts */
-            ignored_accounts: string[];
-            /** Left Out */
-            left_out: string;
-            /**
-             * Left Out Accounts
-             * @default []
-             */
-            left_out_accounts: components["schemas"]["BudgetLeftOut"][];
             /** Lines */
             lines: components["schemas"]["BudgetLine"][];
             /** Money In Accounts */
@@ -3190,8 +3102,6 @@ export interface components {
             ready_to_assign: string;
             /** Reserved For Cards */
             reserved_for_cards: string;
-            /** Uncategorised */
-            uncategorised?: components["schemas"]["BudgetUncategorised"][];
         };
         /**
          * BudgetRowRead
@@ -3244,29 +3154,6 @@ export interface components {
             money_in_accounts: string;
             /** Reserved For Cards */
             reserved_for_cards: string;
-        };
-        /**
-         * BudgetUncategorised
-         * @description A payment into an account outside the budget (a loan, a fund) that no category took: the money left the budget
-         *     and no envelope paid for it, so Ready to assign dropped.
-         */
-        BudgetUncategorised: {
-            /** Account */
-            account: string;
-            /** Amount */
-            amount: string;
-            /**
-             * Date
-             * Format: date
-             */
-            date: string;
-            /** Payee */
-            payee?: string | null;
-            /**
-             * Transaction Id
-             * Format: uuid
-             */
-            transaction_id: string;
         };
         /** BudgetView */
         BudgetView: {
@@ -3372,16 +3259,6 @@ export interface components {
              * @enum {string}
              */
             tab: "expense" | "income";
-        };
-        /** CategoryChoice */
-        CategoryChoice: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Path */
-            path: string;
         };
         /** CategoryCreate */
         CategoryCreate: {
@@ -3953,8 +3830,8 @@ export interface components {
          * @description Where the Add screen starts, and what its pickers offer.
          */
         EntryFormView: {
-            /** Account Parents */
-            account_parents: components["schemas"]["ParentOption"][];
+            /** Account Types */
+            account_types: components["schemas"]["AccountTypeOption"][];
             /** Category Parents */
             category_parents: components["schemas"]["CategoryParent"][];
             /** Comment */
@@ -4220,21 +4097,6 @@ export interface components {
             /** Total */
             total: number | string;
         };
-        /**
-         * GroupCreate
-         * @description A group the person makes: a shelf on the Accounts page that holds accounts (it has no balance of its own).
-         */
-        GroupCreate: {
-            /** Name */
-            name: string;
-            /** New Accounts In Budget */
-            new_accounts_in_budget: boolean;
-            /**
-             * Root
-             * @enum {string}
-             */
-            root: "Assets" | "Liabilities";
-        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -4440,29 +4302,8 @@ export interface components {
             people?: components["schemas"]["IncomePart-Output"][];
         };
         /**
-         * KindChoiceRead
-         * @description A place a new account can go (a kind chip, or the place it was opened for), with what the form then asks.
-         */
-        KindChoiceRead: {
-            /** Budget Default */
-            budget_default: boolean;
-            /** Can Bill */
-            can_bill: boolean;
-            /** Can Budget */
-            can_budget: boolean;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Name */
-            name: string;
-            /** Root */
-            root: string;
-        };
-        /**
          * KindRow
-         * @description One row of cards on the Accounts page: a kind of account and its accounts.
+         * @description One row of cards on the Accounts page: one of the four types and its accounts.
          */
         KindRow: {
             /** Add Url */
@@ -4471,8 +4312,11 @@ export interface components {
             all_closed: boolean;
             /** Cards */
             cards: components["schemas"]["AccountCard"][];
-            /** Group Id */
-            group_id: string | null;
+            /**
+             * Group Id
+             * Format: uuid
+             */
+            group_id: string;
             /** Name */
             name: string;
             /** Open Count */
@@ -4481,6 +4325,11 @@ export interface components {
             owed: boolean;
             /** Total */
             total: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "assets.bank" | "assets.cash" | "liabilities.cards" | "assets.wallet";
         };
         /** MergeRequest */
         MergeRequest: {
@@ -4670,26 +4519,6 @@ export interface components {
             name: string;
         };
         /**
-         * ParentOption
-         * @description Where a new account can go (the Add screen's "New account" sheet): a root or a group, at its depth, and whether an
-         *     account made there can start with a balance.
-         */
-        ParentOption: {
-            /** Depth */
-            depth: number;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Name */
-            name: string;
-            /** Opening Balance */
-            opening_balance: boolean;
-            /** Root */
-            root: string;
-        };
-        /**
          * ParticipantIn
          * @description Who shares the expense: you (`is_self`) or a contact. `value` is what the split method needs: nothing for an
          *     equal split, the weight for `shares`, the percentage for `percentage` or the amount for `exact`.
@@ -4749,14 +4578,6 @@ export interface components {
             names?: string[];
             /** People */
             people?: components["schemas"]["PersonChip"][];
-        };
-        /** PaymentCategory */
-        PaymentCategory: {
-            /**
-             * Category Id
-             * Format: uuid
-             */
-            category_id: string;
         };
         /**
          * PaymentIn
@@ -4936,17 +4757,6 @@ export interface components {
             /** Label */
             label: string;
         };
-        /**
-         * PlacedRead
-         * @description What the form says instead of the kind chips when it was opened for a place that is not a kind ("Kind · Other",
-         *     "Inside · HDFC").
-         */
-        PlacedRead: {
-            /** Label */
-            label: string;
-            /** Value */
-            value: string;
-        };
         /** PostingCreate */
         "PostingCreate-Input": {
             /** Account Id */
@@ -5013,6 +4823,8 @@ export interface components {
         PostingSide: "debit" | "credit";
         /** ProfileRead */
         ProfileRead: {
+            /** Account Type Order */
+            account_type_order: ("assets.bank" | "assets.cash" | "liabilities.cards" | "assets.wallet")[];
             /**
              * Created
              * Format: date-time
@@ -5032,6 +4844,8 @@ export interface components {
         };
         /** ProfileUpdate */
         ProfileUpdate: {
+            /** Account Type Order */
+            account_type_order?: ("assets.bank" | "assets.cash" | "liabilities.cards" | "assets.wallet")[] | null;
             /** Default Currency */
             default_currency?: string | null;
             /** First Name */
@@ -5124,8 +4938,8 @@ export interface components {
          *     schedule, and for a rule being edited where it stands.
          */
         RecurringFormView: {
-            /** Account Parents */
-            account_parents: components["schemas"]["ParentOption"][];
+            /** Account Types */
+            account_types: components["schemas"]["AccountTypeOption"][];
             /** Active */
             active?: boolean | null;
             /** Category Parents */
@@ -5923,20 +5737,16 @@ export interface components {
         };
         /** SummaryRead */
         SummaryRead: {
-            /** Assets */
-            assets: string;
+            /** Cash On Hand */
+            cash_on_hand: string;
             /** Currency */
             currency: string;
             /** Expenses */
             expenses: string;
             /** Income */
             income: string;
-            /** Liabilities */
-            liabilities: string;
             /** Net Income */
             net_income: string;
-            /** Net Worth */
-            net_worth: string;
             /**
              * Period End
              * Format: date
@@ -6031,16 +5841,6 @@ export interface components {
              * @default []
              */
             failing_rules: components["schemas"]["TodoRule"][];
-            /**
-             * Left Out Accounts
-             * @default []
-             */
-            left_out_accounts: components["schemas"]["BudgetLeftOut"][];
-            /**
-             * Uncategorised
-             * @default []
-             */
-            uncategorised: components["schemas"]["BudgetUncategorised"][];
         };
         /**
          * TodoRule
@@ -6061,16 +5861,10 @@ export interface components {
         TodoView: {
             /** Card Bills */
             card_bills: components["schemas"]["TodoBill"][];
-            /** Categories */
-            categories: components["schemas"]["CategoryChoice"][];
             /** Count */
             count: number;
             /** Failing Rules */
             failing_rules: components["schemas"]["TodoRule"][];
-            /** Left Out Accounts */
-            left_out_accounts: components["schemas"]["BudgetLeftOut"][];
-            /** Uncategorised */
-            uncategorised: components["schemas"]["BudgetUncategorised"][];
         };
         /** TransactionBatch */
         TransactionBatch: {
@@ -6515,39 +6309,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClosedAccount"][];
-                };
-            };
-        };
-    };
-    create_group_api_accounts_groups_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GroupCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AccountRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -7245,39 +7006,6 @@ export interface operations {
             };
             header?: never;
             path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BudgetRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    include_account_api_budget_accounts__account_id__include_post: {
-        parameters: {
-            query?: {
-                month?: string | null;
-            };
-            header?: never;
-            path: {
-                account_id: string;
-            };
             cookie?: never;
         };
         requestBody?: never;
@@ -9982,41 +9710,6 @@ export interface operations {
             };
         };
     };
-    label_payment_api_transactions__transaction_id__category_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                transaction_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PaymentCategory"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TransactionRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     related_transactions_api_transactions__transaction_id__related_get: {
         parameters: {
             query?: never;
@@ -10147,8 +9840,7 @@ export interface operations {
         parameters: {
             query?: {
                 account_id?: string | null;
-                parent?: string | null;
-                root?: string;
+                type?: string | null;
             };
             header?: never;
             path?: never;

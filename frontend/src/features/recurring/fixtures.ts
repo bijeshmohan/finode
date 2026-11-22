@@ -32,7 +32,7 @@ export function form(over: Partial<RecurringFormView> = {}): RecurringFormView {
     from_rows: [{ choice: null, amount: null, category_id: null, posted_on: null }],
     to_rows: [{ choice: null, amount: null, category_id: null, posted_on: null }],
     groups: groups.filter((g) => g.title !== "People"),
-    account_parents: [],
+    account_types: [],
     category_parents: [],
     frequency: "monthly",
     every: 1,

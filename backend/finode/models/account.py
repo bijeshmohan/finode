@@ -42,23 +42,17 @@ class Account(TimestampMixin, table=True):
     name: str = Field(max_length=40)
     details: str | None = Field(default=None, max_length=200)
     parent_id: UUID | None = Field(default=None, foreign_key="accounts.id", nullable=True)
-    # Whether this asset or liability account (a bank, a credit card) is part of the budget (see services/budget.py).
-    on_budget: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
     # The day the account was closed: no longer offered or posted to, history kept (see AccountService.close).
     closed_on: Date | None = Field(default=None)
-    # A liability account's (a card's, a loan's) day of the month the bank closes a bill and the day it must be paid by.
+    # A Credit Card's day of the month the bank closes a bill and the day it must be paid by.
     statement_day: int | None = Field(default=None)
     due_day: int | None = Field(default=None)
     # How the bank rounds the bill: "none" (to the paisa), "nearest" or "up" (to a whole unit of the currency).
     bill_rounding: str = Field(default="none", max_length=8, sa_column_kwargs={"server_default": "none"})
-    # For an asset or liability account outside the budget (a loan): the expense category its payments are
-    # budgeted under, so paying the EMI spends that category (see services/budget.py).
-    # Set on the built-in groups under Assets and Liabilities (Bank Accounts, Cash, Investments, Credit Cards, Loans):
-    # they cannot be renamed, moved, closed or deleted, and what is made under them starts as the key says.
+    # Set on the four account types' own groups (services/account_types.py: assets.bank, assets.cash,
+    # liabilities.cards, assets.wallet): they cannot be renamed, moved, closed or deleted, and every account under one is
+    # part of the budget.
     system_key: str | None = Field(default=None, max_length=40)
-    # Set on a group (a built-in one or one the person made): whether an account made in it starts in the budget.
-    # Empty on everything else; a group needs no accounts in it to exist.
-    new_accounts_in_budget: bool | None = Field(default=None)
     # Whether the person pinned this account: the Accounts page lists pinned ones again in a row at its top.
     pinned: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
 

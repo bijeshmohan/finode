@@ -10,8 +10,7 @@ Budgets are **monthly**.
 
 | Word | Meaning |
 |---|---|
-| **Budget accounts** | The bank, cash and card accounts whose money you budget. When you add an account under Assets or Liabilities the form asks **Part of the budget**: it is on by default for a bank or cash account and off for a card or loan (turn it on for a card whose purchases you want counted). You can change it later on the account's edit page. |
-| **Tracking accounts** | Accounts outside the budget (say, a long-term investment or a loan). They count in net worth but their money is not yours to assign. |
+| **Budget accounts** | Every account you add: your bank accounts, cash, credit cards and prepaid wallets. There is nothing to switch on. |
 | **Assigned** | How much you gave a category this month. |
 | **Spent** (activity) | What you spent in the category this month, from budget accounts. |
 | **Left** (available) | What you can still spend: last month's leftover (if any) + assigned − spent. |
@@ -48,14 +47,13 @@ You have ₹50,000 in your bank account, and no budget yet.
 - Budgets looks at the **whole month**, so an entry dated later this month already counts as spent in its category, while Home's Transactions list, account balances count up to today.
 - **Move money** never changes Ready to assign; it limits you to what the source category has left. Typing a smaller (even negative) amount in a category's *Assign* field takes money back to Ready to assign, but never more than the category has left.
 - **Ready to assign is as of today.** Payments dated later this month, and the ones a recurring rule will record, are not in the figures until their day. Open the ⓘ beside Ready to assign: the last line says how many are coming up by the end of the month and what they come to, and opens **Coming up**, one list of entries you dated ahead and what your recurring transactions will record (those are marked *Repeats*). An account's own page says what its balance will be after the entries dated ahead.
-- What needs a decision is under the **bell** at the top of every page (a number beside it when something is waiting): payments no category took, accounts left out of the budget, recurring transactions that could not be recorded, and credit card bills due within 5 days or overdue. Each item has its fix on the spot. On a month with nothing assigned yet (the link goes as soon as anything is assigned), a quiet **Copy last month's amounts** link sits under the figure.
+- What needs a decision is under the **bell** at the top of every page (a number beside it when something is waiting): recurring transactions that could not be recorded, and credit card bills due within 5 days or overdue. Each item has its fix on the spot. On a month with nothing assigned yet (the link goes as soon as anything is assigned), a quiet **Copy last month's amounts** link sits under the figure.
 - **Copy last month's amounts** assigns each category what it got last month, but only where nothing is assigned yet.
 
 ### Credit cards, loans and EMIs
 
-- Purchases on a **budget credit card** count in their category as you buy. Paying the card is a transfer and is not "spending" again.
-- A card that is *not* part of the budget: purchases on it are not counted; Budgets offers *Add to budget* for it.
-- A **loan** outside the budget needs no account made up for it. When you pay it from a budget account, the Add screen shows a **Category** line: pick *EMI* and the payment counts as spending in that category. Nothing fills it in for you. A payment saved without a category is listed under the bell, where you can pick one. Interest the lender charges is not part of the budget.
+- Purchases on a **credit card** count in their category the day you swipe. Paying the card is a transfer and is not "spending" again.
+- A **loan** is not an account. An EMI is an expense: record it from the bank account it leaves, in a category such as *EMI*. A loan paid into your bank is income under *Borrowed*; one the lender pays to the seller (a home or car loan) needs nothing recorded.
 
 ## Home vs Budgets
 
@@ -63,8 +61,8 @@ Home shows one number, *Left to spend in <month>*, with a thin bar: the total le
 
 ## If numbers disagree
 
-**Budgets** and the **Categories** page count a loan payment the same way: as spending in the category you gave it. The overview's *expenses* are the books' view, where paying into a loan is not an expense (only the interest the lender charges is), and its *spent* matches Budgets. The Budget leaves out on purpose what no budget account paid, so interest a lender adds to a loan shows up as an expense in the books but not in the Budget.
+**Budgets**, the **Categories** page and the overview count an EMI or a SIP the same way: as spending in its category. The Budget leaves out on purpose what no budget account paid (money moving only between you and a person, say).
 
-## Paying a fund or a loan
+## Paying into a fund or a loan
 
-Money you put into a mutual fund each month, or an EMI you pay on a loan, is not an expense in the ledger, but you can still plan it. Make a category such as *Investing* or *EMI* and plan it like any other. When you pay the fund or loan from a budget account, pick that category on the **Category** line; nothing fills it in for you. The payment then counts as spending in the category, so Ready to assign falls when you plan it and the category shows what you have paid.
+Money you put into a mutual fund each month, or an EMI you pay on a loan, is money out like any other spending. Make a category such as *Investing* or *EMI*, plan it, and record each payment as an expense in it from the account it leaves. Ready to assign falls when you plan it and the category shows what you have paid. When a fund pays you back, record it as income under *Redeemed*.

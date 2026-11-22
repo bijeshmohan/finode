@@ -8,7 +8,7 @@ from sqlmodel import Session, col, func, select
 
 from ..models.account import Account
 from ..models.contact import ContactAccount
-from ..schemas.account import AccountCreate, AccountUpdate
+from ..schemas.account import AccountBase, AccountUpdate
 from .cache import remember, remembered
 
 
@@ -21,16 +21,12 @@ class AccountRepository:
 
     def create(
         self,
-        data: AccountCreate,
-        on_budget: bool = False,
-        new_accounts_in_budget: bool | None = None,
+        data: AccountBase,
         pinned: bool = False,
     ) -> Account:
-        values = data.model_dump(exclude={"balance", "on_budget"})
+        values = data.model_dump()
         account = Account(
             **values,
-            on_budget=on_budget,
-            new_accounts_in_budget=new_accounts_in_budget,
             pinned=pinned,
             user_id=self.uid,
         )
@@ -82,30 +78,23 @@ class AccountRepository:
         account = self.db.exec(statement).first()
         return account
 
-    def update(
-        self,
-        account_id: UUID,
-        data: AccountUpdate,
-        on_budget: bool | None = None,
-    ) -> Account | None:
+    def update(self, account_id: UUID, data: AccountUpdate) -> Account | None:
         account = self.read(account_id)
         if not account:
             return None
-        values = data.model_dump(exclude_unset=True, exclude={"balance", "on_budget"})
+        values = data.model_dump(exclude_unset=True, exclude={"balance"})
         for key, value in values.items():
             setattr(account, key, value)
-        if on_budget is not None:
-            account.on_budget = on_budget
         self.db.add(account)
         self.db.flush()
         return account
 
-    def place(self, account_id: UUID, parent_id: UUID, name: str, on_budget: bool) -> None:
-        """Put an account under another parent with a name, in or out of the budget (the cash-flow conversion: no
-        rules are checked here). Nothing is committed."""
+    def place(self, account_id: UUID, parent_id: UUID, name: str) -> None:
+        """Put an account under another parent with a name (the cash-flow conversion: no rules are checked here).
+        Nothing is committed."""
         account = self.read(account_id)
         if account is not None:
-            account.parent_id, account.name, account.on_budget = parent_id, name, on_budget
+            account.parent_id, account.name = parent_id, name
             self.db.add(account)
             self.db.flush()
 

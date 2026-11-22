@@ -24,7 +24,7 @@ def get_trial_balance(reports: Reports, as_of: date | None = None):
 
 @router.get("/summary", response_model=SummaryRead)
 def get_summary(reports: Reports, date_from: date | None = None, date_to: date | None = None):
-    """Net worth now, plus income and expenses for a period (the current month so far by default)."""
+    """Cash on hand now, plus income and expenses for a period (the current month so far by default)."""
     try:
         return reports.summary(date_from, date_to)
     except ValueError as e:

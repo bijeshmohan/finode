@@ -22,9 +22,10 @@ from ..repositories import AccountRepository, CategoryRepository, ProfileReposit
 from ..repositories.recurring import RecurringRepository
 from ..repositories.shared_expense import SharedExpenseRepository
 from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
-from ..schemas.account import BalanceCheck, BillRounding, CardBill, GroupCreate, MergeResult
+from ..schemas.account import AccountBase, AccountFields, AccountType, BalanceCheck, BillRounding, CardBill, MergeResult
 from ..schemas.transaction import PostingBase, PostingCreate, TransactionCreate
 from . import cards
+from .account_types import TYPE_KEYS, TYPE_NAMES, TYPE_ROOTS, type_key, type_order
 from .simple import label_simple
 
 # Levels below a top-level account: Expenses › Food is 1 and Expenses › Food › Groceries is 2, the deepest there is.
@@ -39,20 +40,12 @@ DEBIT_ROOT_NAMES = frozenset({"Assets", "Expenses"})
 # Assets and liabilities are real holdings and stay leaf-only.
 GROUP_POSTING_ROOT_NAMES = frozenset({"Income", "Expenses"})
 
-# The built-in groups every new person starts with under Assets and Liabilities: (root, name, key, whether an account
-# made under it starts in the budget). They cannot be renamed, moved, closed or deleted; what is made under them gets
-# its budget behaviour from the group (`accounts.new_accounts_in_budget`), so a new person does not have to decide it.
-# Rules read the key, never the name.
-FIXED_PARENTS = (
-    ("Assets", "Bank Accounts", "assets.bank", True),
-    ("Assets", "Cash", "assets.cash", True),
-    ("Assets", "Investments", "assets.investments", False),
-    ("Liabilities", "Credit Cards", "liabilities.cards", True),
-    ("Liabilities", "Loans", "liabilities.loans", False),
-)
-FIXED_ORDER = {key: place for place, (_, _, key, _) in enumerate(FIXED_PARENTS)}
-# New people get the groups; tests switch this off (most of them build their own accounts) and a few switch it on.
-NEW_PROFILE_FIXED_PARENTS = True
+# The four account types (services/account_types.py), the built-in groups every person has under Assets and
+# Liabilities: (root, name, key); every account under one is in the budget. Every account a person
+# adds goes under one of them; they cannot be renamed, moved, closed or deleted. Rules read the key, never the name.
+FIXED_PARENTS = tuple((TYPE_ROOTS[key], TYPE_NAMES[key], key) for key in TYPE_KEYS)
+FIXED_ORDER = {key: place for place, (_, _, key) in enumerate(FIXED_PARENTS)}
+NOT_UNDER_A_TYPE = "an account goes under Cash, Bank Account, Credit Card or Prepaid Wallet!"
 
 
 @dataclass
@@ -101,6 +94,11 @@ class AccountService:
                 raise RuntimeError("the profile names a currency finode does not know")
         return self._currency
 
+    def type_order(self) -> builtins.list[str]:
+        """The four types in the person's order (the starting order until they change it)."""
+        profile = self.pr.read()
+        return type_order(profile.account_type_order if profile is not None else None)
+
     def check_places(self, amount: Decimal) -> None:
         """An amount may have no more decimals than the currency has (rupees 2, yen 0)."""
         currency = self.currency()
@@ -123,17 +121,6 @@ class AccountService:
         parent = next((a for a in all_accounts if a.id == account.parent_id), None)
         return parent is not None and parent.name == "Equity" and parent.parent_id is None
 
-    def _validate_parent(self, parent: Account, all_accounts: list[Account]) -> None:
-        if self.is_opening_balances(parent, all_accounts):
-            raise SystemAccountError(f"cannot add sub-accounts to system account '{parent.name}'!")
-        accounts_by_id = {a.id: a for a in all_accounts}
-        if self._get_root_name(parent, accounts_by_id) in GROUP_POSTING_ROOT_NAMES:
-            raise ValueError("Expenses and Income hold categories, not accounts: add a category instead!")
-        if parent.id in self.ar.contact_account_ids():
-            raise SystemAccountError(f"'{parent.name}' belongs to a contact: it can't hold sub-accounts!")
-        if self.tr.postings_for_account(parent.id):
-            raise ValueError(f"cannot add sub-accounts to '{parent.name}' because it has postings!")
-
     @staticmethod
     def _depth(account: Account, accounts_by_id: dict[UUID, Account]) -> int:
         """Levels below the top-level account (a top-level account is 0)."""
@@ -146,14 +133,6 @@ class AccountService:
             seen.add(account.id)
             depth += 1
         return depth
-
-    def _check_depth(self, parent: Account, levels_below_parent: int, all_accounts: list[Account]) -> None:
-        """Refuse a new or moved subtree that would go deeper than two levels below the top-level account."""
-        resulting = self._depth(parent, {a.id: a for a in all_accounts}) + levels_below_parent
-        if resulting > MAX_ACCOUNT_DEPTH:
-            raise AccountDepthError(
-                "accounts can be at most two levels deep (a group and an account, like Assets › Banks › HDFC)!"
-            )
 
     @staticmethod
     def _refuse_fixed(account: Account, what: str) -> None:
@@ -182,19 +161,6 @@ class AccountService:
             raise AccountInUseError("account has postings")
         self.ar.delete(account_id)
 
-    def empty_fixed_parents(self) -> list[Account]:
-        """The built-in groups nothing has been made under yet (what a restore or an import may replace with its own)."""
-        all_accounts = self._ensure_roots()
-        used = {a.parent_id for a in all_accounts}
-        return [a for a in all_accounts if a.system_key is not None and a.id not in used]
-
-    def release_fixed_parents(self, account_ids: list[UUID]) -> None:
-        """Remove empty built-in groups so a restore or an import can bring its own structure (the caller commits)."""
-        empty = {a.id for a in self.empty_fixed_parents()}
-        for account_id in account_ids:
-            if account_id in empty:
-                self.ar.delete(account_id)
-
     def ensure_roots(self) -> list[Account]:
         return self._ensure_roots()
 
@@ -206,32 +172,24 @@ class AccountService:
         re-reads the roots created by the winner.
         """
         all_accounts = self.ar.list()
-        existing = {a.name for a in all_accounts if a.parent_id is None}
-        missing = [name for name in ROOT_ACCOUNT_NAMES if name not in existing]
-        if not missing:
+        roots = {a.name: a for a in all_accounts if a.parent_id is None}
+        missing = [name for name in ROOT_ACCOUNT_NAMES if name not in roots]
+        keys = {a.system_key for a in all_accounts if a.system_key}
+        missing_types = [entry for entry in FIXED_PARENTS if entry[2] not in keys]
+        if not missing and not missing_types:
             return all_accounts
 
-        new_roots: dict[str, Account] = {}
         for name in missing:
-            new_roots[name] = Account(
+            roots[name] = Account(
                 name=name,
                 details=f"System root account for {name}",
                 parent_id=None,
                 user_id=self.ar.uid,
             )
-            self.ar.db.add(new_roots[name])
-        if len(missing) == len(ROOT_ACCOUNT_NAMES) and NEW_PROFILE_FIXED_PARENTS:
-            # A brand-new person: the built-in groups come with the roots (same transaction, so a lost race makes none twice).
-            for root, name, key, starts_in_budget in FIXED_PARENTS:
-                self.ar.db.add(
-                    Account(
-                        name=name,
-                        parent_id=new_roots[root].id,
-                        user_id=self.ar.uid,
-                        system_key=key,
-                        new_accounts_in_budget=starts_in_budget,
-                    )
-                )
+            self.ar.db.add(roots[name])
+        # The four types come with the roots, and anyone missing one gets it (same transaction: a lost race makes none twice).
+        for root, name, key in missing_types:
+            self.ar.db.add(Account(name=name, parent_id=roots[root].id, user_id=self.ar.uid, system_key=key))
         try:
             self.ar.db.commit()
         except IntegrityError:
@@ -269,20 +227,6 @@ class AccountService:
         if side == PostingSide.DEBIT:
             return PostingSide.CREDIT
         return PostingSide.DEBIT
-
-    def _height(self, account_id: UUID, all_accounts: list[Account]) -> int:
-        """Levels of sub-accounts below an account (0 for a leaf)."""
-        children: dict[UUID, list[UUID]] = {}
-        for a in all_accounts:
-            if a.parent_id is not None:
-                children.setdefault(a.parent_id, []).append(a.id)
-        height, level, seen = 0, [account_id], {account_id}
-        while True:
-            level = [c for p in level for c in children.get(p, []) if c not in seen]
-            if not level:
-                return height
-            seen.update(level)
-            height += 1
 
     def _get_descendants(
         self,
@@ -364,13 +308,12 @@ class AccountService:
             details=account.details,
             parent_id=account.parent_id,
             balance=balance,
-            on_budget=account.on_budget,
+            type=cast(AccountType | None, type_key(account, {a.id: a for a in all_accounts or self.ar.list()})),
             closed_on=account.closed_on,
             statement_day=account.statement_day,
             due_day=account.due_day,
             bill_rounding=cast(BillRounding, account.bill_rounding),
             system_key=account.system_key,
-            new_accounts_in_budget=account.new_accounts_in_budget,
             pinned=account.pinned,
             contact_account=account.id in self.ar.contact_account_ids(),
             created=account.created,
@@ -387,7 +330,7 @@ class AccountService:
         if account:
             return account
         return self.ar.create(
-            AccountCreate(
+            AccountBase(
                 name=OPENING_BALANCES_ACCOUNT_NAME,
                 details="System account for opening balance adjustments",
                 parent_id=equity_root.id,
@@ -496,11 +439,6 @@ class AccountService:
         self.ar.db.commit()
         return self._to_read(self._read(account_id), self._ensure_roots())
 
-    def _check_budgetable(self, parent: Account | None, accounts_by_id: dict) -> None:
-        """Only an asset or liability account can be part of the budget."""
-        if parent is None or self._get_root_name(parent, accounts_by_id) not in ("Assets", "Liabilities"):
-            raise ValueError("only asset and liability accounts can be part of the budget!")
-
     def _check_pin(self, account: Account, pinned: bool | None, all_accounts: builtins.list[Account]) -> None:
         """Pinning is for an open asset or liability account that holds entries: not a group, a root, a contact's account
         or the system's. Taking a pin off is always allowed."""
@@ -509,7 +447,7 @@ class AccountService:
         if not pinned:
             return
         by_id = {a.id: a for a in all_accounts}
-        is_group = account.new_accounts_in_budget is not None or self.ar.has_children(account.id)
+        is_group = account.system_key is not None or self.ar.has_children(account.id)
         if (
             account.parent_id is None
             or is_group
@@ -520,19 +458,6 @@ class AccountService:
             raise ValueError("only an account can be pinned, not a group!")
         if account.closed_on is not None:
             raise ValueError(f"'{account.name}' is closed: reopen it to pin it!")
-
-    def _detect_cycle(self, account_id: UUID, proposed_parent_id: UUID | None) -> bool:
-        if proposed_parent_id is None:
-            return False
-        current_id: UUID | None = proposed_parent_id
-        while current_id is not None:
-            if current_id == account_id:
-                return True
-            parent = self.ar.read(current_id)
-            if not parent:
-                break
-            current_id = parent.parent_id
-        return False
 
     @staticmethod
     def _check_name_free(
@@ -558,45 +483,43 @@ class AccountService:
             )
 
     def create(self, account: AccountCreate, *, commit: bool = True) -> AccountRead:
+        """Add an account of one of the four types (`account.type`); every account is part of the budget."""
         all_accounts = self._ensure_roots()
+        group = next((a for a in all_accounts if a.system_key == account.type), None)
+        if group is None:
+            raise FixedParentError(NOT_UNDER_A_TYPE)
+        fields = account.model_dump(include=set(AccountFields.model_fields))
+        return self._create(AccountBase(**fields, parent_id=group.id), account.balance, all_accounts, commit)
 
-        if account.parent_id is None:
-            raise ValueError("parent_id is required for all user-created accounts!")
+    def create_contact_account(self, name: str, root: str, *, commit: bool = True) -> AccountRead:
+        """A person's "Due from" (under Assets) or "Due to" (under Liabilities) account, outside the budget."""
+        all_accounts = self._ensure_roots()
+        parent = next(a for a in all_accounts if a.parent_id is None and a.name == root)
+        return self._create(AccountBase(name=name, parent_id=parent.id), Decimal("0.00"), all_accounts, commit)
 
-        parent = next((a for a in all_accounts if a.id == account.parent_id), None)
-        if not parent:
-            raise ValueError("parent account not found!")
-
-        self._validate_parent(parent, all_accounts)
+    def _create(
+        self,
+        account: AccountBase,
+        balance: Decimal,
+        all_accounts: builtins.list[Account],
+        commit: bool,
+    ) -> AccountRead:
+        parent = next(a for a in all_accounts if a.id == account.parent_id)
         ensure_room(len(all_accounts), settings.max_accounts, "accounts")
         if parent.closed_on is not None:
             raise ValueError(f"'{parent.name}' is closed: reopen it to add accounts to it!")
-        self._check_depth(parent, 1, all_accounts)
-        if self.is_opening_balances(
-            Account(name=account.name, parent_id=account.parent_id, user_id=self.ar.uid),
-            all_accounts,
-        ) and self.ar.read_by_name(account.name, account.parent_id):
-            raise ValueError(f"system account '{account.name}' already exists!")
-
         self._check_name_free(account.name, account.parent_id, all_accounts)
         accounts_by_id = {a.id: a for a in all_accounts}
         self._check_bill_days(
             self._get_root_name(parent, accounts_by_id), False, account.statement_day, account.due_day
         )
-        in_budget = account.on_budget
-        if in_budget is None:  # made in a group without saying how: it starts as the group says
-            in_budget = parent.new_accounts_in_budget
-        if in_budget is None:  # money in an asset account is budgeted unless said otherwise
-            in_budget = self._get_root_name(parent, accounts_by_id) == "Assets"
-        elif in_budget:
-            self._check_budgetable(parent, accounts_by_id)
-        created = self.ar.create(account, on_budget=in_budget)
+        created = self.ar.create(account)
         all_accounts_with_created = [*all_accounts, created]
 
         try:
             self._post_balance_adjustment(
                 created,
-                account.balance,
+                balance,
                 "Opening balance",
                 "Initial account balance",
                 all_accounts_with_created,
@@ -607,20 +530,6 @@ class AccountService:
         if commit:
             self.ar.db.commit()
         return self._to_read(created, self._ensure_roots())  # one fresh list: a commit makes every loaded row stale
-
-    def create_group(self, data: GroupCreate, *, commit: bool = True) -> AccountRead:
-        """Make a group: a shelf for accounts under Assets (money the person owns) or Liabilities (money they owe). It
-        has no balance of its own and can stand empty."""
-        all_accounts = self._ensure_roots()
-        root = next(a for a in all_accounts if a.parent_id is None and a.name == data.root)
-        ensure_room(len(all_accounts), settings.max_accounts, "accounts")
-        self._check_name_free(data.name, root.id, all_accounts)
-        created = self.ar.create(
-            AccountCreate(name=data.name, parent_id=root.id), new_accounts_in_budget=data.new_accounts_in_budget
-        )
-        if commit:
-            self.ar.db.commit()
-        return self._to_read(created, self._ensure_roots())
 
     def read(self, account_id: UUID, as_of: date | None = None) -> AccountRead | None:
         all_accounts = self._ensure_roots()
@@ -731,16 +640,10 @@ class AccountService:
             raise ValueError("cannot merge accounts of different kinds (an asset into a liability, say)!")
         if self.ar.has_children(source_id):
             raise ValueError(f"'{source.name}' has sub-accounts: merge or move them first!")
-        root = self._get_root_name(target, by_id)
         if self.ar.has_children(target_id):
             raise ValueError(f"'{target.name}' has sub-accounts, so nothing can be merged into it: pick one of them!")
         if target.closed_on is not None:
             raise ValueError(f"'{target.name}' is closed: reopen it first!")
-        if root in ("Assets", "Liabilities") and source.on_budget != target.on_budget:
-            raise ValueError(
-                f"only one of '{source.name}' and '{target.name}' is part of the budget: make them the same first, "
-                "or the money that is ready to assign would change!"
-            )
         both = self.tr.opposite_sides(source_id, target_id)
         if both:
             raise ValueError(
@@ -967,54 +870,15 @@ class AccountService:
             self._refuse_fixed(account, "changed")
             self._refuse_contact(account, "changed")
 
-        if is_opening:
-            if "name" in data.model_fields_set and data.name != account.name:
-                raise SystemAccountError(f"cannot change name of system account '{account.name}'!")
-            if "parent_id" in data.model_fields_set and data.parent_id != account.parent_id:
-                raise SystemAccountError(f"cannot move system account '{account.name}'!")
-            if "balance" in data.model_fields_set and data.balance is not None:
-                raise SystemAccountError(f"cannot set balance of system account '{account.name}'!")
+        if is_opening and "name" in data.model_fields_set and data.name != account.name:
+            raise SystemAccountError(f"cannot change name of system account '{account.name}'!")
+        if is_opening and "balance" in data.model_fields_set and data.balance is not None:
+            raise SystemAccountError(f"cannot set balance of system account '{account.name}'!")
+        if is_system_root and "name" in data.model_fields_set and data.name != account.name:
+            raise RootAccountError("cannot change name of a system root account!")
 
-        if is_system_root:
-            if "parent_id" in data.model_fields_set and data.parent_id is not None:
-                raise RootAccountError("cannot change parent of a root account!")
-            if "name" in data.model_fields_set and data.name != account.name:
-                raise RootAccountError("cannot change name of a system root account!")
-
-        if "parent_id" in data.model_fields_set:
-            parent_id = data.parent_id
-            if parent_id is not None:
-                if parent_id == account_id:
-                    raise ValueError("an account cannot be its own parent!")
-                parent = next((a for a in all_accounts if a.id == parent_id), None)
-                if not parent:
-                    raise ValueError("parent account not found!")
-
-                if self._detect_cycle(account_id, parent_id):
-                    raise ValueError("cyclic parent relationship detected!")
-
-                if parent_id != account.parent_id:
-                    self._validate_parent(parent, all_accounts)
-                    self._check_depth(parent, 1 + self._height(account_id, all_accounts), all_accounts)
-
-                accounts_by_id = {a.id: a for a in all_accounts}
-                if self._get_root_name(parent, accounts_by_id) != self._get_root_name(account, accounts_by_id):
-                    raise ValueError("cannot move account under a different root account!")
-            else:
-                if not is_system_root:
-                    raise ValueError("parent_id is required for all user-created accounts!")
-
-        if not is_opening and ("name" in data.model_fields_set or "parent_id" in data.model_fields_set):
-            candidate = Account(
-                name=data.name if "name" in data.model_fields_set and data.name else account.name,
-                parent_id=data.parent_id if "parent_id" in data.model_fields_set else account.parent_id,
-                user_id=self.ar.uid,
-            )
-            if self.is_opening_balances(candidate, all_accounts) and self.ar.read_by_name(
-                candidate.name, candidate.parent_id
-            ):
-                raise ValueError(f"system account '{candidate.name}' already exists!")
-            self._check_name_free(candidate.name, candidate.parent_id, all_accounts, exclude=account_id)
+        if not is_opening and "name" in data.model_fields_set and data.name:
+            self._check_name_free(data.name, account.parent_id, all_accounts, exclude=account_id)
 
         if "balance" in data.model_fields_set and data.balance is not None:
             if is_system_root:
@@ -1034,34 +898,12 @@ class AccountService:
                 due_day,
             )
 
-        if "new_accounts_in_budget" in data.model_fields_set and (
-            data.new_accounts_in_budget is None or account.new_accounts_in_budget is None
-        ):
-            raise ValueError("only a group has a choice for the accounts made in it!")
-
         if "pinned" in data.model_fields_set:
             self._check_pin(account, data.pinned, all_accounts)
 
-        on_budget = None
-        if data.on_budget is not None:
-            accounts_by_id = {a.id: a for a in all_accounts}
-            if data.on_budget:
-                if is_system_root or account.parent_id is None:
-                    raise ValueError("only asset and liability accounts can be part of the budget!")
-                if self.ar.has_children(account_id):
-                    raise ValueError("an account with sub-accounts cannot be part of the budget: use its sub-accounts!")
-                new_parent = next((a for a in all_accounts if a.id == (data.parent_id or account.parent_id)), None)
-                self._check_budgetable(new_parent, accounts_by_id)
-            on_budget = data.on_budget
-
         if account.closed_on is not None and "balance" in data.model_fields_set and data.balance is not None:
             raise ValueError(f"'{account.name}' is closed: reopen it to change its balance!")
-        if data.parent_id and data.parent_id != account.parent_id:
-            new_home = next((a for a in all_accounts if a.id == data.parent_id), None)
-            if new_home is not None and new_home.closed_on is not None:
-                raise ValueError(f"'{new_home.name}' is closed: reopen it to move accounts into it!")
-
-        updated = self.ar.update(account_id, data, on_budget)
+        updated = self.ar.update(account_id, data)
         if not updated:
             raise RuntimeError(f"failed to update account '{account_id}'!")
 

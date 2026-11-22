@@ -249,13 +249,6 @@ def test_create_transaction_rejects_root_account(client: TestClient, account: di
     assert client.get("/api/transactions/").json() == []
 
 
-def test_create_transaction_rejects_asset_with_sub_accounts(client: TestClient, account: dict, expense_account: dict):
-    post_account(client, {"name": "child", "parent_id": account["id"]})
-    response = client.post("/api/transactions/", json=_two_postings(expense_account, account))
-    assert response.status_code == 400
-    assert response.json()["detail"] == ("cannot post to account 'checking' because it is a group of accounts!")
-
-
 def test_create_transaction_to_expense_group(client: TestClient, account: dict, expense_account: dict):
     post_account(client, {"name": "child", "parent_id": expense_account["id"]})
     response = client.post("/api/transactions/", json=_two_postings(expense_account, account))

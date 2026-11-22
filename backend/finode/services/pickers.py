@@ -7,20 +7,9 @@ from decimal import Decimal
 from uuid import UUID
 
 from ..schemas.category import CategoryRead
-from .account import MAX_ACCOUNT_DEPTH
 from .account_tree import Node
+from .account_types import TYPE_KEYS
 from .contact import ContactService
-
-# The roots a person makes accounts under (Expenses and Income hold categories), and those whose accounts can start with
-# a balance (an opening balance, dated today).
-ACCOUNT_ROOTS = ("Assets", "Liabilities", "Equity")
-OPENING_BALANCE_ROOTS = ("Assets", "Liabilities")
-
-
-def parent_options(roots: list[Node]) -> list[Node]:
-    """Accounts a new one may be made in: the built-in Opening Balances holds none, and a parent must leave room for it
-    within two levels."""
-    return [n for root in roots for n in root.walk() if n.kind != "system" and n.depth + 1 <= MAX_ACCOUNT_DEPTH]
 
 
 @dataclass
@@ -37,16 +26,24 @@ class PickOption:
 PickGroups = list[tuple[str, list[PickOption]]]
 
 
-def posting_groups(roots: list[Node], keep: Collection[UUID] = frozenset()) -> PickGroups:
-    """Accounts that transactions may post to, grouped by root. Closed accounts are left out, except those in
-    `keep` (what an entry being edited already uses)."""
+def posting_groups(
+    roots: list[Node], keep: Collection[UUID] = frozenset(), order: list[str] | None = None
+) -> PickGroups:
+    """Accounts that transactions may post to: a group per type in the person's `order` (Bank Account, Cash...),
+    then what else can be posted to by its root (Equity's Opening Balances). Closed accounts are left out, except those
+    in `keep` (what an entry being edited already uses)."""
     groups: PickGroups = []
-    for root in roots:
+    by_type = {n.account.system_key: n for r in roots for n in r.children if n.account.system_key in TYPE_KEYS}
+    places = [by_type[key] for key in order or list(TYPE_KEYS) if key in by_type]
+    places += [r for r in roots if r.account.name not in ("Assets", "Liabilities")]
+    for root in places:
         options = [
             PickOption(
                 n.account.id,
-                n.path.split(" › ", 1)[1] if " › " in n.path else n.path,
-                budget=n.account.on_budget,
+                n.account.name
+                if root.account.system_key
+                else (n.path.split(" › ", 1)[1] if " › " in n.path else n.path),
+                budget=n.account.type is not None,
                 balance=n.account.balance,
             )
             for n in root.walk()

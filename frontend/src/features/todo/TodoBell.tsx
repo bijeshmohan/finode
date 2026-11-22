@@ -1,17 +1,17 @@
-// The to-do bell: a count in the top bar and the sidebar, and a
-// sheet of what needs a decision, each item with its fix. What counts is the server's (services/todo.py); the sheet
-// stays open after a fix and redraws from the view.
+// The to-do bell: a count in the top bar and the sidebar, and a sheet of what needs a decision (a card bill due, a
+// recurring rule that could not be recorded), each item with its fix. What counts is the server's (services/todo.py).
 import { useState } from "react";
 import { Link } from "react-router";
 
 import { messageOf } from "../../api/messages";
+
 import { useCurrency, useGrouping } from "../../app/currency";
 import { useToday } from "../../app/session";
 import { Icon } from "../../components/Icon";
 import { Sheet } from "../../components/Sheet";
 import { shortDate } from "../../lib/dates";
 import { formatMoney, withCurrency } from "../../lib/money";
-import { type TodoView, useIncludeAccount, useLabelPayment, useTodo } from "./queries";
+import { type TodoView, useTodo } from "./queries";
 import styles from "./Todo.module.css";
 
 const plural = (n: number, one: string, many: string) => `${String(n)} ${n === 1 ? one : many}`;
@@ -26,82 +26,13 @@ function Items({ view, onLeave }: { view: TodoView; onLeave: () => void }) {
   const today = useToday();
   const grouping = useGrouping();
   const code = useCurrency();
-  const label = useLabelPayment();
-  const include = useIncludeAccount();
   const money = (value: string) => formatMoney(value, grouping);
-  const failed = label.error ?? include.error;
   return (
     <>
-      {failed && (
-        <p className={styles.error} role="alert">
-          {messageOf(failed)}
-        </p>
-      )}
       {view.count === 0 ? (
         <p className={styles.empty}>Nothing needs you.</p>
       ) : (
         <div className={styles.list}>
-          {view.uncategorised.length > 0 && (
-            <div className={styles.item}>
-              <strong>
-                {view.uncategorised.length === 1
-                  ? "1 payment has no category"
-                  : `${String(view.uncategorised.length)} payments have no category`}
-              </strong>
-              <p>The money left the budget and no category paid for it.</p>
-              <ul className={styles.payments}>
-                {view.uncategorised.map((u) => {
-                  const name = u.payee ?? u.account;
-                  return (
-                    <li key={u.transaction_id}>
-                      <span>
-                        {name}{" "}
-                        <span className={styles.muted}>
-                          · {shortDate(u.date, today)} · {money(u.amount)}
-                        </span>
-                      </span>
-                      <select
-                        aria-label={`Category for ${name}`}
-                        value=""
-                        disabled={label.isPending}
-                        onChange={(event) => {
-                          include.reset();
-                          label.mutate({ transactionId: u.transaction_id, categoryId: event.target.value });
-                        }}
-                      >
-                        <option value="">Choose category…</option>
-                        {view.categories.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.path}
-                          </option>
-                        ))}
-                      </select>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-          {view.left_out_accounts.map((a) => (
-            <div key={a.account_id} className={styles.item}>
-              <strong>{a.path} is not in the budget</strong>
-              <p>
-                {withCurrency(money(a.spent), code)} spent this month in {plural(a.entries, "entry", "entries")} is in
-                no category.
-              </p>
-              <button
-                type="button"
-                className={styles.secondary}
-                disabled={include.isPending}
-                onClick={() => {
-                  label.reset();
-                  include.mutate(a.account_id);
-                }}
-              >
-                Add to budget
-              </button>
-            </div>
-          ))}
           {view.card_bills.map((b) => (
             <div key={b.account_id} className={styles.item}>
               <strong>

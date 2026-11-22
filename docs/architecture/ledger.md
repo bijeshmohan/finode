@@ -18,17 +18,17 @@ flowchart TD
     Eq[Equity] --> OB["Opening Balances (system)"]
 ```
 
-**Assets, Liabilities and Equity** hold the accounts. **Expenses and Income are single accounts that nothing is made under**: an expense debits `Expenses`, an income credits `Income`, and the line says what it was for with a **budget category** (`postings.category_id`, a table of its own, two levels: Food › Groceries). A category is a label, not an account; there are no ghost accounts such as `Expenses:EMI:Loans`. The journal export writes a category as `Expenses:Food:Groceries` so other ledger tools can read it.
+**Assets and Liabilities** hold the accounts, each one of **four types** (Bank Account, Cash and Prepaid Wallet under Assets, Credit Card under Liabilities; every one part of the budget), and **Equity** holds Opening Balances. **Expenses and Income are single accounts that nothing is made under**: an expense debits `Expenses`, an income credits `Income`, and the line says what it was for with a **budget category** (`postings.category_id`, a table of its own, two levels: Food › Groceries). A category is a label, not an account; there are no ghost accounts such as `Expenses:EMI:Loans`. The journal export writes a category as `Expenses:Food:Groceries` so other ledger tools can read it.
 
 Rules enforced by `AccountService`:
 
-- **Two levels.** Accounts go at most two levels below a root (`MAX_ACCOUNT_DEPTH = 2`): `Assets › Banks › HDFC` is the deepest there is; categories are two levels too (Food › Groceries).
-- **Names** are trimmed, visible, on one line, at most 40 characters and cannot contain `:` (it is the path separator, as in `Assets:Bank:HDFC`). They are **unique among their siblings, capitals aside** (`_check_name_free`), because the paths name accounts in journal files and for assistants. A journal import is case-sensitive, like the format, and may create `Food` and `food` side by side.
+- **Root › type › account.** An account sits directly under its type (`Assets › Bank Account › HDFC`) and holds no accounts; categories are two levels (Food › Groceries).
+- **Names** are trimmed, visible, on one line, at most 40 characters and cannot contain `:` (it is the path separator, as in `Assets:Bank Account:HDFC`). They are **unique among their siblings, capitals aside** (`_check_name_free`), because the paths name accounts in journal files and for assistants. A journal import is case-sensitive, like the format, and may create `Food` and `food` side by side.
 - **Dates** a person can enter lie between 1 Jan 1900 and 31 Dec 2999 (`clock.FIRST_DAY`, `LAST_DAY`, the `Day` type). Past the ends the month arithmetic could fail, so the edges are refused with a message rather than allowed to break pages.
 - **Text** never holds a NUL character (Postgres cannot store it); it is dropped on every write.
 - **No posting to a root** except `Expenses` and `Income`, which take every expense and income.
-- **Groups.** An Assets or Liabilities account that has sub-accounts cannot be posted to, and cannot gain sub-accounts once it has postings. A category that has subcategories can be labelled on a line itself; the budget shows that money as "Everything else".
-- **No reclassifying.** An account cannot move under a different root, because that would silently change what its history means.
+- **Types.** A type itself takes no entries. A category that has subcategories can be labelled on a line itself; the budget shows that money as "Everything else".
+- **No reclassifying.** An account keeps its type, because changing it would silently change what its history means.
 - **Opening Balances** is a system account under Equity. Opening balances and direct balance edits are posted against it. It cannot be renamed, moved, deleted or given a balance directly.
 - **Closing.** A closed account keeps its history but cannot be posted to. Closing is refused while it holds a balance or a running recurring rule uses it. For a category the word is *Delete*: an unused one is removed for good, one with history is closed instead.
 
@@ -80,9 +80,9 @@ No balance is stored. An account's balance is computed from its postings (`Accou
 
 Any new code that writes transactions outside `TransactionService` must call the lock check itself, and any new write path should keep a test asserting `trial_balance().balanced`.
 
-## Loans, cards and the budget flag
+## Cash flow, not net worth (2026-11-22)
 
-A **credit card** or **loan** is a Liability. An asset or liability can be flagged `on_budget`; the [budget](budget.md) works on those accounts. A payment into a liability outside the budget can carry a *category* (EMI) on its line, so the budget counts it as spending in that category; nothing fills it in for the person. Categories are their own table, apart from the Income and Expenses accounts the books keep (see [the budget](budget.md)).
+A **credit card** is a Liability and part of the budget like every account. There are no investment or loan accounts: a SIP, an EMI or a deposit is spending in a category, money borrowed into the bank is income under Borrowed, an investment sold is income under Redeemed. Books kept before (Investments and Loans, groups of one's own, accounts outside the budget) were converted by `services/cash_flow.py`, which also converts an older backup as it is restored. Categories are their own table, apart from the Income and Expenses accounts the books keep (see [the budget](budget.md)).
 
 Next: [The budget](budget.md).
 

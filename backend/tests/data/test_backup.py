@@ -13,6 +13,7 @@ from tests.conftest import TEST_USER_ID
 
 MISSING_ID = "00000000-0000-4000-8000-0000000000ff"
 OTHER = UUID("00000000-0000-4000-8000-0000000000bb")
+THIRD = UUID("00000000-0000-4000-8000-0000000000cd")
 
 
 def acct(client, name, parent, **extra):
@@ -204,7 +205,6 @@ def canonical(doc: dict) -> dict:
             (
                 paths[a["id"]],
                 a["details"],
-                a["on_budget"],
                 a["closed_on"] is not None,
                 a.get("statement_day"),
                 a.get("due_day"),
@@ -299,7 +299,7 @@ def test_the_backup_has_everything(client, rich):
     } <= names
     assert {"Groceries", "EMI"} <= {c["name"] for c in doc["categories"]} and "Groceries" not in names
     assert any(a["closed_on"] for a in doc["accounts"])
-    assert any(a["on_budget"] for a in doc["accounts"])
+    assert not any("on_budget" in a or "new_accounts_in_budget" in a for a in doc["accounts"]), "no budget flag"
     assert len(doc["recurring"]) == 2 and any(r["postings"] for r in doc["recurring"])
     assert any(t["recurring_id"] for t in doc["transactions"]), "recorded occurrences keep their rule"
     assert len(doc["allocations"]) == 2
@@ -344,6 +344,26 @@ def test_restoring_rebuilds_the_same_books_for_someone_else(client, rich):
     # The new books work like the old ones: balances agree, ids are new.
     old_ids = {a["id"] for a in doc["accounts"] if a["parent_id"]}
     assert not old_ids & {a["id"] for a in again["accounts"] if a["parent_id"]}
+
+
+def test_the_order_of_the_types_survives_a_backup_and_an_older_file_starts_in_the_starting_order(client, rich):
+    mine = ["assets.wallet", "liabilities.cards", "assets.cash", "assets.bank"]
+    assert client.patch("/api/profile/", json={"account_type_order": mine}).status_code == 200
+    doc = client.get("/api/backup").json()
+    assert doc["profile"]["account_type_order"] == mine
+    older = json.loads(json.dumps(doc))
+    del older["profile"]["account_type_order"]
+    try:
+        for user, file, expected in (
+            (OTHER, doc, mine),
+            (THIRD, older, ["assets.bank", "assets.cash", "liabilities.cards", "assets.wallet"]),
+        ):
+            as_user(user)
+            done = client.post("/api/restore", files={"file": ("b.json", json.dumps(file), "application/json")})
+            assert done.status_code == 200, done.text
+            assert client.get("/api/profile/").json()["account_type_order"] == expected
+    finally:
+        as_user(TEST_USER_ID)
 
 
 def test_a_pinned_account_survives_a_backup_and_a_file_without_pins_restores(client, rich):
@@ -458,9 +478,10 @@ def test_a_broken_file_is_refused_and_saves_nothing(client, rich):
         hdfc = next(a for a in cycle["accounts"] if a["name"] == "HDFC")
         banks["parent_id"] = hdfc["id"]
         assert post(cycle).status_code == 400
-        assert client.get("/api/backup").json()["transactions"] == [] and not [
-            a for a in client.get("/api/backup").json()["accounts"] if a["parent_id"]
-        ], "nothing was saved"
+        after = client.get("/api/backup").json()
+        assert after["transactions"] == [] and not [
+            a for a in after["accounts"] if a["parent_id"] and not a.get("system_key")
+        ], "nothing was saved (the four types are every person's from the start)"
     finally:
         as_user(TEST_USER_ID)
 

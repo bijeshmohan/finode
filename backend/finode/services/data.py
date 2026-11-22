@@ -21,12 +21,13 @@ from ..models.category import BudgetCategory
 from ..models.transaction import Posting, PostingSide
 from ..models.utils import normalize_amount
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
-from ..schemas.account import AccountCreate
+from ..schemas.account import AccountBase
 from ..schemas.category import CategoryCreate
 from ..schemas.data import ImportSummary
 from ..schemas.transaction import PostingCreate, TransactionCreate
 from ..tags import clean_names
 from .account import GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, OPENING_BALANCES_ACCOUNT_NAME, AccountService
+from .account_types import TYPE_NAMES, TYPE_ROOTS
 
 MAX_REPORTED_ERRORS = 20
 ROOT_ALIASES = {
@@ -42,6 +43,16 @@ ROOT_ALIASES = {
     "expense": "Expenses",
 }
 OPENING_BALANCE_NAMES = {"opening balances", "opening balance"}
+# The four account types by the names a file may give them, the old plural group names included.
+TYPE_ALIASES = {
+    **{name.casefold(): name for name in TYPE_NAMES.values()},
+    "bank accounts": "Bank Account",
+    "credit cards": "Credit Card",
+}
+TYPE_ROOT_OF = {name: TYPE_ROOTS[key] for key, name in TYPE_NAMES.items()}
+NOT_A_TYPE = (
+    "accounts go under Cash, Bank Account, Credit Card or Prepaid Wallet; record investments and loans as categories"
+)
 PLACEHOLDER = UUID(int=1)  # stands in for account ids while validating transactions
 Key = tuple[str, ...]
 
@@ -86,7 +97,6 @@ class _Planned:
 
 @dataclass
 class _Plan:
-    release: list[UUID] = field(default_factory=list)  # empty built-in groups the file does not use: they step aside
     summary: ImportSummary = field(default_factory=ImportSummary)
     new_accounts: list[tuple[Key, str | None]] = field(default_factory=list)  # key, note
     new_categories: list[tuple[Key, str | None]] = field(default_factory=list)  # key (Expenses:Food:Groceries), note
@@ -117,7 +127,21 @@ def _resolve(path: str) -> Key:
     parts[0] = root
     if root == "Equity" and len(parts) == 2 and parts[1].casefold() in OPENING_BALANCE_NAMES:
         parts[1] = OPENING_BALANCES_ACCOUNT_NAME
+    if root in ("Assets", "Liabilities") and len(parts) >= 2 and parts[1].casefold() in TYPE_ALIASES:
+        parts[1] = TYPE_ALIASES[parts[1].casefold()]
     return tuple(parts)
+
+
+def _account_place_error(key: Key) -> str | None:
+    """Why an account path cannot be an account any more (None when it can): under Assets and Liabilities an account is
+    one of the four types ("Assets:Bank Account:HDFC"); under Equity there is only Opening Balances."""
+    if key[0] == "Equity":
+        return None if key[1:] == (OPENING_BALANCES_ACCOUNT_NAME,) or len(key) == 1 else NOT_A_TYPE
+    if key[0] not in ("Assets", "Liabilities") or len(key) == 1:
+        return None
+    if TYPE_ROOT_OF.get(key[1]) != key[0] or len(key) > 3:
+        return NOT_A_TYPE
+    return None
 
 
 CATEGORY_ROOTS = {"Expenses": "spending", "Income": "earning"}
@@ -353,16 +377,12 @@ class DataService:
             if len(key) == 3:
                 known_categories.add(key[:2])  # the group a category is in
 
-        # An empty built-in group the file wants as a plain account (a posting to "Assets:Cash") steps aside for it; the groups
-        # it builds on ("Assets:Bank Accounts:HDFC") and the ones it does not mention stay.
-        parents_wanted = {key[:depth] for key in (*declared, *used) for depth in range(2, len(key))}
-        for account in self.accounts.empty_fixed_parents():
-            found: tuple[str, ...] | None = next(
-                (k for k, account_id in existing.items() if account_id == account.id), None
-            )
-            if found is not None and found in {*declared, *used} and found not in parents_wanted:
-                existing.pop(found)
-                plan.release.append(account.id)
+        for key, (_, line) in declared.items():
+            if (why := _account_place_error(key)) is not None:
+                errors.append(f"line {line}: '{':'.join(key)}': {why}")
+        for key, line in used.items():
+            if (why := _account_place_error(key)) is not None and key not in declared:
+                errors.append(f"line {line}: '{':'.join(key)}': {why}")
 
         known: set[Key] = set(existing) | set(declared) | set(used)
         for key in list(known):
@@ -395,7 +415,7 @@ class DataService:
                 )
             note = declared.get(key, (None, 0))[0]
             try:
-                AccountCreate(name=key[-1], details=note, parent_id=PLACEHOLDER)
+                AccountBase(name=key[-1], details=note, parent_id=PLACEHOLDER)
             except ValidationError as e:
                 line = declared.get(key, (None, used.get(key, 0)))[1]
                 errors.append(f"line {line}: account '{':'.join(key)}': {_message(e)}")
@@ -564,10 +584,8 @@ class DataService:
             raise ImportRejected(plan.summary)
         ids = self._existing_keys()
         try:
-            self.accounts.release_fixed_parents(plan.release)
-            ids = {k: v for k, v in ids.items() if v not in plan.release}
             for key, note in plan.new_accounts:
-                created = self.ar.create(AccountCreate(name=key[-1], details=note, parent_id=ids[key[:-1]]))
+                created = self.ar.create(AccountBase(name=key[-1], details=note, parent_id=ids[key[:-1]]))
                 ids[key] = created.id
             categories = self._category_keys()
             repository = CategoryRepository(self.ar.db, self.ar.uid)

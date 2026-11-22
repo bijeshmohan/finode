@@ -23,14 +23,13 @@ import {
   keepsChoice,
   labelOf,
   offered,
-  rowCategoryShown,
   screenOrder,
   type Side,
 } from "./kinds";
 import styles from "./Lines.module.css";
 import { Picker } from "./Picker";
 import { QuickAdd, type QuickKind } from "./QuickAdd";
-import type { CategoryParent, ParentOption, PickGroup } from "./queries";
+import type { CategoryParent, AccountTypeOption, PickGroup } from "./queries";
 import { RowSettings } from "./RowSettings";
 import { amountOf, removeRow, type RowState, settle } from "./rows";
 
@@ -70,10 +69,6 @@ function firstChoice(rows: RowState[]): string | null {
   return rows.find((r) => r.choice !== null)?.choice ?? null;
 }
 
-function categoryGroups(groups: PickGroup[]): PickGroup[] {
-  return groups.filter((g) => g.title === "Expenses" || g.title === "Income");
-}
-
 /** What "＋ New" makes on a side: a category where the side lists categories, else an account under its first root. */
 function quickKind(kind: Kind, side: Side): QuickKind {
   const root = KINDS[kind][side].roots?.[0] ?? (side === "debit" ? "Expenses" : "Assets");
@@ -88,7 +83,6 @@ const other = (side: Side): Side => (side === "credit" ? "debit" : "credit");
  * "amount is required!"). */
 export function linesBody(
   state: LinesState,
-  groups: PickGroup[],
   places: number,
 ): { rows: EntryRow[]; problem?: undefined } | { rows?: undefined; problem: string } {
   const amount = tidyAmount(state.total, places).replace(/,/g, "");
@@ -102,12 +96,11 @@ export function linesBody(
       if (r.choice === null || typed === "") {
         return { problem: r.choice === null ? "every posting needs an account!" : "amount is required!" };
       }
-      const shown = rowCategoryShown(r.choice, firstChoice(state[other(s)]), groups);
       rows.push({
         choice: r.choice,
         side: s,
         amount: tidyAmount(typed, places).replace(/,/g, ""),
-        category_id: shown ? r.category : null,
+        category_id: null,
         posted_on: r.postedOn,
       });
     }
@@ -120,7 +113,7 @@ interface LinesProps<S extends LinesState> {
   state: S;
   update: Update<S>;
   groups: PickGroup[];
-  accountParents: ParentOption[];
+  accountTypes: AccountTypeOption[];
   categoryParents: CategoryParent[];
   /** Whether a row's settings offer a posting day of its own (an entry: yes; a recurring rule: no). */
   dated: boolean;
@@ -138,7 +131,7 @@ export function Lines<S extends LinesState>({
   state,
   update,
   groups,
-  accountParents,
+  accountTypes,
   categoryParents,
   dated,
   autoFocus = false,
@@ -151,7 +144,7 @@ export function Lines<S extends LinesState>({
   const symbol = useSymbol();
   const code = useCurrency();
   const today = useToday();
-  const [picking, setPicking] = useState<{ side: Side; index: number; category: boolean } | null>(null);
+  const [picking, setPicking] = useState<{ side: Side; index: number } | null>(null);
   const [tuning, setTuning] = useState<{ side: Side; index: number } | null>(null);
   const [making, setMaking] = useState<{ side: Side; index: number; kind: QuickKind } | null>(null);
   const ids = { credit: useId(), debit: useId() };
@@ -164,7 +157,7 @@ export function Lines<S extends LinesState>({
     update((now) => {
       const kind: Kind = tapped === now.kind ? "other" : tapped;
       const keep = (side: Side): RowState[] =>
-        now[side].map((r) => (keepsChoice(kind, side, r.choice, groups) ? r : { ...r, choice: null, category: null }));
+        now[side].map((r) => (keepsChoice(kind, side, r.choice, groups) ? r : { ...r, choice: null }));
       const after = { ...now, kind, credit: keep("credit"), debit: keep("debit") };
       return onKind ? onKind(after, now) : after;
     });
@@ -180,8 +173,6 @@ export function Lines<S extends LinesState>({
     }));
   };
 
-  const shownCategory = (side: Side, row: RowState): boolean =>
-    rowCategoryShown(row.choice, firstChoice(state[other(side)]), groups);
   const amountAt = (side: Side, index: number) => amountOf(state[side], index, state.total, places);
 
   const describe = (s: Side, index: number, r: RowState): { when: string; amount: string } => {
@@ -225,7 +216,7 @@ export function Lines<S extends LinesState>({
                   className={`${styles.rowPick} ${label === null ? styles.empty : category ? styles.onCategory : styles.onAccount}`}
                   aria-labelledby={`${ids[s]} ${valueId}`}
                   onClick={() => {
-                    setPicking({ side: s, index, category: false });
+                    setPicking({ side: s, index });
                   }}
                 >
                   <span id={valueId} className={styles.rowName}>
@@ -248,20 +239,6 @@ export function Lines<S extends LinesState>({
                   />
                 )}
               </div>
-              {shownCategory(s, r) && (
-                <button
-                  type="button"
-                  className={styles.rowCategory}
-                  onClick={() => {
-                    setPicking({ side: s, index, category: true });
-                  }}
-                >
-                  <span>Category</span>
-                  <span className={r.category ? undefined : styles.placeholder}>
-                    {labelOf(r.category, groups) ?? "No category"}
-                  </span>
-                </button>
-              )}
             </div>
           );
         })}
@@ -275,11 +252,7 @@ export function Lines<S extends LinesState>({
   };
 
   const [first, second] = screenOrder(state.kind);
-  const pickingGroups = picking
-    ? picking.category
-      ? categoryGroups(groups)
-      : offered(state.kind, picking.side, groups)
-    : [];
+  const pickingGroups = picking ? offered(state.kind, picking.side, groups) : [];
   const tunedRow = tuning ? state[tuning.side][tuning.index] : undefined;
 
   return (
@@ -351,30 +324,18 @@ export function Lines<S extends LinesState>({
           {picking && (
             <Picker
               open
-              title={picking.category ? "Category" : KINDS[state.kind][picking.side].title}
+              title={KINDS[state.kind][picking.side].title}
               groups={pickingGroups}
-              value={
-                picking.category
-                  ? (state[picking.side][picking.index]?.category ?? null)
-                  : (state[picking.side][picking.index]?.choice ?? null)
-              }
-              otherSide={picking.category ? null : firstChoice(state[other(picking.side)])}
-              {...(picking.category
-                ? { clearable: "No category" }
-                : {
-                    onNew: {
-                      noun: quickKind(state.kind, picking.side).what,
-                      open: () => {
-                        setMaking({ ...picking, kind: quickKind(state.kind, picking.side) });
-                      },
-                    },
-                  })}
+              value={state[picking.side][picking.index]?.choice ?? null}
+              otherSide={firstChoice(state[other(picking.side)])}
+              onNew={{
+                noun: quickKind(state.kind, picking.side).what,
+                open: () => {
+                  setMaking({ ...picking, kind: quickKind(state.kind, picking.side) });
+                },
+              }}
               onChange={(id) => {
-                changeRow(
-                  picking.side,
-                  picking.index,
-                  picking.category ? { category: id } : { choice: id, category: null },
-                );
+                changeRow(picking.side, picking.index, { choice: id });
               }}
               onClose={() => {
                 setPicking(null);
@@ -384,10 +345,10 @@ export function Lines<S extends LinesState>({
           {making && (
             <QuickAdd
               making={making.kind}
-              accountParents={accountParents}
+              accountTypes={accountTypes}
               categoryParents={categoryParents}
               onMade={(id) => {
-                changeRow(making.side, making.index, { choice: id, category: null });
+                changeRow(making.side, making.index, { choice: id });
               }}
               onClose={() => {
                 setMaking(null);

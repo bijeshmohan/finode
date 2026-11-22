@@ -29,7 +29,9 @@ def test_the_newest_route_is_the_usual_one(client, habits):
     assert len(found) == 1
     top = found[0]
     assert (top["payee"], top["uses"], top["kind"], top["exact"]) == ("Manjunatha", 3, "expense", False)
-    assert top["to_account"]["path"] == "Expenses:meat" and top["from_account"]["path"] == "Assets:checking"
+    assert (
+        top["to_account"]["path"] == "Expenses:meat" and top["from_account"]["path"] == "Assets:Bank Account:checking"
+    )
     assert [(o["to_account"]["path"], o["uses"]) for o in top["other_routes"]] == [("Expenses:groceries", 1)]
 
 

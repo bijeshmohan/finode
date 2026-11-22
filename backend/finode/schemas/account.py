@@ -28,10 +28,13 @@ def clean_name(value: str) -> str:
 BillRounding = Literal["none", "nearest", "up"]
 
 
-class AccountBase(BaseModel):
+# The four account types (services/account_types.py TYPE_KEYS).
+AccountType = Literal["assets.bank", "assets.cash", "liabilities.cards", "assets.wallet"]
+
+
+class AccountFields(BaseModel):
     name: str = Field(max_length=40)
     details: str | None = Field(default=None, max_length=200)
-    parent_id: UUID | None = None
     # Liability accounts (a card, a loan): the day of the month a bill is closed and the day it is due. Both or neither;
     # 31 means the last day of a shorter month.
     statement_day: int | None = Field(default=None, ge=1, le=31)
@@ -51,42 +54,33 @@ class AccountBase(BaseModel):
         return self
 
 
-class AccountCreate(AccountBase):
+class AccountBase(AccountFields):
+    """An account with its place in the tree (what the repository writes and a read returns)."""
+
+    parent_id: UUID | None = None
+
+
+class AccountCreate(AccountFields):
+    # Which of the four types it is: Bank Account, Cash, Credit Card or Prepaid Wallet. Every account is in the budget.
+    type: AccountType
     balance: Decimal = Field(
         default=Decimal("0.00"),
         decimal_places=8,
         max_digits=24,
     )
-    # Whether the account's money is part of the budget. Default: yes for a new asset account.
-    on_budget: bool | None = None
-
-
-class GroupCreate(BaseModel):
-    """A group the person makes: a shelf on the Accounts page that holds accounts (it has no balance of its own)."""
-
-    name: str = Field(max_length=40)
-    # Whether it holds money the person owns (Assets) or owes (Liabilities); it cannot change afterwards.
-    root: Literal["Assets", "Liabilities"]
-    # Whether an account made in it starts in the budget (each account can still choose for itself).
-    new_accounts_in_budget: bool
-
-    @field_validator("name")
-    @classmethod
-    def name_must_not_be_empty(cls, v: str) -> str:
-        return clean_name(v)
 
 
 class AccountRead(AccountBase):
     id: UUID
     balance: Decimal  # a sum: no digit limits, see schemas/budget.py
-    # True when the account's money is part of the budget.
-    on_budget: bool = False
+    # Which of the four types it is (Bank Account, Cash, Credit Card, Prepaid Wallet), or null for anything else: a
+    # root, a type itself, a person's "Due from" or "Due to", Opening Balances. Every account with a type is in the budget.
+    type: AccountType | None = None
     # The day it was closed (no more postings; its history stays), or null while it is open.
     closed_on: Date | None = None
-    # Set on the built-in groups (Bank Accounts, Cash, Investments, Credit Cards, Loans); they cannot be changed or removed.
+    # Set on the four types' own groups (assets.bank, assets.cash, liabilities.cards, assets.wallet); they cannot be
+    # changed or removed.
     system_key: str | None = None
-    # Set on a group (a built-in one or one the person made): whether an account made in it starts in the budget.
-    new_accounts_in_budget: bool | None = None
     # True when the person pinned the account: it is also listed in the Pinned row at the top of the Accounts page.
     pinned: bool = False
     # True for a contact's "Due from" and "Due to" accounts: they follow the contact and only its page uses them.
@@ -98,15 +92,11 @@ class AccountRead(AccountBase):
 class AccountUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=40)
     details: str | None = Field(default=None, max_length=200)
-    parent_id: UUID | None = None
     balance: Decimal | None = Field(
         default=None,
         decimal_places=8,
         max_digits=24,
     )
-    on_budget: bool | None = None
-    # A group's own choice (see AccountRead): only a group takes it.
-    new_accounts_in_budget: bool | None = None
     # Pin an open asset or liability account that is not a group, or unpin one.
     pinned: bool | None = None
     statement_day: int | None = Field(default=None, ge=1, le=31)

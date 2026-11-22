@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { type Answers, renderApp, SIGNED_IN } from "../../test/render";
-import { accountForm, ids, kinds } from "./fixtures";
+import { accountForm, ids } from "./fixtures";
 
 const NEW = "00000000-0000-4000-8000-0000000000ff";
 const FORM = "/api/views/account-form";
@@ -22,37 +22,45 @@ function open(path: string, answers: Answers) {
 }
 
 describe("the new account form", () => {
-  it("asks about the budget and the bill by the kind chosen", async () => {
+  it("offers the four types and asks for a card's bill days only for a Credit Card", async () => {
     open("/accounts/new", { [FORM]: [200, accountForm()] });
-    await screen.findByRole("button", { name: "Banks" });
+    const kinds = await screen.findByRole("radiogroup", { name: "Kind of account" });
+    expect(Array.from(kinds.querySelectorAll("button")).map((b) => b.textContent)).toEqual([
+      "Bank Account",
+      "Cash",
+      "Credit Card",
+      "Prepaid Wallet",
+    ]);
     expect(screen.queryByRole("checkbox", { name: /Part of the budget/ })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Banks" }));
-    expect(screen.getByRole("button", { name: "Banks" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("checkbox", { name: /Part of the budget/ })).toBeChecked();
+    await userEvent.click(screen.getByRole("radio", { name: "Bank Account" }));
+    expect(screen.getByRole("radio", { name: "Bank Account" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByLabelText("Current balance")).toBeInTheDocument();
     expect(screen.queryByLabelText(/Statement day/)).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Loans" }));
-    expect(screen.getByRole("checkbox", { name: /Part of the budget/ })).not.toBeChecked();
+    await userEvent.click(screen.getByRole("radio", { name: "Credit Card" }));
     expect(screen.getByLabelText("Amount you owe now")).toBeInTheDocument();
     expect(screen.getByLabelText(/Statement day/)).toBeInTheDocument();
+  });
+
+  it("opened for a type, it starts on it", async () => {
+    open("/accounts/new?type=assets.wallet", { [FORM]: [200, accountForm({ type: "assets.wallet" })] });
+    expect(await screen.findByRole("radio", { name: "Prepaid Wallet" })).toHaveAttribute("aria-checked", "true");
   });
 
   it("adds the account and opens it", async () => {
     const { fetch, router } = open("/accounts/new", {
       [FORM]: [200, accountForm()],
-      "/api/accounts/": [201, { id: NEW, name: "Car loan" }],
+      "/api/accounts/": [201, { id: NEW, name: "Amex" }],
     });
-    await userEvent.click(await screen.findByRole("button", { name: "Loans" }));
-    await userEvent.type(screen.getByLabelText("Name"), "Car loan");
+    await userEvent.click(await screen.findByRole("radio", { name: "Credit Card" }));
+    await userEvent.type(screen.getByLabelText("Name"), "Amex");
     await userEvent.type(screen.getByLabelText(/Statement day/), "10");
     await userEvent.type(screen.getByLabelText(/Payment due day/), "28");
     await userEvent.click(screen.getByRole("button", { name: "Add account" }));
     expect(await sent(fetch, "/api/accounts/", "POST")).toEqual({
-      name: "Car loan",
-      parent_id: kinds.loans.id,
+      name: "Amex",
+      type: "liabilities.cards",
       details: null,
       balance: "0",
-      on_budget: false,
       statement_day: 10,
       due_day: 28,
       bill_rounding: "none",
@@ -73,9 +81,9 @@ describe("the new account form", () => {
   it("a refusal shows the server's words", async () => {
     open("/accounts/new", {
       [FORM]: [200, accountForm()],
-      "/api/accounts/": [400, { detail: "'Banks' already has an account called 'HDFC'!" }],
+      "/api/accounts/": [400, { detail: "'Bank Account' already has an account called 'HDFC'!" }],
     });
-    await userEvent.click(await screen.findByRole("button", { name: "Banks" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Bank Account" }));
     await userEvent.type(screen.getByLabelText("Name"), "HDFC");
     await userEvent.click(screen.getByRole("button", { name: "Add account" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("already has an account called 'HDFC'!");
@@ -87,10 +95,8 @@ describe("editing an account", () => {
     editing: true,
     name: "HDFC",
     balance: "5000.00",
-    parent_id: ids.banks,
-    root_name: "Assets",
-    can_budget: true,
-    on_budget: true,
+    type: "assets.bank",
+    types: [],
   });
   const path = `/accounts/${ids.hdfc}/edit`;
 
@@ -125,10 +131,7 @@ describe("editing an account", () => {
     const { router } = open(path, {
       [FORM]: [200, editing],
       [`/api/accounts/${ids.hdfc}`]: [204, null],
-      "/api/views/accounts": [
-        200,
-        { net_worth: "0", account_count: 0, has_budget_accounts: false, pinned: [], kinds: [], has_closed: false },
-      ],
+      "/api/views/accounts": [200, { account_count: 0, pinned: [], kinds: [], has_closed: false }],
     });
     await userEvent.click(await screen.findByRole("button", { name: "Delete account" }));
     expect(confirm).toHaveBeenCalledWith("Delete account 'HDFC'?");
@@ -136,32 +139,10 @@ describe("editing an account", () => {
       expect(router.state.location.pathname).toBe("/accounts");
     });
   });
-});
 
-describe("the group form", () => {
-  it("asks what it holds, then makes it", async () => {
-    const { fetch, router } = open("/accounts/new-group", {
-      "/api/accounts/groups": [201, { id: NEW }],
-      "/api/views/accounts": [
-        200,
-        { net_worth: "0", account_count: 0, has_budget_accounts: false, pinned: [], kinds: [], has_closed: false },
-      ],
-    });
-    await userEvent.type(await screen.findByLabelText("Name"), "Family");
-    await userEvent.click(screen.getByRole("button", { name: "Create group" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "choose whether it holds money you own or money you owe!",
-    );
-    await userEvent.click(screen.getByRole("radio", { name: "Money I own" }));
-    await userEvent.click(screen.getByRole("checkbox", { name: /Part of the budget/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Create group" }));
-    expect(await sent(fetch, "/api/accounts/groups", "POST")).toEqual({
-      name: "Family",
-      root: "Assets",
-      new_accounts_in_budget: true,
-    });
-    await waitFor(() => {
-      expect(router.state.location.pathname).toBe("/accounts");
-    });
+  it("an account keeps its type: editing offers no kinds", async () => {
+    open(path, { [FORM]: [200, editing] });
+    await screen.findByRole("button", { name: "Save changes" });
+    expect(screen.queryByRole("radiogroup", { name: "Kind of account" })).not.toBeInTheDocument();
   });
 });

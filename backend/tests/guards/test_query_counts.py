@@ -116,7 +116,7 @@ def test_saving_a_split_does_not_ask_more_as_it_gets_longer(client, root_account
     """Checking each posting's account used to cost two queries per row."""
     grow(client, root_accounts, accounts=14, transactions=0)
     accounts = client.get("/api/accounts/").json()
-    assets = [a["id"] for a in accounts if a["parent_id"] == root_accounts["Assets"]]
+    assets = [a["id"] for a in accounts if a.get("type") == "assets.bank"]
     expenses = [c["id"] for c in client.get("/api/categories/").json()]
 
     def save(rows: int):
@@ -380,14 +380,7 @@ def test_making_or_changing_an_account_does_not_read_once_per_account(client, ro
         assert made.status_code == 201, made.text
         return {
             "making an account": _selects(
-                session, client, "POST", "/api/accounts/", json={"name": label, "parent_id": root_accounts["Assets"]}
-            ),
-            "making a group": _selects(
-                session,
-                client,
-                "POST",
-                "/api/accounts/groups",
-                json={"name": f"Shelf {label}", "root": "Assets", "new_accounts_in_budget": True},
+                session, client, "POST", "/api/accounts/", json={"name": label, "type": "assets.bank"}
             ),
             "changing an account": _selects(
                 session, client, "PATCH", f"/api/accounts/{made.json()['id']}", json={"name": f"Renamed {label}"}
@@ -498,7 +491,7 @@ def _journal(entries: int) -> str:
         f"2026-09-{1 + i % 28:02d} Shop {i}\n"
         f"    ; tags: weekly-shop, trip-{i % 3}\n"
         f"    Expenses:Food   {10 + i}.00\n"
-        f"    Assets:Bank\n"
+        f"    Assets:Bank Account:Bank\n"
         for i in range(entries)
     )
 
@@ -574,7 +567,7 @@ def test_copying_last_month_does_not_ask_once_per_category(client, root_accounts
 def test_a_backup_does_not_read_once_per_shared_bill(client, root_accounts, session):
     """The backup lists every shared bill with its shares and who paid: all the shares come in one read and all the
     payments in another."""
-    bank = client.post("/api/accounts/", json={"name": "HDFC", "parent_id": root_accounts["Assets"]}).json()
+    bank = post_account(client, {"name": "HDFC", "parent_id": root_accounts["Assets"]}).json()
     dining = category(client, "Dining")
     friend = client.post("/api/contacts/", json={"name": "Alice"}).json()
 

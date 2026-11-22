@@ -10,12 +10,12 @@ import pytest
 
 from finode.repositories import AccountRepository, ProfileRepository, TransactionRepository
 from finode.repositories.recurring import RecurringRepository
-from finode.schemas.account import AccountCreate, AccountUpdate, GroupCreate
+from finode.schemas.account import AccountBase
 from finode.schemas.category import CategoryCreate
 from finode.schemas.contact import ContactCreate
 from finode.schemas.recurring import RecurringCreate
 from finode.schemas.transaction import PostingCreate, TransactionCreate
-from finode.services import account as account_service
+from finode.services.account_types import in_budget
 from finode.services.cash_flow import CashFlowConversion, ConversionRefused
 from finode.services.contact import ContactService
 from finode.services.transaction import TransactionService
@@ -43,18 +43,41 @@ def _conversion(session, user=TEST_USER_ID):
 def _build(session, user=TEST_USER_ID):
     s = services(session, user)
     s.accounts.ensure_roots()
-    groups = {a.system_key: a.id for a in s.accounts.ar.list() if a.system_key}
+    ar = s.accounts.ar
+    roots = ar.root_ids()
+    # The books as they were before the change: the old built-in groups (no Prepaid Wallet, Investments and Loans
+    # outside the budget), a group of the person's own, and an account taken out of the budget.
+    groups = {a.system_key: a for a in ar.list() if a.system_key}
+    ar.delete(groups.pop("assets.wallet").id)
+    ar.place(groups["assets.bank"].id, roots["Assets"], "Bank Accounts")
+    ar.place(groups["liabilities.cards"].id, roots["Liabilities"], "Credit Cards")
+    for key, name, root in (
+        ("assets.investments", "Investments", "Assets"),
+        ("liabilities.loans", "Loans", "Liabilities"),
+    ):
+        group = ar.create(AccountBase(name=name, parent_id=roots[root]))
+        group.system_key = key
+        groups[key] = group
+    wallets = ar.create(AccountBase(name="Wallets", parent_id=roots["Assets"]))
 
-    def made(name, key, **extra):
-        return s.accounts.create(AccountCreate(name=name, parent_id=groups[key], **extra))
+    def made(name, parent_id, **extra):
+        return ar.create(AccountBase(name=name, parent_id=parent_id, **extra))
 
-    hdfc = made("HDFC", "assets.bank", balance=Decimal("100000"))
-    old_sbi = made("Old SBI", "assets.bank", on_budget=False, balance=Decimal("500"))
-    card = made("Amex", "liabilities.cards", statement_day=5, due_day=25)
-    loan = made("Home Loan", "liabilities.loans", balance=Decimal("800000"))
-    fund = made("Axis Bluechip", "assets.investments")
-    wallets = s.accounts.create_group(GroupCreate(name="Wallets", root="Assets", new_accounts_in_budget=True))
-    paytm = s.accounts.create(AccountCreate(name="Paytm", parent_id=wallets.id, balance=Decimal("300")))
+    hdfc = made("HDFC", groups["assets.bank"].id)
+    old_sbi = made("Old SBI", groups["assets.bank"].id)
+    card = made("Amex", groups["liabilities.cards"].id, statement_day=5, due_day=25)
+    loan = made("Home Loan", groups["liabilities.loans"].id)
+    fund = made("Axis Bluechip", groups["assets.investments"].id)
+    paytm = made("Paytm", wallets.id)
+    session.commit()
+    opening = s.accounts.opening_balances_account()
+    for account, amount, side in ((hdfc, "100000", "debit"), (old_sbi, "500", "debit"), (paytm, "300", "debit")):
+        _entry(
+            s, date(2026, 9, 1), "Opening balance", _line(account.id, side, amount), _line(opening.id, "credit", amount)
+        )
+    _entry(
+        s, date(2026, 9, 1), "Opening balance", _line(opening.id, "debit", "800000"), _line(loan.id, "credit", "800000")
+    )
 
     emi_cat = s.categories.create(CategoryCreate(name="Home loan EMI", kind="spending"))
     dining = s.categories.create(CategoryCreate(name="Dining", kind="spending"))
@@ -64,8 +87,7 @@ def _build(session, user=TEST_USER_ID):
     _entry(s, date(2026, 10, 5), "EMI", _line(loan.id, "debit", "15000"), _line(hdfc.id, "credit", "15000"))
     _entry(s, date(2026, 10, 10), "SIP", _line(fund.id, "debit", "10000"), _line(hdfc.id, "credit", "10000"))
     _entry(s, date(2026, 10, 20), "Redeemed", _line(hdfc.id, "debit", "4000"), _line(fund.id, "credit", "4000"))
-    value = s.accounts.opening_balances_account()
-    _entry(s, date(2026, 10, 31), "NAV", _line(fund.id, "debit", "650"), _line(value.id, "credit", "650"))
+    _entry(s, date(2026, 10, 31), "NAV", _line(fund.id, "debit", "650"), _line(opening.id, "credit", "650"))
     _entry(s, date(2026, 10, 12), "Swiggy", _line(card.id, "credit", "486"), _line(None, "debit", "486", dining.id))
 
     contacts = ContactService(s.accounts)
@@ -106,11 +128,13 @@ def _build(session, user=TEST_USER_ID):
 
 @pytest.fixture
 def books(session, monkeypatch):
-    monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
     s, ids = _build(session)
 
+    # What was outside the budget before the four types (the flag is gone: the books say it as a file would).
+    outside = {ids.old_sbi, ids.loan, ids.fund}
+
     def off_budget_ids():
-        return {a.id for a in s.accounts.ar.list() if not a.on_budget}
+        return set(outside)
 
     def kept():
         return [ids.hdfc, ids.old_sbi, ids.card, ids.paytm, ids.asha.receivable_account_id]
@@ -121,7 +145,7 @@ def books(session, monkeypatch):
         return {d: {a.id: a.balance for a in s.accounts.list(as_of=d) if a.id in kept()} for d in days}
 
     def put_old_sbi_in_budget():
-        s.accounts.update(ids.old_sbi, AccountUpdate(on_budget=True))
+        outside.discard(ids.old_sbi)
 
     def lines_of(payee):
         made = [t for t in s.transactions.list(limit=1000) if t.payee == payee]
@@ -217,7 +241,7 @@ def test_kept_accounts_are_under_their_types_and_in_the_budget(books):
         books.ids.card: "liabilities.cards",
         books.ids.paytm: "assets.bank",
     }
-    assert all(by_id[i].on_budget for i in (books.ids.hdfc, books.ids.card, books.ids.paytm, books.ids.old_sbi))
+    assert all(in_budget(by_id[i], by_id) for i in (books.ids.hdfc, books.ids.card, books.ids.paytm, books.ids.old_sbi))
     assert by_id[books.ids.asha.receivable_account_id].parent_id == books.s.accounts.ar.root_ids()["Assets"]
 
 
@@ -280,7 +304,9 @@ def test_non_strict_plan_decides_by_default(books):
     assert plan.undecided_accounts == [] and plan.undecided_entries == []
     books.conversion.apply(plan)
     by_id = {a.id: a for a in books.s.accounts.ar.list()}
-    assert by_id[books.ids.old_sbi].on_budget and by_id[by_id[books.ids.old_sbi].parent_id].name == "Bank Account"
+    assert (
+        in_budget(by_id[books.ids.old_sbi], by_id) and by_id[by_id[books.ids.old_sbi].parent_id].name == "Bank Account"
+    )
     assert books.balances_by_day() == before
 
 
@@ -299,7 +325,8 @@ def test_other_person_untouched(books, session):
 
 def test_a_closed_retired_account_is_retired_too(books):
     loans = next(a.id for a in books.s.accounts.ar.list() if a.system_key == "liabilities.loans")
-    car = books.s.accounts.create(AccountCreate(name="Car Loan", parent_id=loans))
+    car = books.s.accounts.ar.create(AccountBase(name="Car Loan", parent_id=loans))
+    books.session.commit()
     _entry(books.s, date(2026, 8, 1), "Car", _line(books.ids.hdfc, "debit", "1000"), _line(car.id, "credit", "1000"))
     _entry(
         books.s, date(2026, 8, 9), "Car EMI", _line(car.id, "debit", "1000"), _line(books.ids.hdfc, "credit", "1000")
@@ -333,4 +360,41 @@ def test_a_chosen_type_puts_an_account_outside_the_budget_in_it(books):
     assert plan.undecided_accounts == []
     books.conversion.apply(plan)
     by_id = {a.id: a for a in books.s.accounts.ar.list()}
-    assert by_id[books.ids.old_sbi].on_budget and by_id[by_id[books.ids.old_sbi].parent_id].system_key == "assets.cash"
+    assert (
+        in_budget(by_id[books.ids.old_sbi], by_id)
+        and by_id[by_id[books.ids.old_sbi].parent_id].system_key == "assets.cash"
+    )
+
+
+def test_a_shared_bill_paid_from_a_retired_account_points_at_where_the_money_now_comes_from(books, session):
+    from sqlmodel import select
+
+    from finode.models.contact import ExpenseContribution, SharedExpense
+
+    bill = SharedExpense(
+        user_id=TEST_USER_ID,
+        description="Dinner",
+        date=date(2026, 10, 14),
+        total_amount=Decimal("1000"),
+        split_method="equal",
+        status="draft",
+    )
+    session.add(bill)
+    session.flush()
+    session.add(
+        ExpenseContribution(
+            user_id=TEST_USER_ID,
+            shared_expense_id=bill.id,
+            is_self=True,
+            account_id=books.ids.loan,
+            amount=Decimal("1000"),
+        )
+    )
+    session.commit()
+    books.put_old_sbi_in_budget()
+    _convert(books)
+    session.expire_all()
+    paid_from = {c.account_id for c in session.exec(select(ExpenseContribution)).all()}
+    accounts = {a.id: a for a in books.s.accounts.ar.list()}
+    assert books.ids.loan not in paid_from and paid_from <= set(accounts), "no row names a deleted account"
+    assert {accounts[a].name for a in paid_from} == {"Income"}, "the money came out of the loan: Borrowed, an income"

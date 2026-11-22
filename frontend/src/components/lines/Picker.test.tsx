@@ -26,7 +26,7 @@ describe("Picker", () => {
   it("lists the accounts under their type with their balance", async () => {
     picker();
     const sheet = await screen.findByRole("dialog", { name: "Paid from" });
-    expect(within(sheet).getByRole("heading", { name: "Assets" })).toBeInTheDocument();
+    expect(within(sheet).getByRole("heading", { name: "Bank Account" })).toBeInTheDocument();
     expect(within(sheet).getByRole("button", { name: /Bank/ })).toHaveTextContent("5,000.00");
   });
 
@@ -34,7 +34,7 @@ describe("Picker", () => {
     picker();
     await userEvent.type(await screen.findByLabelText("Search"), "vis");
     expect(screen.queryByRole("button", { name: /Bank/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Visa/ })).toHaveTextContent("Liabilities");
+    expect(screen.getByRole("button", { name: /Visa/ })).toHaveTextContent("Credit Card");
   });
 
   it("chooses and greys the other side's choice", async () => {
