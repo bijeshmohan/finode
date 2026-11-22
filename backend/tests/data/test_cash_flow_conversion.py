@@ -364,3 +364,37 @@ def test_a_chosen_type_puts_an_account_outside_the_budget_in_it(books):
         in_budget(by_id[books.ids.old_sbi], by_id)
         and by_id[by_id[books.ids.old_sbi].parent_id].system_key == "assets.cash"
     )
+
+
+def test_a_shared_bill_paid_from_a_retired_account_points_at_where_the_money_now_comes_from(books, session):
+    from sqlmodel import select
+
+    from finode.models.contact import ExpenseContribution, SharedExpense
+
+    bill = SharedExpense(
+        user_id=TEST_USER_ID,
+        description="Dinner",
+        date=date(2026, 10, 14),
+        total_amount=Decimal("1000"),
+        split_method="equal",
+        status="draft",
+    )
+    session.add(bill)
+    session.flush()
+    session.add(
+        ExpenseContribution(
+            user_id=TEST_USER_ID,
+            shared_expense_id=bill.id,
+            is_self=True,
+            account_id=books.ids.loan,
+            amount=Decimal("1000"),
+        )
+    )
+    session.commit()
+    books.put_old_sbi_in_budget()
+    _convert(books)
+    session.expire_all()
+    paid_from = {c.account_id for c in session.exec(select(ExpenseContribution)).all()}
+    accounts = {a.id: a for a in books.s.accounts.ar.list()}
+    assert books.ids.loan not in paid_from and paid_from <= set(accounts), "no row names a deleted account"
+    assert {accounts[a].name for a in paid_from} == {"Income"}, "the money came out of the loan: Borrowed, an income"

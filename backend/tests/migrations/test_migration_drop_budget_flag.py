@@ -52,9 +52,34 @@ def _books(engine, extra=None):
     return ids
 
 
+def _people_and_opening(connection, ids):
+    """A person's two accounts straight under Assets and Liabilities, and Opening Balances under Equity: all allowed."""
+    _account(connection, ids["Extra"], "Due from Asha", ids["Assets"])
+    _account(connection, "00000000-0000-4000-8000-00000000ff01", "Due to Asha", ids["Liabilities"])
+    connection.execute(
+        sa.text(
+            "INSERT INTO contacts (id, user_id, name, created, updated) VALUES "
+            "('00000000-0000-4000-8000-00000000cc01', :u, 'Asha', '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+        ),
+        {"u": USER},
+    )
+    for account, role in ((ids["Extra"], "receivable"), ("00000000-0000-4000-8000-00000000ff01", "payable")):
+        connection.execute(
+            sa.text(
+                "INSERT INTO contact_accounts (id, user_id, contact_id, account_id, role, created) VALUES "
+                "(:id, :u, '00000000-0000-4000-8000-00000000cc01', :a, :r, '2026-01-01 00:00:00')"
+            ),
+            {"id": account.replace("0000", "dddd", 1), "u": USER, "a": account, "r": role},
+        )
+    _account(connection, "00000000-0000-4000-8000-00000000ee01", "Equity")
+    _account(
+        connection, "00000000-0000-4000-8000-00000000ee02", "Opening Balances", "00000000-0000-4000-8000-00000000ee01"
+    )
+
+
 def test_converted_books_lose_the_flag_and_get_it_back_on_downgrade(alembic):
     config, engine = alembic
-    ids = _books(engine)
+    ids = _books(engine, _people_and_opening)
     command.upgrade(config, AFTER)
     columns = {c["name"] for c in sa.inspect(engine).get_columns("accounts")}
     assert not {"on_budget", "new_accounts_in_budget"} & columns

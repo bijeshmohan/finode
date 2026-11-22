@@ -28,6 +28,7 @@ from ..models.category import BudgetCategory
 from ..models.transaction import Posting, PostingSide
 from ..repositories import TransactionRepository
 from ..repositories.recurring import RecurringRepository
+from ..repositories.shared_expense import SharedExpenseRepository
 from ..schemas.account import AccountBase
 from ..schemas.cash_flow import AccountMove, ConversionPlan, ConversionResult, EntryChange
 from ..schemas.category import CategoryRead
@@ -59,6 +60,7 @@ class _Work:
     rules: list[tuple[UUID, dict[UUID, tuple[Target, CategoryRef | None]]]] = field(default_factory=list)
     ends: list[UUID] = field(default_factory=list)
     accounts_to_delete: list[UUID] = field(default_factory=list)
+    retired_accounts: list[UUID] = field(default_factory=list)  # the investment and loan accounts among them
     new_categories: dict[tuple[str, str], str] = field(default_factory=dict)  # (name in one form, kind) → name
     reopen: set[UUID] = field(default_factory=set)
 
@@ -311,6 +313,7 @@ class CashFlowConversion:
 
         for a in sorted((by_id[i] for i in retired), key=depth, reverse=True):
             work.accounts_to_delete.append(a.id)
+            work.retired_accounts.append(a.id)
             plan.retired.append(AccountMove(account_id=a.id, path=path(a), becomes="deleted"))
         for a in groups:
             if a.system_key not in TYPE_KEYS:
@@ -378,6 +381,10 @@ class CashFlowConversion:
             self.rr.end(recurring_id)
         result.recurring_ended = len(work.ends)
 
+        # A shared bill a retired account paid towards: the money now comes from Income (Borrowed or Redeemed).
+        bills = SharedExpenseRepository(self.ar.db, self.ar.uid)
+        for account_id in work.retired_accounts:
+            bills.repoint_account(account_id, work.roots["Income"])
         for account_id in work.accounts_to_delete:
             self.ar.delete(account_id)
         result.accounts_deleted = len(work.accounts_to_delete)

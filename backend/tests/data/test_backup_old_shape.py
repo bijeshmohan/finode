@@ -81,3 +81,32 @@ def test_a_new_file_restores_unchanged(client, rich):
         assert len(again["transactions"]) == len(doc["transactions"])
     finally:
         as_user(TEST_USER_ID)
+
+
+def test_an_old_tracking_account_is_retired_not_put_in_the_budget(client, rich):
+    old = _old_shape(client.get("/api/backup").json())
+    debts = str(uuid4())
+    liabilities = next(a["id"] for a in old["accounts"] if a["name"] == "Liabilities" and a["parent_id"] is None)
+    hdfc = next(a["id"] for a in old["accounts"] if a["name"] == "HDFC")
+    old["accounts"].append({"id": debts, "parent_id": liabilities, "name": "Car loan", "on_budget": False})
+    old["transactions"].append(
+        {
+            "id": str(uuid4()),
+            "date": "2026-09-12",
+            "payee": "Car EMI",
+            "postings": [
+                {"account": debts, "side": "debit", "amount": "900"},
+                {"account": hdfc, "side": "credit", "amount": "900"},
+            ],
+        }
+    )
+    try:
+        as_user(OTHER)
+        done = client.post("/api/restore", files={"file": ("b.json", json.dumps(old), "application/json")})
+        assert done.status_code == 200, done.text
+        names = {a["name"] for a in client.get("/api/accounts/").json()}
+        assert "Car loan" not in names, "a loan kept outside the budget becomes a category, not a Credit Card"
+        categories = {c["name"] for c in client.get("/api/categories/").json()}
+        assert "Car loan" in categories
+    finally:
+        as_user(TEST_USER_ID)

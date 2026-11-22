@@ -36,7 +36,7 @@ class BackupAccount(BaseModel):
     commodity: str | None = Field(default=None, exclude=True)
     # Files from before the four types: whether the account was part of the budget. Read (a restore converts such a
     # file, see services/cash_flow.py), never written: every account of a type is in the budget.
-    on_budget: bool = Field(default=False, exclude=True)
+    on_budget: bool | None = Field(default=None, exclude=True)
     closed_on: Day | None = None
     # A card's or loan's bill days (files from before have none).
     statement_day: int | None = Field(default=None, ge=1, le=31)

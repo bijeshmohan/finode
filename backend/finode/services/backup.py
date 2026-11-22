@@ -886,10 +886,35 @@ class BackupService:
             # A file made before the four types: its investments and loans, own groups and accounts outside the budget
             # become today's books by the same conversion a person's books went through (deciding what it cannot ask).
             db.flush()
-            outside = {ids[a.id] for a in file.accounts if a.parent_id is not None and a.id in ids and not a.on_budget}
+            # An account the file kept outside the budget (a home loan, a fund, a property) tracked a worth: it is retired
+            # like an investment or a loan, never put in the budget as a Bank Account or a Credit Card.
+            people = {a for c in file.contacts for a in (c.receivable_account, c.payable_account)}
+            parents = {a.parent_id for a in file.accounts if a.parent_id is not None}
+            groups = {
+                ids[a.id]
+                for a in file.accounts
+                if a.id in ids and (a.new_accounts_in_budget is not None or a.id in parents or a.system_key)
+            }
+            outside = {
+                ids[a.id]
+                for a in file.accounts
+                if a.parent_id is not None
+                and a.id in ids
+                and a.on_budget is False  # said so by a file from before the four types; newer files say nothing
+                and a.id not in people
+                and ids[a.id] not in groups
+                and a.name != OPENING_BALANCES_ACCOUNT_NAME
+            }
             conversion = CashFlowConversion(self.accounts, self.tr, self.rr, CategoryService(self.accounts))
-            groups = {ids[a.id] for a in file.accounts if a.id in ids and a.new_accounts_in_budget is not None}
-            conversion.apply(conversion.plan(outside, strict=False, group_ids=groups), commit=False)
+            conversion.apply(
+                conversion.plan(
+                    outside,
+                    strict=False,
+                    retire_ids=outside,
+                    group_ids=groups,
+                ),
+                commit=False,
+            )
             db.commit()
         except Exception:
             db.rollback()

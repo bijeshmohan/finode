@@ -13,6 +13,8 @@ from collections.abc import Callable
 from pathlib import Path
 from uuid import UUID
 
+from sqlalchemy import Uuid, bindparam, text
+from sqlalchemy.exc import DBAPIError
 from sqlmodel import Session
 
 from ..models.account import Account
@@ -84,6 +86,20 @@ def _choices(accounts: list[Account], retire: list[str], types: list[str]) -> tu
     return {find(text) for text in retire}, chosen
 
 
+def _outside_the_budget(db: Session, user: UUID) -> set[UUID]:
+    """The accounts the old budget flag (`accounts.on_budget`) kept outside the budget, read from the table while the
+    column is still there (a database not yet past migration f9b1d3e5a7c0); none once it is gone."""
+    query = text("SELECT id FROM accounts WHERE user_id = :user AND NOT on_budget").bindparams(
+        bindparam("user", type_=Uuid())
+    )
+    try:
+        rows = db.connection().execute(query, {"user": user}).all()
+    except DBAPIError:
+        db.rollback()
+        return set()
+    return {row[0] if isinstance(row[0], UUID) else UUID(str(row[0])) for row in rows}
+
+
 def main(argv: list[str], session_factory: Callable[[], Session]) -> int:
     parser = argparse.ArgumentParser(prog="python -m finode.commands.cash_flow")
     parser.add_argument("--user", required=True, type=UUID, help="the person's id")
@@ -107,7 +123,7 @@ def main(argv: list[str], session_factory: Callable[[], Session]) -> int:
     with session_factory() as db:
         conversion = _conversion(db, args.user)
         accounts = conversion.ar.list()
-        off_budget: set[UUID] = set()  # the budget flag is gone: every account is in the budget by its type
+        off_budget = _outside_the_budget(db, args.user)
         try:
             retire_ids, types = _choices(accounts, args.retire, args.types)
             plan = conversion.plan(off_budget, strict=True, retire_ids=retire_ids, types=types)

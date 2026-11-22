@@ -94,3 +94,15 @@ def test_an_unknown_path_or_type_changes_nothing(session, monkeypatch, capsys):
     assert main(["--user", str(TEST_USER_ID), "--retire", "Assets:Nowhere"], factory) == 4
     assert main(["--user", str(TEST_USER_ID), "--as", "Assets:Wallets=Savings"], factory) == 4
     assert "Home Loan" in _names(session)
+
+
+def test_while_the_old_flag_is_still_in_the_database_its_accounts_are_left_to_the_person(session, monkeypatch, capsys):
+    """Run on a database not yet past the migration that drops it, the command still sees what was outside the budget."""
+    from sqlalchemy import text
+
+    _, ids, factory = _setup(session, monkeypatch)
+    session.exec(text("ALTER TABLE accounts ADD COLUMN on_budget BOOLEAN NOT NULL DEFAULT 1"))
+    session.exec(text("UPDATE accounts SET on_budget = 0 WHERE id = :id").bindparams(id=ids.old_sbi.hex))
+    session.commit()
+    assert main(["--user", str(TEST_USER_ID)], factory) == 0
+    assert "Assets:Bank Accounts:Old SBI" in capsys.readouterr().out.split("Needs a decision")[1]
