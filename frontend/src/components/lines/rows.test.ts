@@ -43,7 +43,7 @@ describe("the rows of a side (recomputeTxn)", () => {
     expect(left[0]?.touched).toBe(false);
     expect(removeRow(rows, 1, false)[0]?.touched).toBe(true);
     const only = removeRow([row({ choice: "food", postedOn: "2026-11-20", amount: "5", touched: true })], 0, false);
-    expect(only).toEqual([{ ...only[0], choice: null, category: null, postedOn: null, amount: "", touched: false }]);
+    expect(only).toEqual([{ ...only[0], choice: null, postedOn: null, amount: "", touched: false }]);
   });
 
   it("an edit with several rows starts from their amounts; one row follows the total", () => {

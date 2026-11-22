@@ -2,6 +2,7 @@
 // strings, and what is sent is only what was typed for the people ticked. The server works out every share, what is
 // owed and "you paid whatever the others did not" (services/entry_share.py).
 import { type Grouping, groupAmount } from "../../lib/amount";
+import { ACCOUNT_GROUPS } from "../../components/lines/kinds";
 import type { PickGroup } from "../../components/lines/queries";
 import type { EntryBody, EntryFormView } from "./queries";
 
@@ -105,7 +106,7 @@ function inGroups(id: string | null, groups: PickGroup[], titles: string[]): boo
   return id !== null && groups.some((g) => titles.includes(g.title) && g.options.some((o) => o.id === id));
 }
 
-const MONEY = ["Assets", "Liabilities"];
+const MONEY = ACCOUNT_GROUPS;
 
 /** What the rows already say carries over to the Split, once: the account and the category, when the
  * Split has none yet. */

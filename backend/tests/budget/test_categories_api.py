@@ -3,7 +3,7 @@
 import pytest
 
 from tests.books import leg, post_account
-from tests.budget.test_budget import account, budget, line
+from tests.budget.test_budget import account
 from tests.conftest import TEST_USER_ID
 from tests.mcputil import ToolFailed, make_token, mcp_client, payload, running_app
 
@@ -141,34 +141,6 @@ async def call(c, tool, **args):
 
 
 @pytest.mark.anyio
-async def test_an_assistant_lists_categories_and_labels_a_payment_into_a_loan(session, client, books):
-    async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="write")) as c:
-        listed = await call(c, "list_categories")
-        assert {x["path"] for x in listed["categories"]} == {"Food", "Food:Groceries", "EMI", "Salary"}
-        saved = (
-            await call(
-                c,
-                "record_transaction",
-                amount="15000",
-                from_account="Bank",
-                to_account="Home Loan",
-                category="EMI",
-            )
-        )["recorded"]
-        row = next(p for p in saved["postings"] if p["account"].endswith("Home Loan"))
-        assert row["category"] == "EMI" and row["category_id"] == books["emi"]["id"]
-        assert line(budget(client), "EMI")["activity"] == "15000.00"
-        with pytest.raises(ToolFailed, match="no category matches"):
-            await call(
-                c, "record_transaction", amount="1", from_account="Bank", to_account="Home Loan", category="Nowhere"
-            )
-        with pytest.raises(ToolFailed, match="earning category"):
-            await call(
-                c, "record_transaction", amount="1", from_account="Bank", to_account="Home Loan", category="Salary"
-            )
-
-
-@pytest.mark.anyio
 async def test_a_split_row_may_name_only_a_category_and_a_rule_may_carry_one(session, client, books):
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="write")) as c:
         saved = (
@@ -177,15 +149,13 @@ async def test_a_split_row_may_name_only_a_category_and_a_rule_may_carry_one(ses
                 "record_split",
                 postings=[
                     {"category": "Food:Groceries", "side": "debit", "amount": "30"},
-                    {"account": "Home Loan", "category": "EMI", "side": "debit", "amount": "70"},
+                    {"category": "EMI", "side": "debit", "amount": "70"},
                     {"account": "Bank", "side": "credit", "amount": "100"},
                 ],
             )
         )["recorded"]
         assert {p.get("category") for p in saved["postings"]} == {"Food:Groceries", "EMI", None}
-        rule = (
-            await call(c, "create_recurring", amount="500", from_account="Bank", to_account="Home Loan", category="EMI")
-        )["created"]
+        rule = (await call(c, "create_recurring", amount="500", from_account="Bank", to_account="EMI"))["created"]
         assert rule["id"]
         assert client.get("/api/recurring/").json()[0]["category_id"] == books["emi"]["id"]
 
@@ -270,7 +240,7 @@ def test_a_category_with_entries_can_still_gain_a_subcategory(client, books):
     assert inside.status_code == 201, inside.text
 
 
-def test_expenses_and_income_hold_categories_not_accounts(client, root_accounts):
-    for root in ("Expenses", "Income"):
-        refused = client.post("/api/accounts/", json={"name": "x", "parent_id": root_accounts[root]})
-        assert refused.status_code == 400 and "categor" in refused.json()["detail"], root
+def test_expenses_and_income_hold_categories_not_accounts(client):
+    for kind in ("expenses", "income", "assets.investments", "liabilities.loans"):
+        refused = client.post("/api/accounts/", json={"name": "x", "type": kind})
+        assert refused.status_code == 422, kind

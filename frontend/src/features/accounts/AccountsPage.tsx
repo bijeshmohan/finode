@@ -1,10 +1,9 @@
-// The Accounts page: net worth, the pinned accounts, then a row of cards per kind (Bank Accounts, Credit
-// Cards…, the groups the person made, the plain accounts). Closed accounts wait behind "Load more".
+// The Accounts page: the pinned accounts, then a row of cards per type (Bank Account, Cash, Credit Card, Prepaid
+// Wallet, in the person's order). Every account is part of the budget. Closed accounts wait behind "Load more".
 import { useState } from "react";
 import { Link } from "react-router";
 
 import { useGrouping } from "../../app/currency";
-import { Figure } from "../../components/Figure";
 import { Icon } from "../../components/Icon";
 import { LoadError } from "../../components/LoadError";
 import { formatMoney } from "../../lib/money";
@@ -29,23 +28,7 @@ export function AccountsPage() {
       </div>
       {page && (
         <>
-          <div className={look.hero}>
-            <div className={look.heroTop}>
-              <span>Net worth</span>
-            </div>
-            <span className={look.figure}>
-              <Figure value={page.net_worth} />
-            </span>
-            <span className={look.heroNote}>
-              <span>{page.account_count ? plural(page.account_count) : "No accounts yet"}</span>
-              {page.has_budget_accounts && (
-                <span className={look.budgetKey}>
-                  <i className={look.dot} />
-                  in the budget
-                </span>
-              )}
-            </span>
-          </div>
+          <p className={look.sub}>{page.account_count ? plural(page.account_count) : "No accounts yet"}</p>
 
           {page.pinned.length > 0 && (
             <section className={styles.kind}>
@@ -63,9 +46,11 @@ export function AccountsPage() {
           {page.kinds
             .filter((k) => showClosed || !k.all_closed)
             .map((k) => (
-              <section key={k.group_id ?? k.name} className={styles.kind}>
+              <section key={k.type} className={styles.kind}>
                 <div className={styles.kindHead}>
-                  <h2>{k.group_id ? <Link to={`/accounts/${k.group_id}`}>{k.name}</Link> : k.name}</h2>
+                  <h2>
+                    <Link to={`/accounts/${k.group_id}`}>{k.name}</Link>
+                  </h2>
                   <p>
                     {formatMoney(k.total, grouping)}
                     {k.owed ? " owed" : ""} · {plural(k.open_count)}
@@ -98,10 +83,6 @@ export function AccountsPage() {
               </button>
             </p>
           )}
-          <Link className={look.addRow} to="/accounts/new-group">
-            <Icon name="plus" />
-            New group
-          </Link>
         </>
       )}
     </>

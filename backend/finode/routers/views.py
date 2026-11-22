@@ -4,6 +4,7 @@ server's own rows (services/transaction_rows.py), so the app works out nothing t
 import calendar
 from collections.abc import Iterable
 from datetime import date
+from typing import cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -29,11 +30,14 @@ from ..dependencies import (
 )
 from ..formatting import grouping_for, money
 from ..repositories.transaction import SYSTEM_PAYEES
+from ..schemas.account import AccountType
 from ..schemas.entry import EntryForm, ExpenseShare
 from ..schemas.views import (
     AccountCard,
     AccountFormView,
     AccountsView,
+    AccountTypeChoice,
+    AccountTypeOption,
     AccountView,
     ActivityRowRead,
     AppliedFilter,
@@ -44,7 +48,6 @@ from ..schemas.views import (
     BudgetView,
     CardNoteRead,
     CategoriesView,
-    CategoryChoice,
     CategoryFormView,
     CategoryParent,
     CategoryRef,
@@ -63,13 +66,11 @@ from ..schemas.views import (
     GlanceBlock,
     GlanceRead,
     HomeView,
-    KindChoiceRead,
     KindRow,
     LineRead,
     MoveLine,
     OpeningFormView,
     OpenRowRead,
-    ParentOption,
     PeopleView,
     PersonEntryView,
     PersonRef,
@@ -77,7 +78,6 @@ from ..schemas.views import (
     PersonView,
     PickGroupRead,
     PickOptionRead,
-    PlacedRead,
     RecurringFormView,
     RecurringView,
     RegisterRowRead,
@@ -96,11 +96,11 @@ from ..schemas.views import (
 )
 from ..services import budget_view, cards
 from ..services import people_view as people_view_service
-from ..services.account_tree import Node, build_tree, without_contacts
+from ..services.account_tree import Node, build_tree
+from ..services.account_types import TYPE_KEYS, TYPE_NAMES, TYPE_ROOTS
 from ..services.accounts_view import (
     AccountForm,
     CardNote,
-    KindChoice,
     account_page,
     accounts_page,
     edit_account_form,
@@ -114,10 +114,7 @@ from ..services.entry_form import EditStart, EntryStart, edit_start, new_start
 from ..services.entry_share import expense_create, expense_start, income_create, income_start
 from ..services.home import home_view
 from ..services.pickers import (
-    ACCOUNT_ROOTS,
-    OPENING_BALANCE_ROOTS,
     category_groups,
-    parent_options,
     people_group,
     posting_groups,
 )
@@ -397,12 +394,12 @@ def entry_form(
         person_page=edit.person_page if edit else None,
         groups=_pick_groups(
             (
-                *posting_groups(tree, {p.account_id for p in used}),
+                *posting_groups(tree, {p.account_id for p in used}, accounts.type_order()),
                 *people_group(contacts, edit.keep_people if edit else set()),
                 *category_groups(categories.list(include_closed=True), {p.category_id for p in used if p.category_id}),
             )
         ),
-        account_parents=_account_parents(tree),
+        account_types=_account_types(),
         category_parents=_category_parents(categories),
     )
 
@@ -418,19 +415,10 @@ def _pick_groups(groups: Iterable[tuple[str, list]]) -> list[PickGroupRead]:
     ]
 
 
-def _account_parents(tree: list[Node]) -> list[ParentOption]:
-    """Where a new account can go from the pickers' "＋ New"."""
+def _account_types() -> list[AccountTypeOption]:
+    """What a new account can be from the pickers' "＋ New": the four types, each with the root it sits under."""
     return [
-        ParentOption(
-            id=n.account.id,
-            name=n.account.name,
-            depth=n.depth,
-            root=root.account.name,
-            opening_balance=root.account.name in OPENING_BALANCE_ROOTS,
-        )
-        for root in without_contacts(tree)
-        if root.account.name in ACCOUNT_ROOTS
-        for n in parent_options([root])
+        AccountTypeOption(key=cast(AccountType, key), name=TYPE_NAMES[key], root=TYPE_ROOTS[key]) for key in TYPE_KEYS
     ]
 
 
@@ -485,7 +473,6 @@ def _card(node: Node, notes: dict[UUID, CardNote]) -> AccountCard:
         id=account.id,
         name=account.name,
         balance=account.balance,
-        on_budget=account.on_budget,
         closed=account.closed_on is not None,
         pinned=account.pinned,
         note=_note(notes.get(account.id)),
@@ -498,18 +485,17 @@ def register_read(row: RegisterRow) -> RegisterRowRead:
 
 @router.get("/accounts", response_model=AccountsView)
 def accounts_view(accounts: Accounts):
-    """The Accounts page: net worth, the pinned accounts, and a row of cards per kind (Bank Accounts, Credit Cards…, then
-    the groups the person made, then the plain accounts), each card with its balance and its one quiet line (a bill, no
-    entries yet, none for a month). Closed accounts are listed too, marked, for "Load more"."""
+    """The Accounts page: the pinned accounts, and a row of cards per type (Bank Account, Cash, Credit Card, Prepaid
+    Wallet, in the person's order), each card with its balance and its one quiet line (a bill, no entries yet, none for
+    a month). Closed accounts are listed too, marked, for "Load more"."""
     page = accounts_page(accounts, local_today())
     return AccountsView(
-        net_worth=page.net_worth,
         account_count=page.account_count,
-        has_budget_accounts=page.has_budget_accounts,
         pinned=[_card(n, page.notes) for n in page.pinned],
         kinds=[
             KindRow(
                 name=k.name,
+                type=cast(AccountType, k.type),
                 group_id=k.group_id,
                 total=k.total,
                 owed=k.owed,
@@ -631,50 +617,27 @@ def category_view(category_id: UUID, categories: Categories, reports: Reports, m
 # ---- the forms ----------------------------------------------------------------------------------------------------
 
 
-def _kind(choice: KindChoice) -> KindChoiceRead:
-    account = choice.node.account
-    return KindChoiceRead(
-        id=account.id,
-        name=account.name,
-        root=choice.root,
-        can_budget=choice.can_budget,
-        can_bill=choice.can_bill,
-        budget_default=choice.budget_default,
-    )
-
-
 @router.get("/account-form", response_model=AccountFormView)
-def account_form_view(accounts: Accounts, account_id: UUID | None = None, parent: UUID | None = None, root: str = ""):
-    """Where the account form starts: editing `account_id`, or a new account (opened for a kind with `parent`, or for the
-    plain accounts of a type with `root` = `assets` or `liabilities`). The `kinds` (and `parent_options`) say for each
-    place whether an account there can be part of the budget, takes a card's days, and starts in the budget."""
+def account_form_view(accounts: Accounts, account_id: UUID | None = None, type: str | None = None):
+    """Where the account form starts: editing `account_id` (it keeps its type), or a new account, with `type` already
+    chosen when the form was opened for one (a type's "+ Add account"). `types` are the four to pick from, in order."""
     try:
         form: AccountForm = (
-            edit_account_form(accounts, account_id)
-            if account_id is not None
-            else new_account_form(accounts, parent, root)
+            edit_account_form(accounts, account_id) if account_id is not None else new_account_form(accounts, type)
         )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from None
     account = form.node.account if form.node else None
     return AccountFormView(
         editing=account is not None,
-        is_group=form.node.is_group if form.node else False,
         name=account.name if account else "",
         details=account.details if account else None,
         balance=account.balance if account else None,
-        parent_id=form.parent_id,
-        kinds=[_kind(k) for k in form.kinds],
-        placed=PlacedRead(label=form.placed[0], value=form.placed[1]) if form.placed else None,
-        parent_options=[_kind(k) for k in form.parent_options],
-        root_name=form.root_name,
-        can_budget=form.can_budget,
-        can_bill=form.can_bill,
-        on_budget=bool(form.on_budget),
+        type=cast(AccountType | None, form.type),
+        types=[AccountTypeChoice(key=cast(AccountType, key), name=name) for key, name in form.types],
         statement_day=account.statement_day if account else None,
         due_day=account.due_day if account else None,
         bill_rounding=account.bill_rounding if account else "none",
-        new_accounts_in_budget=account.new_accounts_in_budget if account else None,
     )
 
 
@@ -798,14 +761,12 @@ def budget_move_view(budget: Budget, month: str = "", source: UUID | None = None
 
 
 @router.get("/todo", response_model=TodoView)
-def todo_view(todo: Todo, budget: Budget):
+def todo_view(todo: Todo):
     """The to-do bell's sheet: what needs a decision now (as `/todo/`, a card bill named by the card), and the spending
     categories a payment with no category can be given (`path` as "Food › Dining")."""
     found = todo.read()
     return TodoView(
         count=found.count,
-        uncategorised=found.uncategorised,
-        left_out_accounts=found.left_out_accounts,
         card_bills=[
             TodoBill(
                 account_id=b.account_id,
@@ -817,9 +778,6 @@ def todo_view(todo: Todo, budget: Budget):
             for b in found.card_bills
         ],
         failing_rules=found.failing_rules,
-        categories=[
-            CategoryChoice(id=c.id, path=" › ".join(budget.category_path(c))) for c in budget.spending_categories()
-        ],
     )
 
 
@@ -908,11 +866,11 @@ def recurring_form_view(
         to_rows=_form_rows(start.to_rows),
         groups=_pick_groups(
             (
-                *posting_groups(tree, used),
+                *posting_groups(tree, used, accounts.type_order()),
                 *category_groups(categories.list(include_closed=True), used_categories),
             )
         ),
-        account_parents=_account_parents(tree),
+        account_types=_account_types(),
         category_parents=_category_parents(categories),
         frequency=rule.frequency if rule else "monthly",
         every=rule.every if rule else 1,

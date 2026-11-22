@@ -21,16 +21,16 @@ backup restore of a file made before the change (not strict: it decides by the r
 import builtins
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import cast
 from uuid import UUID
 
 from ..models.account import Account
+from ..models.category import BudgetCategory
 from ..models.transaction import Posting, PostingSide
 from ..repositories import TransactionRepository
 from ..repositories.recurring import RecurringRepository
-from ..schemas.account import AccountCreate
+from ..schemas.account import AccountBase
 from ..schemas.cash_flow import AccountMove, ConversionPlan, ConversionResult, EntryChange
-from ..schemas.category import CategoryCreate, CategoryKindName, CategoryRead
+from ..schemas.category import CategoryRead
 from .account import AccountService
 from .account_types import RETIRED_KEYS, TYPE_KEYS, TYPE_NAMES, TYPE_ROOTS
 from .category import CategoryService
@@ -319,7 +319,8 @@ class CashFlowConversion:
         plan._work = work
         return plan
 
-    def apply(self, plan: ConversionPlan) -> ConversionResult:
+    def apply(self, plan: ConversionPlan, *, commit: bool = True) -> ConversionResult:
+        """Carry `plan` out. `commit=False` leaves the commit to the caller (a restore, which saves everything at once)."""
         work: _Work = plan._work
         if work is None:
             raise ConversionRefused("work out a plan first!")
@@ -329,10 +330,14 @@ class CashFlowConversion:
 
         made: dict[tuple[str, str], UUID] = {}
         for (key, kind), name in work.new_categories.items():
-            made[(key, kind)] = self.categories.create(CategoryCreate(name=name, kind=cast(CategoryKindName, kind))).id
+            category = BudgetCategory(user_id=self.ar.uid, name=name, kind=kind)
+            made[(key, kind)] = self.categories.cr.add(category).id
             result.categories_made.append(name)
         for category_id in work.reopen:
-            self.categories.reopen(category_id)
+            reopened = self.categories.cr.read(category_id)
+            if reopened is not None:
+                reopened.closed_on = None
+                self.ar.db.add(reopened)
 
         def category(ref: CategoryRef | None) -> UUID | None:
             if ref is None or isinstance(ref, UUID):
@@ -343,7 +348,7 @@ class CashFlowConversion:
         for key, group_id in work.type_groups.items():
             if group_id is None:
                 created = self.ar.create(
-                    AccountCreate(name=TYPE_NAMES[key], parent_id=work.roots[TYPE_ROOTS[key]]),
+                    AccountBase(name=TYPE_NAMES[key], parent_id=work.roots[TYPE_ROOTS[key]]),
                     new_accounts_in_budget=True,
                 )
                 created.system_key = key
@@ -376,7 +381,10 @@ class CashFlowConversion:
         for account_id in work.accounts_to_delete:
             self.ar.delete(account_id)
         result.accounts_deleted = len(work.accounts_to_delete)
-        self.ar.db.commit()
+        if commit:
+            self.ar.db.commit()
+        else:
+            self.ar.db.flush()
         return result
 
 

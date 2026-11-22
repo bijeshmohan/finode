@@ -20,7 +20,6 @@ from ..schemas.transaction import (
     TransactionRead,
     TransactionUpdate,
 )
-from ..schemas.views import PaymentCategory
 from ..services.payee_suggestions import suggest
 from ..services.transaction import InvalidPostingError
 
@@ -177,15 +176,3 @@ def related_transactions(transaction_id: UUID, transactions: Transactions):
     if transactions.read(transaction_id) is None:
         raise HTTPException(status_code=404, detail="transaction not found")
     return transactions.related(transaction_id)
-
-
-@router.post("/{transaction_id}/category", response_model=TransactionRead)
-def label_payment(transaction_id: UUID, data: PaymentCategory, transactions: Transactions):
-    """Give an entry's payments into accounts outside the budget (a loan, a fund) that no category took a category: the
-    to-do bell's fix. 400 when the entry has no payment waiting for one."""
-    if transactions.read(transaction_id) is None:
-        raise HTTPException(status_code=404, detail="transaction not found")
-    try:
-        return transactions.label_payment(transaction_id, data.category_id)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from None

@@ -2,16 +2,14 @@
 
 import pytest
 
-from tests.books import category
+from tests.books import category, post_account
 
 MISSING = "00000000-0000-4000-8000-0000000000aa"
 
 
 @pytest.fixture
 def bank(client, root_accounts):
-    return client.post(
-        "/api/accounts/", json={"name": "HDFC", "parent_id": root_accounts["Assets"], "balance": "10000"}
-    ).json()
+    return post_account(client, {"name": "HDFC", "parent_id": root_accounts["Assets"], "balance": "10000"}).json()
 
 
 @pytest.fixture
@@ -302,16 +300,13 @@ def test_a_shared_expense_with_nothing_spent_or_owed_is_refused(client, bank, di
 
 
 def test_a_card_can_pay_and_the_budget_sees_only_your_share(client, bank, dining, people, root_accounts):
-    card = client.post(
-        "/api/accounts/", json={"name": "Visa", "parent_id": root_accounts["Liabilities"], "on_budget": True}
-    ).json()
+    card = post_account(client, {"name": "Visa", "parent_id": root_accounts["Liabilities"], "on_budget": True}).json()
     client.put(f"/api/budget/categories/{dining['id']}", json={"amount": "1000"})
     body = dinner(bank, dining, people, payments=[{"account_id": card["id"], "amount": "1500"}])
     assert client.post("/api/shared-expenses/", params={"confirm": True}, json=body).status_code == 201
     view = client.get("/api/budget/").json()
     line = next(l for l in view["lines"] if l["name"] == "Dining")
     assert float(line["activity"]) == 500 and float(line["available"]) == 500
-    assert view["uncategorised"] == []
     assert balance(client, card["id"]) == 1500, "the card owes the whole bill"
 
 
@@ -335,7 +330,7 @@ def test_the_category_must_be_an_open_spending_category(client, bank, dining, pe
 def test_merging_the_account_that_paid_moves_the_bill_to_the_account_it_became(
     client, bank, dining, people, root_accounts
 ):
-    other = client.post("/api/accounts/", json={"name": "ICICI", "parent_id": root_accounts["Assets"]}).json()
+    other = post_account(client, {"name": "ICICI", "parent_id": root_accounts["Assets"]}).json()
     made = client.post("/api/shared-expenses/", params={"confirm": True}, json=dinner(bank, dining, people)).json()
     both = dinner(
         bank,
@@ -357,7 +352,7 @@ def test_merging_the_account_that_paid_moves_the_bill_to_the_account_it_became(
 
 
 def test_an_account_a_draft_is_paid_from_is_not_deleted_from_under_it(client, bank, dining, people, root_accounts):
-    wallet = client.post("/api/accounts/", json={"name": "Wallet", "parent_id": root_accounts["Assets"]}).json()
+    wallet = post_account(client, {"name": "Wallet", "parent_id": root_accounts["Assets"]}).json()
     body = dinner(bank, dining, people, payments=[{"account_id": wallet["id"], "amount": "1500"}])
     draft = client.post("/api/shared-expenses/", json=body).json()
     refused = client.delete(f"/api/accounts/{wallet['id']}")

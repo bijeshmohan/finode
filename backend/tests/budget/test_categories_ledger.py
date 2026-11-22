@@ -50,14 +50,12 @@ def roots(client):
 @pytest.fixture
 def books(client, root_accounts):
     bank = account(client, root_accounts, "Bank", "Assets", balance="100000")
-    loan = account(client, root_accounts, "Home Loan", "Liabilities", on_budget=False)
     food = account(client, root_accounts, "Food", "Expenses")
     groceries = post_account(client, {"name": "Groceries", "parent_id": food["id"]}).json()
     emi = account(client, root_accounts, "EMI", "Expenses")
     salary = account(client, root_accounts, "Salary", "Income")
     return {
         "bank": bank,
-        "loan": loan,
         "food": food,
         "groceries": groceries,
         "emi": emi,
@@ -76,7 +74,7 @@ def test_a_category_has_no_account_behind_it(client, session, books):
     assert got["Groceries"].parent_id == got["Food"].id and got["Food"].parent_id is None
     assert (got["Food"].kind, got["Salary"].kind) == ("spending", "earning")
     accounts = {a["name"] for a in client.get("/api/accounts/").json()}
-    assert {"Bank", "Home Loan"} <= accounts and not accounts & {"Food", "Groceries", "EMI", "Salary"}
+    assert "Bank" in accounts and not accounts & {"Food", "Groceries", "EMI", "Salary"}
 
 
 def test_renaming_moving_and_closing_a_category(client, session, books):
@@ -121,56 +119,34 @@ def test_a_line_to_a_category_posts_to_expenses_and_carries_it(client, session, 
     assert made.json()["postings"][0]["account_id"] == str(roots(client)["Expenses"]), "it posts to Expenses"
 
 
-def test_a_payment_into_a_loan_keeps_the_label_it_was_given_or_none(client, session, books):
-    plain = entry(client, [(books["loan"]["id"], "debit", "1000", None), (books["bank"]["id"], "credit", "1000", None)])
-    assert lines(session, plain.json()["id"])[(UUID(books["loan"]["id"]), "debit")] is None, "nothing is filled in"
-    labelled = entry(
-        client,
-        [(books["loan"]["id"], "debit", "1000", books["emi"]["id"]), (books["bank"]["id"], "credit", "1000", None)],
-    )
-    assert lines(session, labelled.json()["id"])[(UUID(books["loan"]["id"]), "debit")] == UUID(books["emi"]["id"])
-
-
 def test_a_line_can_name_its_category_and_a_split_can_use_several(client, session, books):
     split = entry(
         client,
         [
-            (books["loan"]["id"], "debit", "14120", books["emi"]["id"]),
+            (books["emi"]["id"], "debit", "14120", None),
             (books["groceries"]["id"], "debit", "5157", None),
             (books["bank"]["id"], "credit", "19277", None),
         ],
     )
     assert split.status_code == 201, split.text
-    got = lines(session, split.json()["id"])
-    assert got[(UUID(books["loan"]["id"]), "debit")] == UUID(books["emi"]["id"])
-    assert got[(roots(client)["Expenses"], "debit")] == UUID(books["groceries"]["id"])
-
-
-def test_the_same_account_twice_with_different_categories_is_a_split_of_that_account(client, session, books):
-    split = entry(
-        client,
-        [
-            (books["loan"]["id"], "debit", "14120", books["emi"]["id"]),
-            (books["loan"]["id"], "debit", "5157", books["food"]["id"]),
-            (books["bank"]["id"], "credit", "19277", None),
-        ],
-    )
-    assert split.status_code == 201, split.text
-    categories_on_loan = sorted(
+    spent = sorted(
         str(p.category_id)
-        for p in session.exec(select(Posting).where(Posting.account_id == UUID(books["loan"]["id"]))).all()
+        for p in session.exec(select(Posting).where(Posting.transaction_id == UUID(split.json()["id"]))).all()
+        if p.account_id == roots(client)["Expenses"]
     )
-    assert categories_on_loan == sorted([books["emi"]["id"], books["food"]["id"]])
+    assert spent == sorted([books["emi"]["id"], books["groceries"]["id"]]), "each line says what it was for"
 
 
 @pytest.mark.parametrize(
     ("which", "message"),
-    [("unknown", "not found"), ("earning_on_loan", "earning category"), ("earning_on_expenses", "cannot go on")],
+    [("unknown", "not found"), ("earning_on_expenses", "cannot go on")],
 )
 def test_a_category_that_does_not_fit_the_line_is_refused(client, books, which, message):
     bad = {
-        "unknown": (books["loan"]["id"], "00000000-0000-4000-8000-0000000000aa"),
-        "earning_on_loan": (books["loan"]["id"], books["salary"]["id"]),
+        "unknown": (
+            books["expenses"]["id"] if "expenses" in books else books["bank"]["id"],
+            "00000000-0000-4000-8000-0000000000aa",
+        ),
         "earning_on_expenses": (books["roots"]["Expenses"], books["salary"]["id"]),
     }[which]
     response = entry(client, [(bad[0], "debit", "10", bad[1]), (books["bank"]["id"], "credit", "10", None)])
@@ -180,20 +156,20 @@ def test_a_category_that_does_not_fit_the_line_is_refused(client, books, which, 
 def test_a_closed_category_cannot_be_used_but_an_entry_that_already_has_it_can_be_edited(client, books):
     made = entry(
         client,
-        [(books["loan"]["id"], "debit", "10", books["emi"]["id"]), (books["bank"]["id"], "credit", "10", None)],
+        [(books["emi"]["id"], "debit", "10", None), (books["bank"]["id"], "credit", "10", None)],
     )
     transaction_id = made.json()["id"]
     client.post(f"/api/categories/{books['emi']['id']}/close")
     refused = entry(
         client,
-        [(books["loan"]["id"], "debit", "10", books["emi"]["id"]), (books["bank"]["id"], "credit", "10", None)],
+        [(books["emi"]["id"], "debit", "10", None), (books["bank"]["id"], "credit", "10", None)],
     )
     assert refused.status_code == 400
     again = client.patch(
         f"/api/transactions/{transaction_id}",
         json={
             "postings": [
-                {"account_id": books["loan"]["id"], "side": "debit", "amount": "12", "category_id": books["emi"]["id"]},
+                {"category_id": books["emi"]["id"], "side": "debit", "amount": "12"},
                 leg(books["bank"], "credit", "12"),
             ]
         },
@@ -207,7 +183,7 @@ def test_a_closed_category_cannot_be_used_but_an_entry_that_already_has_it_can_b
 def test_a_category_that_labels_entries_cannot_be_deleted_only_closed(client, session, books):
     entry(
         client,
-        [(books["loan"]["id"], "debit", "10", books["emi"]["id"]), (books["bank"]["id"], "credit", "10", None)],
+        [(books["emi"]["id"], "debit", "10", None), (books["bank"]["id"], "credit", "10", None)],
     )
     svc = services(session)
     result = svc.categories.delete(UUID(books["emi"]["id"]))
@@ -218,9 +194,7 @@ def test_a_category_that_labels_entries_cannot_be_deleted_only_closed(client, se
 
 
 def test_merging_two_expense_categories_moves_lines_labels_and_plan(client, session, books):
-    entry(
-        client, [(books["loan"]["id"], "debit", "10", books["emi"]["id"]), (books["bank"]["id"], "credit", "10", None)]
-    )
+    entry(client, [(books["emi"]["id"], "debit", "10", None), (books["bank"]["id"], "credit", "10", None)])
     spent = entry(client, [(books["emi"]["id"], "debit", "7", None), (books["bank"]["id"], "credit", "7", None)])
     assign(client, books["emi"], "500")
     assign(client, books["food"], "300")

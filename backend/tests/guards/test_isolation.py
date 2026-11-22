@@ -134,7 +134,6 @@ REFERENCES = {
 
 # Actions on the caller's own data (their whole account): they take no id, so B's use of them must leave A alone.
 OWN_DATA = {
-    ("POST", "/api/accounts/groups"),
     ("POST", "/api/erase"),
     ("POST", "/api/delete-account"),
 }
@@ -315,7 +314,6 @@ def body_for(world: World, method: str, path: str) -> dict:
                 ],
             }
         },
-        ("POST", "/api/transactions/{transaction_id}/category"): {"json": {"category_id": bills}},
         ("PUT", "/api/budget/categories/{category_id}"): {"json": {"amount": "5"}},
         ("PUT", "/api/recurring/{recurring_id}"): {
             "json": {"from_account_id": mine, "to_account_id": bills, "amount": "1", "start_date": "2999-01-01"}
@@ -367,14 +365,14 @@ def test_b_sees_only_b_in_every_list_and_page(client: TestClient, session, world
             seen += 1
         # The numbers are B's too: the same endpoints, read as data.
         theirs = services(session, B_USER)
-        assert plain(theirs.reports.summary())["net_worth"] == "660.00"
+        assert plain(theirs.reports.summary())["cash_on_hand"] == "660.00"
         trial = client.get("/api/reports/trial-balance").json()
         assert trial["balanced"] and {a["account"] for a in trial["lines"]} <= {
-            "Assets:Mine",
+            "Assets:Bank Account:Mine",
             "Expenses:Bills",
             "Equity:Opening Balances",
         }
-        assert {a["name"] for a in client.get("/api/accounts/").json() if a["parent_id"]} == {
+        assert {a["name"] for a in client.get("/api/accounts/").json() if a["parent_id"] and not a["system_key"]} == {
             "Mine",
             "Opening Balances",
             "Due from Bea's friend",
@@ -620,7 +618,6 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
         refused(
             "account under A's group (again)", "POST", "/api/accounts/", json={"name": "x", "parent_id": a["Banks"]}
         )
-        refused("move into A's group", "PATCH", f"/api/accounts/{mine}", json={"parent_id": a["Banks"]})
         refused(
             "recurring on A's accounts",
             "POST",
@@ -665,7 +662,6 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             json={"from_category": a["Groceries"], "to_category": bills, "amount": "1"},
         )
         refused("API group budget for A's", "PUT", f"/api/budget/groups/{a['Groceries']}", json={"total": "5"})
-        refused("API include A's account", "POST", f"/api/budget/accounts/{a['HDFC']}/include")
         refused("API reopen A's account", "POST", f"/api/accounts/{a['HDFC']}/reopen")
         refused("API register of A's account", "GET", f"/api/accounts/{a['HDFC']}/register")
         refused("API filter by A's category", "GET", "/api/transactions/", params={"category_id": a["Groceries"]})

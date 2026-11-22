@@ -15,7 +15,6 @@ export function card(over: Partial<AccountCardData> = {}): AccountCardData {
     id: ids.hdfc,
     name: "HDFC",
     balance: "5000.00",
-    on_budget: true,
     closed: false,
     pinned: false,
     note: null,
@@ -25,35 +24,34 @@ export function card(over: Partial<AccountCardData> = {}): AccountCardData {
 
 export function accounts(over: Partial<AccountsView> = {}): AccountsView {
   return {
-    net_worth: "4700.00",
     account_count: 3,
-    has_budget_accounts: true,
     pinned: [],
     kinds: [
       {
-        name: "Banks",
+        name: "Bank Account",
+        type: "assets.bank",
         group_id: ids.banks,
         total: "5000.00",
         owed: false,
         open_count: 1,
         all_closed: false,
-        add_url: `/accounts/new?parent=${ids.banks}`,
-        cards: [card(), card({ id: ids.old, name: "Old Savings", balance: "0.00", closed: true, on_budget: false })],
+        add_url: "/accounts/new?type=assets.bank",
+        cards: [card(), card({ id: ids.old, name: "Old Savings", balance: "0.00", closed: true })],
       },
       {
-        name: "Credit Cards",
+        name: "Credit Card",
+        type: "liabilities.cards",
         group_id: ids.cards,
         total: "300.00",
         owed: true,
         open_count: 1,
         all_closed: false,
-        add_url: `/accounts/new?parent=${ids.cards}`,
+        add_url: "/accounts/new?type=liabilities.cards",
         cards: [
           card({
             id: ids.visa,
             name: "Visa",
             balance: "300.00",
-            on_budget: false,
             note: { kind: "due", on: "2026-11-20", soon: true },
           }),
         ],
@@ -70,7 +68,7 @@ export function account(over: Partial<AccountView> = {}): AccountView {
     name: "HDFC",
     details: null,
     badge: null,
-    sub: "Banks",
+    sub: "Bank Account",
     closed_on: null,
     balance: "5000.00",
     balance_after: null,
@@ -112,39 +110,26 @@ export function entry(id: string, over: Partial<AccountView["entries"][number]> 
   };
 }
 
-export const kinds = {
-  banks: { id: ids.banks, name: "Banks", root: "Assets", can_budget: true, can_bill: false, budget_default: true },
-  loans: {
-    id: "00000000-0000-4000-8000-00000000c10a",
-    name: "Loans",
-    root: "Liabilities",
-    can_budget: true,
-    can_bill: true,
-    budget_default: false,
-  },
-};
+export const types: components["schemas"]["AccountTypeChoice"][] = [
+  { key: "assets.bank", name: "Bank Account" },
+  { key: "assets.cash", name: "Cash" },
+  { key: "liabilities.cards", name: "Credit Card" },
+  { key: "assets.wallet", name: "Prepaid Wallet" },
+];
 
 export function accountForm(
   over: Partial<components["schemas"]["AccountFormView"]> = {},
 ): components["schemas"]["AccountFormView"] {
   return {
     editing: false,
-    is_group: false,
     name: "",
     details: null,
     balance: null,
-    parent_id: null,
-    kinds: [kinds.banks, kinds.loans],
-    placed: null,
-    parent_options: [kinds.banks, kinds.loans],
-    root_name: null,
-    can_budget: false,
-    can_bill: false,
-    on_budget: false,
+    type: null,
+    types,
     statement_day: null,
     due_day: null,
     bill_rounding: "none",
-    new_accounts_in_budget: null,
     ...over,
   };
 }

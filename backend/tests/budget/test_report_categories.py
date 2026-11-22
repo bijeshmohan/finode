@@ -1,21 +1,27 @@
-"""Reports: the breakdown is by category (what the money was for, as the budget counts it); the summary also has the
-books' expenses, where paying into a loan is no expense."""
+"""Reports: the breakdown is by category (what the money was for, as the budget counts it); the summary has the books'
+expenses and the budget's spending, the same money now that every payment is spending in a category."""
 
 import pytest
 
 from tests.books import leg
 from tests.budget.test_budget import account
-from tests.budget.test_budget_categories import paid
+
+
+def paid(client, bank, to, amount):
+    response = client.post(
+        "/api/transactions/", json={"postings": [leg(to, "debit", amount), leg(bank, "credit", amount)]}
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
 
 
 @pytest.fixture
 def books(client, root_accounts):
     bank = account(client, root_accounts, "Bank", "Assets", balance="100000")
-    loan = account(client, root_accounts, "Home Loan", "Liabilities", on_budget=False)
     emi = account(client, root_accounts, "EMI", "Expenses")
     food = account(client, root_accounts, "Food", "Expenses")
     salary = account(client, root_accounts, "Salary", "Income")
-    return {"bank": bank, "loan": loan, "emi": emi, "food": food, "salary": salary}
+    return {"bank": bank, "emi": emi, "food": food, "salary": salary}
 
 
 def breakdown(client, **params):
@@ -25,7 +31,7 @@ def breakdown(client, **params):
 
 
 def test_the_breakdown_is_by_category(client, books):
-    paid(client, books["bank"], books["loan"], "1000", books["emi"])  # labelled for EMI, no payment link needed
+    paid(client, books["bank"], books["emi"], "1000")  # an EMI is spending in its category
     paid(client, books["bank"], books["food"], "200")
     by_category = breakdown(client)
     assert by_category["total"] == "1200.00"
@@ -47,16 +53,16 @@ def test_income_is_by_category_too(client, books):
 
 
 def test_the_summary_has_the_books_expenses_and_the_budgets_spending(client, books):
-    paid(client, books["bank"], books["loan"], "1000", books["emi"])
+    paid(client, books["bank"], books["emi"], "1000")
     paid(client, books["bank"], books["food"], "200")
     summary = client.get("/api/reports/summary").json()
-    assert (summary["expenses"], summary["spent"], summary["net_income"]) == ("200.00", "1200.00", "-200.00")
+    assert (summary["expenses"], summary["spent"], summary["net_income"]) == ("1200.00", "1200.00", "-1200.00")
 
 
-def test_a_category_page_lists_the_loan_payments_labelled_for_it(client, books):
-    paid(client, books["bank"], books["loan"], "1000", books["emi"])
+def test_a_category_page_lists_the_payments_made_for_it(client, books):
+    paid(client, books["bank"], books["emi"], "1000")
     entries = client.get(f"/api/categories/{books['emi']['id']}/register").json()
-    assert [e["change"] for e in entries] == ["1000.00"] and entries[0]["counter_accounts"][0] in ("Home Loan", "Bank")
+    assert [e["change"] for e in entries] == ["1000.00"] and entries[0]["counter_accounts"][0] == "Bank"
 
 
 def test_a_category_cannot_be_put_on_a_line_to_a_budget_account(client, books):

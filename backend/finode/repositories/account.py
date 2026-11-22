@@ -8,7 +8,7 @@ from sqlmodel import Session, col, func, select
 
 from ..models.account import Account
 from ..models.contact import ContactAccount
-from ..schemas.account import AccountCreate, AccountUpdate
+from ..schemas.account import AccountBase, AccountUpdate
 from .cache import remember, remembered
 
 
@@ -21,12 +21,12 @@ class AccountRepository:
 
     def create(
         self,
-        data: AccountCreate,
+        data: AccountBase,
         on_budget: bool = False,
         new_accounts_in_budget: bool | None = None,
         pinned: bool = False,
     ) -> Account:
-        values = data.model_dump(exclude={"balance", "on_budget"})
+        values = data.model_dump()
         account = Account(
             **values,
             on_budget=on_budget,
@@ -82,20 +82,13 @@ class AccountRepository:
         account = self.db.exec(statement).first()
         return account
 
-    def update(
-        self,
-        account_id: UUID,
-        data: AccountUpdate,
-        on_budget: bool | None = None,
-    ) -> Account | None:
+    def update(self, account_id: UUID, data: AccountUpdate) -> Account | None:
         account = self.read(account_id)
         if not account:
             return None
-        values = data.model_dump(exclude_unset=True, exclude={"balance", "on_budget"})
+        values = data.model_dump(exclude_unset=True, exclude={"balance"})
         for key, value in values.items():
             setattr(account, key, value)
-        if on_budget is not None:
-            account.on_budget = on_budget
         self.db.add(account)
         self.db.flush()
         return account

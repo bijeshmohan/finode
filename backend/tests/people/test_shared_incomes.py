@@ -2,16 +2,14 @@
 
 import pytest
 
-from tests.books import category
+from tests.books import category, post_account
 
 MISSING = "00000000-0000-4000-8000-0000000000aa"
 
 
 @pytest.fixture
 def bank(client, root_accounts):
-    return client.post(
-        "/api/accounts/", json={"name": "HDFC", "parent_id": root_accounts["Assets"], "balance": "0"}
-    ).json()
+    return post_account(client, {"name": "HDFC", "parent_id": root_accounts["Assets"], "balance": "0"}).json()
 
 
 @pytest.fixture
@@ -213,7 +211,7 @@ def test_cancel_removes_the_entry_and_what_it_left_owed(client, bank, rent, peop
 
 
 def test_an_ordinary_entry_is_not_shared_income(client, bank, root_accounts):
-    cash = client.post("/api/accounts/", json={"name": "Cash", "parent_id": root_accounts["Assets"]}).json()
+    cash = post_account(client, {"name": "Cash", "parent_id": root_accounts["Assets"]}).json()
     plain = client.post(
         "/api/transactions/",
         json={

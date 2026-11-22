@@ -35,7 +35,6 @@ export function AccountCard({ card, mark = true }: { card: AccountCardData; mark
       <span className={styles.cardName}>
         <span>{card.name}</span>
         {card.closed && <span className={look.badge}>closed</span>}
-        {card.on_budget && !card.closed && <i className={look.dot} title="In the budget" />}
       </span>
       <span className={styles.cardFoot}>
         <span className={styles.cardBalance}>{formatMoney(card.balance, grouping)}</span>

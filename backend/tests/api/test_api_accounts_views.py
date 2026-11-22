@@ -16,21 +16,20 @@ from tests.guards.test_isolation import B_USER, signed_in_as
 
 @pytest.fixture
 def tree(client, root_accounts, session):
-    def make(name, parent, **extra):
-        return post_account(client, {"name": name, "parent_id": parent, **extra}).json()["id"]
+    """Accounts of every type: two Bank Accounts, a Credit Card, two Prepaid Wallets and a Cash account."""
+    groups = {a["system_key"]: a["id"] for a in client.get("/api/accounts/").json() if a["system_key"]}
 
-    banks = make("Banks", root_accounts["Assets"])
-    ids = {"banks": banks, "hdfc": make("HDFC", banks, balance="5000"), "old": make("Old Savings", banks)}
-    cards = make("Credit Cards", root_accounts["Liabilities"])
-    ids["cards"] = cards
-    ids["amex"] = make("Amex", cards, balance="300")
-    food = make(
-        "Food", root_accounts["Assets"]
-    )  # a second group, so no Expenses account is needed (those are categories)
-    ids["food"] = food
-    ids["groceries"] = make("Groceries", food)
-    ids["snacks"] = make("Snacks", food)
-    ids["rent"] = make("Rent", root_accounts["Assets"])
+    def make(name, kind, **extra):
+        made = client.post("/api/accounts/", json={"name": name, "type": kind, **extra})
+        assert made.status_code == 201, made.text
+        return made.json()["id"]
+
+    ids = {"banks": groups["assets.bank"], "cards": groups["liabilities.cards"], "food": groups["assets.wallet"]}
+    ids |= {"hdfc": make("HDFC", "assets.bank", balance="5000"), "old": make("Old Savings", "assets.bank")}
+    ids["amex"] = make("Amex", "liabilities.cards", balance="300")
+    ids["groceries"] = make("Groceries", "assets.wallet")
+    ids["snacks"] = make("Snacks", "assets.wallet")
+    ids["rent"] = make("Rent", "assets.cash")
     return ids
 
 
@@ -78,20 +77,26 @@ def test_the_accounts_page_view(client, session, tree):
     transfer(client, tree["hdfc"], tree["groceries"], "10", local_today() - timedelta(days=45))
     age(session, "Old Savings", "Snacks", days=40)
     seen = view(client)
-    assert [k["name"] for k in seen["kinds"]] == ["Banks", "Credit Cards", "Food", "Other"]
+    assert [(k["name"], k["type"]) for k in seen["kinds"]] == [
+        ("Bank Account", "assets.bank"),
+        ("Cash", "assets.cash"),
+        ("Credit Card", "liabilities.cards"),
+        ("Prepaid Wallet", "assets.wallet"),
+    ], "the four types in their starting order"
     banks = seen["kinds"][0]
     assert (banks["total"], banks["owed"], banks["open_count"], banks["add_url"]) == (
         "4890.00",
         False,
         2,
-        f"/accounts/new?parent={tree['banks']}",
+        "/accounts/new?type=assets.bank",
     )
-    assert seen["kinds"][1]["owed"] is True and seen["kinds"][3]["add_url"] == "/accounts/new?root=assets"
-    assert Decimal(seen["net_worth"]) == Decimal("4700.00")
+    assert seen["kinds"][2]["owed"] is True
+    assert "net_worth" not in seen and "has_budget_accounts" not in seen
     cards = cards_of(seen)
     assert cards["Old Savings"]["note"] == {"kind": "empty", "on": None, "soon": False}
     assert cards["Groceries"]["note"]["kind"] == "stale"
     assert cards["HDFC"]["note"] is None and cards["Rent"]["note"] is None
+    assert "on_budget" not in cards["HDFC"], "every account is in the budget: no dot to draw"
     assert seen["account_count"] == 6 and seen["has_closed"] is False
 
 
@@ -114,8 +119,8 @@ def test_pinned_never_holds_a_closed_account(client, tree):
 def test_a_kind_whose_accounts_are_all_closed_says_so(client, tree):
     for name in ("groceries", "snacks"):
         assert client.post(f"/api/accounts/{tree[name]}/close").status_code == 200
-    food = next(k for k in view(client)["kinds"] if k["name"] == "Food")
-    assert food["all_closed"] is True and food["open_count"] == 0
+    wallets = next(k for k in view(client)["kinds"] if k["name"] == "Prepaid Wallet")
+    assert wallets["all_closed"] is True and wallets["open_count"] == 0
 
 
 def test_an_accounts_page_view(client, tree):
@@ -123,7 +128,7 @@ def test_an_accounts_page_view(client, tree):
     transfer(client, tree["rent"], tree["hdfc"], "30", local_today())
     transfer(client, tree["hdfc"], tree["rent"], "5", local_today() + timedelta(days=3))
     seen = view(client, f"/api/views/accounts/{tree['hdfc']}")
-    assert (seen["name"], seen["sub"], seen["balance"]) == ("HDFC", "Banks", "4930.00")
+    assert (seen["name"], seen["sub"], seen["balance"]) == ("HDFC", "Bank Account", "4930.00")
     assert seen["can_pin"] is True and seen["can_edit"] is True and seen["is_group"] is False
     assert seen["balance_after"] == "4925.00" and [u["amount"] for u in seen["upcoming"]] == ["5.00"]
     rows = seen["entries"]
@@ -157,7 +162,7 @@ def test_a_groups_page_lists_its_open_accounts_as_cards(client, tree):
     client.post(f"/api/accounts/{tree['old']}/close")
     seen = view(client, f"/api/views/accounts/{tree['banks']}")
     assert seen["is_group"] is True and [c["name"] for c in seen["cards"]] == ["HDFC"]
-    assert seen["sub"] == "Group · money I own" and seen["can_pin"] is False
+    assert seen["sub"] == "Built in · money I own" and seen["can_pin"] is False
 
 
 def test_a_cards_bill_and_the_days_to_set(client, tree):
@@ -184,30 +189,24 @@ def form(client, **params):
     return view(client, "/api/views/account-form", **params)
 
 
-def test_a_new_account_form_by_kind(client, root_accounts, tree):
+def test_a_new_account_form_by_type(client, tree):
     blank = form(client)
-    assert blank["editing"] is False and blank["parent_id"] is None and blank["placed"] is None
-    kinds = {k["name"]: k for k in blank["kinds"]}
-    assert set(kinds) >= {"Banks", "Credit Cards", "Food"}
-    assert (kinds["Banks"]["can_budget"], kinds["Banks"]["can_bill"], kinds["Banks"]["budget_default"]) == (
-        True,
-        False,
-        True,
-    )
-    assert (kinds["Credit Cards"]["can_bill"], kinds["Credit Cards"]["budget_default"]) == (True, False)
-    owed = form(client, root="liabilities")
-    assert owed["placed"] == {"label": "Kind", "value": "Other you owe"} and owed["can_bill"] is True
-    assert owed["parent_id"] == root_accounts["Liabilities"]
-    assert form(client, parent=tree["banks"])["parent_id"] == tree["banks"]
+    assert blank["editing"] is False and blank["type"] is None
+    assert [(t["key"], t["name"]) for t in blank["types"]] == [
+        ("assets.bank", "Bank Account"),
+        ("assets.cash", "Cash"),
+        ("liabilities.cards", "Credit Card"),
+        ("assets.wallet", "Prepaid Wallet"),
+    ]
+    assert form(client, type="liabilities.cards")["type"] == "liabilities.cards"
+    assert form(client, type="liabilities.loans")["type"] is None, "only the four"
 
 
 def test_an_edit_form(client, tree):
-    group = form(client, account_id=tree["banks"])
-    assert group["editing"] is True and group["is_group"] is True and group["kinds"] == []
     hdfc = form(client, account_id=tree["hdfc"])
-    assert (hdfc["name"], hdfc["balance"], hdfc["parent_id"]) == ("HDFC", "5000.00", tree["banks"])
-    assert tree["banks"] in [k["id"] for k in hdfc["parent_options"]]
-    assert hdfc["can_budget"] is True and hdfc["can_bill"] is False
+    assert (hdfc["editing"], hdfc["name"], hdfc["balance"], hdfc["type"]) == (True, "HDFC", "5000.00", "assets.bank")
+    assert hdfc["types"] == [], "an account keeps its type"
+    assert client.get("/api/views/account-form", params={"account_id": tree["banks"]}).status_code == 404
 
 
 def test_a_strangers_account_form_is_not_found(client, root_accounts, tree):
@@ -261,18 +260,6 @@ def test_upcoming_on_a_card_follows_the_same_rule(client, root_accounts):
 # Ported from test_web_accounts_page.py (the old Accounts page), step 10.
 
 
-def test_the_budget_dot_and_the_key_follow_the_accounts_in_the_budget(client, tree):
-    assert cards_of(view(client))["HDFC"]["on_budget"] is True
-    client.patch(f"/api/accounts/{tree['hdfc']}", json={"on_budget": False})
-    seen = view(client)
-    assert cards_of(seen)["HDFC"]["on_budget"] is False and cards_of(seen)["Rent"]["on_budget"] is True
-    assert seen["has_budget_accounts"] is True
-    for account in client.get("/api/accounts/").json():
-        if account["on_budget"]:
-            client.patch(f"/api/accounts/{account['id']}", json={"on_budget": False})
-    assert view(client)["has_budget_accounts"] is False, "no account feeds the budget: no key"
-
-
 def test_a_cards_quiet_line_follows_its_newest_entry_and_ignores_one_dated_ahead(client, tree):
     assert transfer(client, tree["hdfc"], tree["old"], "10", local_today() + timedelta(days=9)).status_code == 201
     assert cards_of(view(client))["Old Savings"]["note"]["kind"] == "empty", "an entry dated ahead is not the last"
@@ -289,26 +276,3 @@ def test_a_card_with_nothing_to_pay_says_no_bill(client, tree):
     assert transfer(client, made["id"], tree["hdfc"], "10", local_today()).status_code == 201
     note = cards_of(view(client))["Visa"]["note"]
     assert note is None or note["kind"] not in ("due", "overdue")
-
-
-def test_the_built_in_kinds_come_in_their_order_with_owed_ones_marked(client, monkeypatch):
-    from finode.services import account as account_service
-    from tests.ledger.test_fixed_parents import make
-
-    monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
-    for name, parent, balance in (
-        ("Home loan", "Loans", "900"),
-        ("Fund", "Investments", "400"),
-        ("Visa", "Credit Cards", "50"),
-        ("Wallet", "Cash", "30"),
-        ("HDFC", "Bank Accounts", "10"),
-    ):
-        make(client, name, parent, balance=balance)
-    kinds = [(k["name"], k["total"], k["owed"]) for k in view(client)["kinds"]]
-    assert kinds == [
-        ("Bank Accounts", "10.00", False),
-        ("Cash", "30.00", False),
-        ("Credit Cards", "50.00", True),
-        ("Investments", "400.00", False),
-        ("Loans", "900.00", True),
-    ]

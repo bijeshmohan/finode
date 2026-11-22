@@ -13,26 +13,6 @@ from .day import Day
 Money = Field()
 
 
-class BudgetLeftOut(BaseModel):
-    # An account that could be part of the budget but is not, and what it paid for this month.
-    account_id: UUID
-    path: str
-    entries: int
-    spent: Decimal = Money
-
-
-class BudgetUncategorised(BaseModel):
-    """A payment into an account outside the budget (a loan, a fund) that no category took: the money left the budget
-    and no envelope paid for it, so Ready to assign dropped."""
-
-    transaction_id: UUID
-    date: Date
-    payee: str | None = None
-    # The account it went into, as a path.
-    account: str
-    amount: Decimal = Money
-
-
 class BudgetCard(BaseModel):
     """A credit card (or other liability that is part of the budget): what is set aside to pay it."""
 
@@ -72,7 +52,7 @@ class BudgetRead(BaseModel):
     currency: str
     # Money in the budget's accounts that is not assigned to a category yet. Negative when more is assigned than there is.
     ready_to_assign: Decimal = Money
-    # Money in the budget's accounts (cards and loans counted as negative).
+    # Money in the budget's accounts (credit cards counted as negative).
     cash: Decimal = Money
     assigned: Decimal = Money
     activity: Decimal = Money
@@ -88,15 +68,8 @@ class BudgetRead(BaseModel):
     money_in_accounts: Decimal = Money
     reserved_for_cards: Decimal = Money
     cards: list[BudgetCard] = []
-    # Payments into loans and funds this month that carry no category (give each one, and the budget counts it).
-    uncategorised: list[BudgetUncategorised] = Field(default_factory=list)
-    # Spending this month that is not counted in the categories because it was paid from accounts outside the
-    # budget (a credit card that was never switched on, for example), and those accounts.
-    left_out: Decimal = Money
-    left_out_accounts: list[BudgetLeftOut] = []
-    # The accounts whose money is budgeted, and the flagged ones left out (accounts with sub-accounts).
+    # The accounts whose money is budgeted: every account of the four types.
     budget_accounts: list[str]
-    ignored_accounts: list[str]
     lines: list[BudgetLine]
 
 

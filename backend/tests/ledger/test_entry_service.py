@@ -56,18 +56,6 @@ def test_an_expense_on_a_category(session, places):
     assert balanced(session)
 
 
-def test_a_payment_into_a_loan_keeps_its_category(session, places):
-    saved = entries(session).create(
-        form(
-            "transfer",
-            ((places["bank"], "credit", "500"), (places["loan"], "debit", "500", {"category_id": places["emi"]})),
-        )
-    )
-    entry = services(session).transactions.read(saved.transaction_id)
-    assert next(p for p in entry.postings if p.side == PostingSide.DEBIT).category_id == places["emi"]
-    assert balanced(session)
-
-
 def test_a_person_on_a_transfer_is_a_loan(client, session, places):
     saved = entries(session).create(
         form("transfer", ((places["bank"], "credit", "200"), (places["ada"], "debit", "200")))

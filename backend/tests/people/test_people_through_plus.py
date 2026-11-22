@@ -4,7 +4,7 @@ the person as its payee."""
 
 import pytest
 
-from tests.books import category
+from tests.books import category, post_account
 from tests.people.test_people_entries import save
 
 MISSING = "00000000-0000-4000-8000-0000000000aa"
@@ -12,9 +12,7 @@ MISSING = "00000000-0000-4000-8000-0000000000aa"
 
 @pytest.fixture
 def bank(client, root_accounts):
-    return client.post(
-        "/api/accounts/", json={"name": "HDFC", "parent_id": root_accounts["Assets"], "balance": "10000"}
-    ).json()
+    return post_account(client, {"name": "HDFC", "parent_id": root_accounts["Assets"], "balance": "10000"}).json()
 
 
 def person(client, name="Alice"):

@@ -4,14 +4,11 @@ the real run only with a backup on disk and nothing left undecided."""
 from sqlmodel import Session
 
 from finode.commands.cash_flow import main
-from finode.schemas.account import AccountUpdate
-from finode.services import account as account_service
 from tests.conftest import TEST_USER_ID
 from tests.data.test_cash_flow_conversion import _build
 
 
 def _setup(session, monkeypatch):
-    monkeypatch.setattr(account_service, "NEW_PROFILE_FIXED_PARENTS", True)
     s, ids = _build(session)
     engine = session.get_bind()
     return s, ids, lambda: Session(engine)
@@ -55,7 +52,9 @@ def test_apply_refuses_while_something_needs_a_decision(session, monkeypatch, tm
 
 def test_apply_converts(session, monkeypatch, tmp_path, capsys):
     s, ids, factory = _setup(session, monkeypatch)
-    s.accounts.update(ids.old_sbi, AccountUpdate(on_budget=True))
+    sbi = s.accounts.ar.read(ids.old_sbi)
+    s.accounts.ar.place(sbi.id, sbi.parent_id, sbi.name, True)
+    session.commit()
     backup = tmp_path / "finode.sql.gz"
     backup.write_bytes(b"dump")
     assert main(["--user", str(TEST_USER_ID), "--apply", "--backup", str(backup)], factory) == 0

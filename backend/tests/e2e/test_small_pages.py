@@ -22,18 +22,23 @@ def todo_sheet(page: Page):
     return page.get_by_role("dialog", name="To do")
 
 
-def loan_payment(api: Api, books: dict) -> dict:
-    loan = api.post("/accounts/", name="Home loan", parent_id=books["roots"]["Liabilities"], on_budget=False)
-    emi = api.post("/accounts/", name="EMI", parent_id=books["roots"]["Expenses"])
+def amex_due_soon(api: Api, books: dict) -> None:
+    """A card whose bill is due in two days: one thing for the bell."""
+    today = local_today()
+    statement = today - timedelta(days=10)
+    amex = api.post(
+        "/accounts/",
+        name="Amex",
+        type="liabilities.cards",
+        statement_day=statement.day,
+        due_day=(today + timedelta(days=2)).day,
+    )
     api.post(
         "/transactions/",
-        payee="EMI payment",
-        postings=[leg(loan, "debit", "500"), leg(books["checking"], "credit", "500")],
+        payee="Swiggy",
+        date=str(statement - timedelta(days=5)),
+        postings=[leg(books["food"], "debit", "1250"), leg(amex, "credit", "1250")],
     )
-    return emi
-
-
-# ---- the bell ---------------------------------------------------------------------------------------------------
 
 
 def test_the_bell_has_no_count_when_nothing_needs_you(signed_in_page: Page, books):
@@ -43,36 +48,6 @@ def test_the_bell_has_no_count_when_nothing_needs_you(signed_in_page: Page, book
     expect(bell(page)).to_have_text("")
     bell(page).click()
     expect(todo_sheet(page)).to_contain_text("Nothing needs you.")
-
-
-def test_a_payment_with_no_category_is_fixed_from_the_sheet_and_the_count_follows(
-    signed_in_page: Page, api: Api, books
-):
-    page = signed_in_page
-    emi = loan_payment(api, books)
-    page.goto("/accounts")
-    expect(bell(page)).to_have_text("1")
-    bell(page).click()
-    sheet = todo_sheet(page)
-    expect(sheet).to_contain_text("1 payment has no category")
-    sheet.get_by_label("Category for EMI payment").select_option(emi["id"])
-    expect(sheet).to_contain_text("Nothing needs you.")
-    expect(bell(page)).to_have_text("")
-    entry = next(t for t in api.get("/transactions/") if t["payee"] == "EMI payment")
-    assert emi["id"] in {p["category_id"] for p in entry["postings"]}
-
-
-def test_an_account_left_out_is_added_from_the_sheet(signed_in_page: Page, api: Api, books):
-    page = signed_in_page
-    card = api.post("/accounts/", name="Old card", parent_id=books["roots"]["Liabilities"], on_budget=False)
-    api.post("/transactions/", postings=[leg(books["food"], "debit", "75"), leg(card, "credit", "75")])
-    page.goto("/")
-    bell(page).click()
-    sheet = todo_sheet(page)
-    expect(sheet).to_contain_text("Liabilities:Old card is not in the budget")
-    sheet.get_by_role("button", name="Add to budget").click()
-    expect(sheet).to_contain_text("Nothing needs you.")
-    assert api.get(f"/accounts/{card['id']}")["on_budget"] is True
 
 
 def test_a_bill_due_soon_is_in_the_bell_and_pay_bill_opens_the_form(signed_in_page: Page, api: Api, books):
@@ -105,7 +80,7 @@ def test_a_bill_due_soon_is_in_the_bell_and_pay_bill_opens_the_form(signed_in_pa
 def test_the_bell_sits_where_the_web_page_puts_it(signed_in_page: Page, api: Api, books):
     """The badge at the bell's top right; in the sidebar the bell sits at the foot with Settings."""
     page = signed_in_page
-    loan_payment(api, books)
+    amex_due_soon(api, books)
     page.set_viewport_size({"width": 390, "height": 800})
     page.goto("/")
     expect(bell(page)).to_have_text("1")

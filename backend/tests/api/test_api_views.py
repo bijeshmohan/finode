@@ -113,7 +113,7 @@ def test_a_filter_sums_what_matches(client, books):
 def test_filters_that_are_not_yours_find_nothing(client, books):
     with signed_in_as(B_USER):
         roots = {a["name"]: a["id"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
-        theirs = client.post("/api/accounts/", json={"name": "Hidden Vault", "parent_id": roots["Assets"]}).json()
+        theirs = post_account(client, {"name": "Hidden Vault", "parent_id": roots["Assets"]}).json()
     spend(client, books)
     answer = client.get("/api/views/transactions", params={"month": MONTH, "account": theirs["id"]})
     assert answer.status_code == 200, answer.text
@@ -252,7 +252,7 @@ def test_a_blank_form(client, books):
     )
     assert [r["choice"] for r in seen["from_rows"]] == [None] and [r["choice"] for r in seen["to_rows"]] == [None]
     titles = [g["title"] for g in seen["groups"]]
-    assert "Assets" in titles and "Expenses" in titles and "Income" in titles
+    assert "Bank Account" in titles and "Expenses" in titles and "Income" in titles, "accounts by their type"
     bank = next(o for g in seen["groups"] for o in g["options"] if o["id"] == books["bank"]["id"])
     assert bank["balance"] == "5000.00" and bank["budget"] is True
 
@@ -318,7 +318,7 @@ def test_a_loan_opens_with_the_person_on_its_row(client, books):
 
 
 def test_pay_a_card(client, books, root_accounts):
-    card = client.post("/api/accounts/", json={"name": "Visa", "parent_id": root_accounts["Liabilities"]}).json()
+    card = post_account(client, {"name": "Visa", "parent_id": root_accounts["Liabilities"]}).json()
     seen = form_view(client, pay=card["id"], amount="1,500")
     assert (seen["kind"], seen["total"], seen["to_rows"][0]["choice"]) == ("transfer", "1500", card["id"])
 
@@ -340,18 +340,17 @@ def test_related_entries(client, books):
 def test_the_form_offers_only_what_can_be_posted_to(client, root_accounts):
     food = post_account(client, {"name": "food", "parent_id": root_accounts["Expenses"]}).json()
     dining = post_account(client, {"name": "dining", "parent_id": food["id"]}).json()
-    bank = post_account(client, {"name": "bank", "parent_id": root_accounts["Assets"]}).json()
-    post_account(client, {"name": "hdfc", "parent_id": bank["id"]})
+    hdfc = post_account(client, {"name": "hdfc", "type": "assets.bank"}).json()
+    banks = next(a for a in client.get("/api/accounts/").json() if a["system_key"] == "assets.bank")
     options = {o["id"]: o["label"] for g in form_view(client)["groups"] for o in g["options"]}
     assert food["id"] in options and options[dining["id"]].endswith("dining"), "a category group and its subcategory"
-    assert bank["id"] not in options, "an account group is not posted to"
+    assert hdfc["id"] in options and banks["id"] not in options, "a type itself is not posted to"
     assert not set(root_accounts.values()) & set(options), "nor a root"
 
 
 def test_the_kind_follows_what_the_entry_is(client, root_accounts, account, other_account, expense_account):
     salary = post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]}).json()
     card = post_account(client, {"name": "Visa", "parent_id": root_accounts["Liabilities"]}).json()
-    capital = post_account(client, {"name": "Capital", "parent_id": root_accounts["Equity"]}).json()
     tips = post_account(client, {"name": "Tips", "parent_id": root_accounts["Expenses"]}).json()
 
     def made(*lines):
@@ -364,7 +363,6 @@ def test_the_kind_follows_what_the_entry_is(client, root_accounts, account, othe
         made((account, "debit", "5"), (salary, "credit", "5")): "income",
         made((card, "debit", "5"), (account, "credit", "5")): "transfer",
         made((other_account, "debit", "5"), (account, "credit", "5")): "transfer",
-        made((account, "debit", "5"), (capital, "credit", "5")): "other",
         made((account, "debit", "5"), (expense_account, "credit", "5")): "other",  # a refund
         made((expense_account, "debit", "6"), (tips, "debit", "4"), (account, "credit", "10")): "expense",
     }
@@ -374,9 +372,7 @@ def test_the_kind_follows_what_the_entry_is(client, root_accounts, account, othe
 
 def test_opening_the_form_from_an_account_or_a_category_picks_the_kind(client, root_accounts, account, expense_account):
     salary = post_account(client, {"name": "Salary", "parent_id": root_accounts["Income"]}).json()
-    capital = post_account(client, {"name": "Capital", "parent_id": root_accounts["Equity"]}).json()
     assert form_view(client, category=salary["id"])["kind"] == "income"
-    assert form_view(client, account=capital["id"])["kind"] == "other"
     assert form_view(client, category=expense_account["id"])["kind"] == "expense"
     assert form_view(client, account=account["id"])["kind"] == "expense"
 

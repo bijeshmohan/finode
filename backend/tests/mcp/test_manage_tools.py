@@ -24,18 +24,19 @@ async def call(c, tool, **args):
 async def test_a_rename_keeps_the_id(session, client, books):
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, name="Claude", scope="manage")) as c:
         done = await call(c, "update_account", account="Banks", name="Bank Accounts", details="where salary lands")
-        assert done["was"] == "Assets:Banks" and done["updated"]["path"] == "Assets:Bank Accounts"
+        assert (
+            done["was"] == "Assets:Bank Account:Banks"
+            and done["updated"]["path"] == "Assets:Bank Account:Bank Accounts"
+        )
         assert done["updated"]["id"] == books["banks"]["id"] and done["updated"]["details"] == "where salary lands"
         by_old_id = await call(c, "get_account", account=books["hdfc"]["id"])
-        assert by_old_id["path"] == "Assets:Bank Accounts:HDFC" and by_old_id["balance"] == "500.00"
+        assert by_old_id["path"] == "Assets:Bank Account:HDFC" and by_old_id["balance"] == "500.00"
         assert "get_account_history" not in {t.name for t in (await c.list_tools()).tools}
 
 
 @pytest.mark.anyio
-async def test_move_budget_flag_and_clearing_a_note(session, client, books):
+async def test_clearing_a_note(session, client, books):
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="manage")) as c:
-        moved = await call(c, "update_account", account="HDFC", parent="Cash2", on_budget=False)
-        assert moved["updated"]["path"] == "Assets:Cash2:HDFC" and moved["updated"]["on_budget"] is False
         await call(c, "update_account", account="HDFC", details="x")
         assert (await call(c, "update_account", account="HDFC", details=""))["updated"]["details"] is None
         with pytest.raises(ToolFailed, match="nothing to change"):
@@ -45,8 +46,6 @@ async def test_move_budget_flag_and_clearing_a_note(session, client, books):
 @pytest.mark.anyio
 async def test_the_rules_still_apply(session, client, books):
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="manage")) as c:
-        with pytest.raises(ToolFailed, match="hold categories"):
-            await call(c, "update_account", account="HDFC", parent="Expenses")
         with pytest.raises(ToolFailed, match="already|exists"):
             await call(c, "update_account", account="Cash2", name="Banks")
         with pytest.raises(ToolFailed):

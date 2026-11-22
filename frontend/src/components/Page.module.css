@@ -53,23 +53,6 @@
   font-size: 0.8125rem;
   color: var(--muted);
 }
-.budgetKey {
-  display: inline-flex;
-  align-items: center;
-}
-.budgetKey .dot {
-  margin: 0 0.35rem 0 0;
-}
-.dot {
-  display: inline-block;
-  flex: none;
-  width: 6px;
-  height: 6px;
-  margin-left: 0.45rem;
-  border-radius: 50%;
-  background: var(--text);
-  opacity: 0.55;
-}
 .badge {
   margin-left: 0.4rem;
   padding: 0 0.45rem;

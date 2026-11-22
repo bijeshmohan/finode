@@ -9,8 +9,16 @@ from finode.auth.identity import CurrentUser, require_authenticated_user
 from finode.main import app
 from tests.books import leg
 from tests.budget.test_budget import account, budget, line
-from tests.budget.test_budget_categories import paid
 from tests.conftest import TEST_USER_ID
+
+
+def paid(client, bank, to, amount, category=None):
+    """Money from the bank to `to` (the Expenses account itself, for spending), the line labelled with `category`."""
+    posting = leg(to, "debit", amount) | ({"category_id": category["id"]} if category else {})
+    response = client.post("/api/transactions/", json={"postings": [posting, leg(bank, "credit", amount)]})
+    assert response.status_code == 201, response.text
+    return response.json()
+
 
 OTHER = UUID("00000000-0000-4000-8000-0000000000cc")
 
@@ -24,7 +32,7 @@ def as_user(user_id):
 @pytest.fixture
 def books(client, root_accounts):
     bank = account(client, root_accounts, "Bank", "Assets", balance="100000")
-    loan = account(client, root_accounts, "Home Loan", "Liabilities", on_budget=False)
+    loan = {"id": root_accounts["Expenses"]}  # spending lines post to Expenses and carry their category
     emi = account(client, root_accounts, "EMI", "Expenses")
     sip = account(client, root_accounts, "SIP", "Expenses")
     food = account(client, root_accounts, "Food", "Expenses")
@@ -219,32 +227,6 @@ def test_a_backup_with_a_category_that_does_not_fit_is_refused(client, books):
 
 
 # ---- the ledger file and the CSV ---------------------------------------------------------------
-
-
-def test_a_payment_into_a_loan_is_exported_with_its_category_and_imported_back(client, books):
-    paid(client, books["bank"], books["loan"], "300", books["sip"])
-    paid(client, books["bank"], books["food"], "40")
-    text = client.get("/api/export").text
-    assert "; category: SIP" in text
-    assert text.count("; category:") == 1, "only a label the account does not say itself is written"
-    csv_lines = client.get("/api/export", params={"format": "csv"}).text.splitlines()
-    assert any(row.endswith(",Expenses:Food,Food,40.00,") for row in csv_lines)
-    assert any(",Liabilities:Home Loan,SIP,300.00," in row for row in csv_lines)
-    try:
-        as_user(OTHER)
-        done = client.post("/api/import", files={"file": ("a.ledger", text.encode())})
-        assert done.status_code == 200, done.text
-        names = {a["id"]: a["name"] for a in client.get("/api/accounts/").json()}
-        category_names = {c["id"]: c["name"] for c in client.get("/api/categories/").json()}
-        labelled = {
-            category_names[p["category_id"]]
-            for t in client.get("/api/transactions/").json()
-            for p in t["postings"]
-            if p["category_id"] and names[p["account_id"]] == "Home Loan"
-        }
-        assert labelled == {"SIP"}
-    finally:
-        as_user(TEST_USER_ID)
 
 
 def test_an_import_names_a_category_that_is_not_there(client, root_accounts):

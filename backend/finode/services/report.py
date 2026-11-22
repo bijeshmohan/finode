@@ -29,7 +29,7 @@ class ReportService:
         period_start: date | None = None,
         period_end: date | None = None,
     ) -> SummaryRead:
-        """Net worth as of now plus income and expenses for a period.
+        """Cash on hand now (the four types' balances, cards taken off) plus income and expenses for a period.
 
         The period defaults to the current month so far.
         """
@@ -41,8 +41,10 @@ class ReportService:
 
         accounts = self.accounts.list()
         roots = {a.name: a for a in accounts if a.parent_id is None}
-        assets = roots["Assets"].balance
-        liabilities = roots["Liabilities"].balance
+        cash_on_hand = sum(
+            (-a.balance if a.type == "liabilities.cards" else a.balance for a in accounts if a.type is not None),
+            Decimal("0.00"),
+        )
 
         income, expenses = self._period_totals(roots, period_start, period_end)
         spent = sum(self.category_totals("spending", period_start, period_end).values(), Decimal("0.00"))
@@ -51,9 +53,7 @@ class ReportService:
             currency=self.accounts.currency().code,
             period_start=period_start,
             period_end=period_end,
-            assets=assets,
-            liabilities=liabilities,
-            net_worth=assets - liabilities,
+            cash_on_hand=cash_on_hand,
             income=income,
             expenses=expenses,
             spent=spent,

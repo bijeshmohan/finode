@@ -10,9 +10,9 @@ from ..models.account import Account
 from ..models.category import BudgetCategory
 from ..models.transaction import PostingSide
 from ..repositories import BudgetRepository, CategoryRepository, TransactionRepository
-from ..schemas.account import AccountUpdate
-from ..schemas.budget import BudgetCard, BudgetLeftOut, BudgetLine, BudgetRead, BudgetUncategorised
+from ..schemas.budget import BudgetCard, BudgetLine, BudgetRead
 from .account import AccountService
+from .account_types import in_budget as budgeted
 from .transaction import decimal_places
 
 ZERO = Decimal("0.00")
@@ -45,10 +45,10 @@ class BudgetService:
     The only thing stored is the plan: how much of each month the user assigned to each spending category
     (`budget_categories`). Everything else is derived, so editing the ledger can never leave it stale:
 
-    - *cash* is what the budget's accounts hold: the asset and liability accounts the user flagged
-      (`accounts.on_budget`), debits minus credits, a credit card counting as negative.
+    - *cash* is what the budget's accounts hold: every account of the four types (services/account_types.py),
+      debits minus credits, a credit card counting as negative.
     - *activity* of a category in a month is what was posted to it in transactions that touch a
-      budget account (spending from an account outside the budget is not the budget's business).
+      budget account (a person's "Due from"/"Due to" alone is not the budget's business).
     - *available* is everything assigned to the category up to the month minus its activity up to
       then, so what is left (or overspent) carries into the next month.
     - *ready to assign* is cash minus the sum of all categories' available money. Income arriving
@@ -118,79 +118,19 @@ class BudgetService:
         parents = {a.parent_id for a in accounts if a.parent_id is not None}
         categories = self._categories()
 
-        owed = self.accounts.ar.contact_account_ids()  # "Due from" and "Due to": money owed, not a place money is kept
         in_budget: set[UUID] = set()
-        candidates: dict[UUID, Account] = {}  # could be in the budget but are not: assets/liabilities that could be
         budget_accounts: list[str] = []
-        ignored: list[str] = []
         for a in accounts:
-            if not a.on_budget:
-                home = by_id.get(a.parent_id) if a.parent_id else None
-                if (
-                    home is not None
-                    and a.id not in parents
-                    and a.new_accounts_in_budget is None
-                    and a.id not in owed
-                    and AccountService.root_name(a, by_id) in ("Assets", "Liabilities")
-                    # A group whose accounts start outside the budget (loans, investments) is outside by design: no nudge to add them.
-                    and home.new_accounts_in_budget is not False
-                ):
-                    candidates[a.id] = a
-                continue
-            label = ":".join(self._path_with_root(a, by_id))
-            if a.id not in parents:
+            if budgeted(a, by_id) and a.id not in parents:
                 in_budget.add(a.id)
-                budget_accounts.append(label)
-            else:
-                ignored.append(label)
+                budget_accounts.append(":".join(self._path_with_root(a, by_id)))
         budget_accounts.sort()
-        ignored.sort()
 
         touching: set[UUID] = set()
         postings = self.tr.posting_rows(through)
         for p in postings:
             if p.account_id in in_budget:
                 touching.add(p.transaction_id)
-
-        # Payments this month into accounts outside the budget (a loan, a fund) that no category took.
-        unlabelled = [
-            p
-            for p in postings
-            if p.transaction_id in touching
-            and p.side == PostingSide.DEBIT
-            and p.category_id is None
-            and p.account_id not in in_budget
-            and p.account_id not in owed
-            and first_of_month(p.date) == month
-            and p.account_id in by_id
-            and AccountService.root_name(by_id[p.account_id], by_id) in ("Assets", "Liabilities")
-        ]
-        uncategorised: list[BudgetUncategorised] = []
-        if unlabelled:
-            entries = self.tr.read_many(list({p.transaction_id for p in unlabelled}))
-            for p in sorted(unlabelled, key=lambda p: (p.date, str(p.transaction_id)), reverse=True):
-                entry = entries.get(p.transaction_id)
-                uncategorised.append(
-                    BudgetUncategorised(
-                        transaction_id=p.transaction_id,
-                        date=p.date,
-                        payee=entry.payee if entry else None,
-                        account=":".join(self._path_with_root(by_id[p.account_id], by_id)),
-                        amount=p.amount,
-                    )
-                )
-
-        # Spending this month in transactions that touch no budget account: [value, accounts that paid].
-        outside: dict[UUID, list] = {}
-        for p in postings:
-            if p.transaction_id in touching:
-                continue
-            if p.category_id in categories and first_of_month(p.date) == month:
-                value = p.amount if p.side == PostingSide.DEBIT else -p.amount
-                outside.setdefault(p.transaction_id, [ZERO, set()])[0] += value
-        for p in postings:  # the account that paid, not the loan or fund that took the money
-            if p.transaction_id in outside and p.side == PostingSide.CREDIT and p.account_id in candidates:
-                outside[p.transaction_id][1].add(p.account_id)
 
         every_row = self.br.list()
         allocations = [row for row in every_row if row.month <= month]
@@ -255,26 +195,6 @@ class BudgetService:
         total_activity = sum((v[1] for v in own.values()), ZERO)
         total_available = sum((v[2] for v in own.values()), ZERO)
         total_overspent = sum((v[3] for v in own.values()), ZERO)
-        left: dict[UUID, list] = {}
-        for value, payers in outside.values():
-            for account_id in payers:
-                entry = left.setdefault(account_id, [0, ZERO])
-                entry[0] += 1
-                entry[1] += value
-        left_out_accounts = sorted(
-            (
-                BudgetLeftOut(
-                    account_id=account_id,
-                    path=":".join(self._path_with_root(candidates[account_id], by_id)),
-                    entries=n,
-                    spent=v,
-                )
-                for account_id, (n, v) in left.items()
-            ),
-            key=lambda x: -x.spent,
-        )
-        left_out_total = sum((v[0] for v in outside.values() if v[1]), ZERO)
-
         cards = sorted(
             (
                 BudgetCard(
@@ -305,11 +225,7 @@ class BudgetService:
             money_in_accounts=cash + reserved,
             reserved_for_cards=reserved,
             cards=cards,
-            uncategorised=uncategorised,
-            left_out=left_out_total,
-            left_out_accounts=left_out_accounts,
             budget_accounts=budget_accounts,
-            ignored_accounts=ignored,
             lines=lines,
         )
         return read, own
@@ -429,14 +345,6 @@ class BudgetService:
         currency = self.accounts.currency()
         if decimal_places(amount) > currency.decimals:
             raise BudgetError(f"{currency.code} amounts can have at most {currency.decimals} decimal places!")
-
-    def include_account(self, account_id: UUID) -> None:
-        """Make an account part of the budget (its money and its spending count from now on)."""
-        try:
-            if self.accounts.update(account_id, AccountUpdate(on_budget=True)) is None:
-                raise BudgetError("account not found!")
-        except ValueError as e:
-            raise BudgetError(str(e)) from None
 
     def assigned(self, month: date, category_id: UUID) -> Decimal:
         row = self.br.read(month, category_id)

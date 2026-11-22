@@ -85,32 +85,13 @@ def setup(client, root_accounts):
 # ---- which accounts count ----------------------------------------------------------------------
 
 
-def test_new_asset_accounts_are_part_of_the_budget_and_cards_are_opted_in(client, root_accounts):
-    bank = account(client, root_accounts, "Bank", "Assets")
-    card = account(client, root_accounts, "Card", "Liabilities")
-    assert bank["on_budget"] is True
-    assert card["on_budget"] is False, "cards are opted in"
-    assert account(client, root_accounts, "Other", "Assets", on_budget=False)["on_budget"] is False
-
-
-def test_the_flag_can_be_changed_but_only_where_it_makes_sense(client, root_accounts):
-    card = account(client, root_accounts, "Card", "Liabilities")
-    ok = client.patch(f"/api/accounts/{card['id']}", json={"on_budget": True})
-    assert ok.status_code == 200 and ok.json()["on_budget"] is True
-    assert client.patch(f"/api/accounts/{card['id']}", json={"on_budget": False}).json()["on_budget"] is False
-    group = account(client, root_accounts, "Banks", "Assets", on_budget=False)
-    account_child = post_account(client, {"name": "Child", "parent_id": group["id"]}).json()
-    assert client.patch(f"/api/accounts/{group['id']}", json={"on_budget": True}).status_code == 400
-    assert account_child["on_budget"] is True
-
-
 # ---- ready to assign -----------------------------------------------------------------------------
 
 
 def test_the_money_in_budget_accounts_is_ready_to_assign(client, setup):
     data = budget(client)
     assert data["ready_to_assign"] == "1000.00" and data["cash"] == "1000.00"
-    assert data["budget_accounts"] == ["Assets:Bank"] and data["currency"] == "INR"
+    assert data["budget_accounts"] == ["Assets:Bank Account:Bank"] and data["currency"] == "INR"
     assert {l["name"] for l in data["lines"]} == {"Food", "Rent"}
 
 
@@ -158,20 +139,6 @@ def test_transfers_between_budget_accounts_change_nothing(client, root_accounts,
     assert budget(client)["ready_to_assign"] == "1000.00"
 
 
-def test_money_moved_out_of_the_budget_lowers_ready_to_assign(client, root_accounts, setup):
-    vault = account(client, root_accounts, "Vault", "Assets", on_budget=False)
-    move(client, setup["bank"], vault, "400")
-    data = budget(client)
-    assert data["ready_to_assign"] == "600.00" and data["budget_accounts"] == ["Assets:Bank"]
-
-
-def test_spending_from_outside_the_budget_is_not_the_budgets_business(client, root_accounts, setup):
-    vault = account(client, root_accounts, "Vault", "Assets", on_budget=False, balance="200")
-    move(client, vault, setup["food"], "80")
-    data = budget(client)
-    assert line(data, "Food")["activity"] == "0.00" and data["ready_to_assign"] == "1000.00"
-
-
 # ---- credit cards ----------------------------------------------------------------------------------
 
 
@@ -186,13 +153,7 @@ def test_a_card_in_the_budget_makes_purchases_count_and_payments_neutral(client,
     move(client, setup["bank"], card, "100")  # paid the card off
     data = budget(client)
     assert data["cash"] == "900.00" and data["ready_to_assign"] == "700.00"
-    assert "Liabilities:Card" in data["budget_accounts"]
-
-
-def test_a_card_left_out_of_the_budget_is_ignored(client, root_accounts, setup):
-    card = account(client, root_accounts, "Card", "Liabilities")
-    move(client, card, setup["food"], "100")
-    assert line(budget(client), "Food")["activity"] == "0.00"
+    assert "Liabilities:Credit Card:Card" in data["budget_accounts"]
 
 
 # ---- months ------------------------------------------------------------------------------------------
@@ -417,32 +378,6 @@ def test_history_before_the_first_assignment_is_not_overspending(client, setup):
     )
 
 
-def test_spending_from_a_card_outside_the_budget_is_pointed_out(client, root_accounts):
-    _bank = account(client, root_accounts, "Bank", "Assets", balance="1000")
-    card = account(client, root_accounts, "Card", "Liabilities")
-    food = account(client, root_accounts, "Food", "Expenses")
-    move(client, card, food, "75")
-    data = budget(client)
-    assert line(data, "Food")["activity"] == "0.00", "not counted while the card is outside the budget"
-    assert data["left_out"] == "75.00"
-    assert [(a["path"], a["entries"], a["spent"]) for a in data["left_out_accounts"]] == [
-        ("Liabilities:Card", 1, "75.00")
-    ]
-    client.patch(f"/api/accounts/{card['id']}", json={"on_budget": True})
-    after = budget(client)
-    assert (
-        line(after, "Food")["activity"] == "75.00" and after["left_out"] == "0.00" and after["left_out_accounts"] == []
-    )
-
-
-def test_spending_paid_from_equity_or_other_currencies_is_not_flagged(client, root_accounts):
-    food = account(client, root_accounts, "Food", "Expenses")
-    equity = account(client, root_accounts, "Gift", "Equity")
-    account(client, root_accounts, "Bank", "Assets", balance="10")
-    move(client, equity, food, "5")
-    assert budget(client)["left_out"] == "0.00"
-
-
 # ---- setting up a month quickly ------------------------------------------------------------------------------
 
 NEXT_MONTH = (THIS_MONTH + timedelta(days=32)).replace(day=1)
@@ -535,7 +470,7 @@ def test_a_card_shows_what_is_set_aside_for_its_bill(client, card_books):
     move(client, card_books["card"], card_books["food"], "100")  # a purchase on the card
     data = budget(client)
     [card] = data["cards"]
-    assert card["path"] == "Liabilities:Visa" and card["owed"] == "100.00"
+    assert card["path"] == "Liabilities:Credit Card:Visa" and card["owed"] == "100.00"
     assert card["charged"] == "100.00" and card["paid"] == "0.00"
     assert data["reserved_for_cards"] == "100.00" and data["money_in_accounts"] == "1000.00"
     assert line(data, "Food")["available"] == "50.00" and data["ready_to_assign"] == "850.00"
@@ -560,17 +495,6 @@ def test_a_card_in_credit_reserves_nothing(client, card_books):
     move(client, card_books["bank"], card_books["card"], "150")  # paid too much
     data = budget(client)
     assert data["cards"][0]["owed"] == "0.00" and data["reserved_for_cards"] == "0.00"
-    identity(data)
-
-
-def test_cards_outside_the_budget_and_budgets_without_cards_show_none(client, card_books, root_accounts):
-    other = account(client, root_accounts, "Amex", "Liabilities")
-    move(client, other, card_books["food"], "10")
-    data = budget(client)
-    assert [c["path"] for c in data["cards"]] == ["Liabilities:Visa"]
-    client.patch(f"/api/accounts/{card_books['card']['id']}", json={"on_budget": False})
-    data = budget(client)
-    assert data["cards"] == [] and data["reserved_for_cards"] == "0.00"
     identity(data)
 
 
@@ -600,7 +524,7 @@ def test_a_negative_assignment_can_only_take_back_what_the_category_has_left(cli
     from finode.schemas import AccountCreate
     from finode.services.budget import BudgetError
 
-    svc.accounts.create(AccountCreate(name="Bank", parent_id=root_accounts["Assets"], balance=Decimal(1000)))
+    svc.accounts.create(AccountCreate(name="Bank", type="assets.bank", balance=Decimal(1000)))
     from finode.schemas.category import CategoryCreate
 
     food = svc.categories.create(CategoryCreate(name="Food", kind="spending"))

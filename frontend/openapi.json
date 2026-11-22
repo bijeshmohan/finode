@@ -45,10 +45,6 @@
               }
             ]
           },
-          "on_budget": {
-            "title": "On Budget",
-            "type": "boolean"
-          },
           "pinned": {
             "title": "Pinned",
             "type": "boolean"
@@ -58,7 +54,6 @@
           "id",
           "name",
           "balance",
-          "on_budget",
           "closed",
           "pinned",
           "note"
@@ -121,29 +116,6 @@
             "title": "Name",
             "type": "string"
           },
-          "on_budget": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "On Budget"
-          },
-          "parent_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Parent Id"
-          },
           "statement_day": {
             "anyOf": [
               {
@@ -156,10 +128,21 @@
               }
             ],
             "title": "Statement Day"
+          },
+          "type": {
+            "enum": [
+              "assets.bank",
+              "assets.cash",
+              "liabilities.cards",
+              "assets.wallet"
+            ],
+            "title": "Type",
+            "type": "string"
           }
         },
         "required": [
-          "name"
+          "name",
+          "type"
         ],
         "title": "AccountCreate",
         "type": "object"
@@ -187,14 +170,6 @@
             "title": "Bill Rounding",
             "type": "string"
           },
-          "can_bill": {
-            "title": "Can Bill",
-            "type": "boolean"
-          },
-          "can_budget": {
-            "title": "Can Budget",
-            "type": "boolean"
-          },
           "details": {
             "anyOf": [
               {
@@ -221,75 +196,9 @@
             "title": "Editing",
             "type": "boolean"
           },
-          "is_group": {
-            "title": "Is Group",
-            "type": "boolean"
-          },
-          "kinds": {
-            "items": {
-              "$ref": "#/components/schemas/KindChoiceRead"
-            },
-            "title": "Kinds",
-            "type": "array"
-          },
           "name": {
             "title": "Name",
             "type": "string"
-          },
-          "new_accounts_in_budget": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "New Accounts In Budget"
-          },
-          "on_budget": {
-            "title": "On Budget",
-            "type": "boolean"
-          },
-          "parent_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Parent Id"
-          },
-          "parent_options": {
-            "items": {
-              "$ref": "#/components/schemas/KindChoiceRead"
-            },
-            "title": "Parent Options",
-            "type": "array"
-          },
-          "placed": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PlacedRead"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "root_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Root Name"
           },
           "statement_day": {
             "anyOf": [
@@ -301,26 +210,42 @@
               }
             ],
             "title": "Statement Day"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "assets.bank",
+                  "assets.cash",
+                  "liabilities.cards",
+                  "assets.wallet"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "types": {
+            "items": {
+              "$ref": "#/components/schemas/AccountTypeChoice"
+            },
+            "title": "Types",
+            "type": "array"
           }
         },
         "required": [
           "editing",
-          "is_group",
           "name",
           "details",
           "balance",
-          "parent_id",
-          "kinds",
-          "placed",
-          "parent_options",
-          "root_name",
-          "can_budget",
-          "can_bill",
-          "on_budget",
+          "type",
+          "types",
           "statement_day",
           "due_day",
-          "bill_rounding",
-          "new_accounts_in_budget"
+          "bill_rounding"
         ],
         "title": "AccountFormView",
         "type": "object"
@@ -399,22 +324,6 @@
             "title": "Name",
             "type": "string"
           },
-          "new_accounts_in_budget": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "New Accounts In Budget"
-          },
-          "on_budget": {
-            "default": false,
-            "title": "On Budget",
-            "type": "boolean"
-          },
           "parent_id": {
             "anyOf": [
               {
@@ -456,6 +365,23 @@
             ],
             "title": "System Key"
           },
+          "type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "assets.bank",
+                  "assets.cash",
+                  "liabilities.cards",
+                  "assets.wallet"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
           "updated": {
             "format": "date-time",
             "title": "Updated",
@@ -470,6 +396,61 @@
           "updated"
         ],
         "title": "AccountRead",
+        "type": "object"
+      },
+      "AccountTypeChoice": {
+        "description": "One of the four types a new account can be (the form's switcher).",
+        "properties": {
+          "key": {
+            "enum": [
+              "assets.bank",
+              "assets.cash",
+              "liabilities.cards",
+              "assets.wallet"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ],
+        "title": "AccountTypeChoice",
+        "type": "object"
+      },
+      "AccountTypeOption": {
+        "description": "What a new account made from the Add screen's \"New account\" sheet can be: one of the four types.",
+        "properties": {
+          "key": {
+            "enum": [
+              "assets.bank",
+              "assets.cash",
+              "liabilities.cards",
+              "assets.wallet"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "root": {
+            "title": "Root",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "root"
+        ],
+        "title": "AccountTypeOption",
         "type": "object"
       },
       "AccountUpdate": {
@@ -541,40 +522,6 @@
               }
             ],
             "title": "Name"
-          },
-          "new_accounts_in_budget": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "New Accounts In Budget"
-          },
-          "on_budget": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "On Budget"
-          },
-          "parent_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Parent Id"
           },
           "pinned": {
             "anyOf": [
@@ -823,10 +770,6 @@
             "title": "Account Count",
             "type": "integer"
           },
-          "has_budget_accounts": {
-            "title": "Has Budget Accounts",
-            "type": "boolean"
-          },
           "has_closed": {
             "title": "Has Closed",
             "type": "boolean"
@@ -838,11 +781,6 @@
             "title": "Kinds",
             "type": "array"
           },
-          "net_worth": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Net Worth",
-            "type": "string"
-          },
           "pinned": {
             "items": {
               "$ref": "#/components/schemas/AccountCard"
@@ -852,9 +790,7 @@
           }
         },
         "required": [
-          "net_worth",
           "account_count",
-          "has_budget_accounts",
           "pinned",
           "kinds",
           "has_closed"
@@ -1667,36 +1603,6 @@
         "title": "BudgetGroupView",
         "type": "object"
       },
-      "BudgetLeftOut": {
-        "properties": {
-          "account_id": {
-            "format": "uuid",
-            "title": "Account Id",
-            "type": "string"
-          },
-          "entries": {
-            "title": "Entries",
-            "type": "integer"
-          },
-          "path": {
-            "title": "Path",
-            "type": "string"
-          },
-          "spent": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Spent",
-            "type": "string"
-          }
-        },
-        "required": [
-          "account_id",
-          "path",
-          "entries",
-          "spent"
-        ],
-        "title": "BudgetLeftOut",
-        "type": "object"
-      },
       "BudgetLine": {
         "properties": {
           "activity": {
@@ -1886,26 +1792,6 @@
             "title": "Currency",
             "type": "string"
           },
-          "ignored_accounts": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Ignored Accounts",
-            "type": "array"
-          },
-          "left_out": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Left Out",
-            "type": "string"
-          },
-          "left_out_accounts": {
-            "default": [],
-            "items": {
-              "$ref": "#/components/schemas/BudgetLeftOut"
-            },
-            "title": "Left Out Accounts",
-            "type": "array"
-          },
           "lines": {
             "items": {
               "$ref": "#/components/schemas/BudgetLine"
@@ -1937,13 +1823,6 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Reserved For Cards",
             "type": "string"
-          },
-          "uncategorised": {
-            "items": {
-              "$ref": "#/components/schemas/BudgetUncategorised"
-            },
-            "title": "Uncategorised",
-            "type": "array"
           }
         },
         "required": [
@@ -1959,9 +1838,7 @@
           "copyable",
           "money_in_accounts",
           "reserved_for_cards",
-          "left_out",
           "budget_accounts",
-          "ignored_accounts",
           "lines"
         ],
         "title": "BudgetRead",
@@ -2108,49 +1985,6 @@
           "assigned_to_later_months"
         ],
         "title": "BudgetSum",
-        "type": "object"
-      },
-      "BudgetUncategorised": {
-        "description": "A payment into an account outside the budget (a loan, a fund) that no category took: the money left the budget\nand no envelope paid for it, so Ready to assign dropped.",
-        "properties": {
-          "account": {
-            "title": "Account",
-            "type": "string"
-          },
-          "amount": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Amount",
-            "type": "string"
-          },
-          "date": {
-            "format": "date",
-            "title": "Date",
-            "type": "string"
-          },
-          "payee": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Payee"
-          },
-          "transaction_id": {
-            "format": "uuid",
-            "title": "Transaction Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "transaction_id",
-          "date",
-          "account",
-          "amount"
-        ],
-        "title": "BudgetUncategorised",
         "type": "object"
       },
       "BudgetView": {
@@ -2396,25 +2230,6 @@
           "rows"
         ],
         "title": "CategoriesView",
-        "type": "object"
-      },
-      "CategoryChoice": {
-        "properties": {
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "path": {
-            "title": "Path",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "path"
-        ],
-        "title": "CategoryChoice",
         "type": "object"
       },
       "CategoryCreate": {
@@ -4007,11 +3822,11 @@
       "EntryFormView": {
         "description": "Where the Add screen starts, and what its pickers offer.",
         "properties": {
-          "account_parents": {
+          "account_types": {
             "items": {
-              "$ref": "#/components/schemas/ParentOption"
+              "$ref": "#/components/schemas/AccountTypeOption"
             },
-            "title": "Account Parents",
+            "title": "Account Types",
             "type": "array"
           },
           "category_parents": {
@@ -4160,7 +3975,7 @@
           "income_share",
           "person_page",
           "groups",
-          "account_parents",
+          "account_types",
           "category_parents"
         ],
         "title": "EntryFormView",
@@ -4823,35 +4638,6 @@
         "title": "GroupAssign",
         "type": "object"
       },
-      "GroupCreate": {
-        "description": "A group the person makes: a shelf on the Accounts page that holds accounts (it has no balance of its own).",
-        "properties": {
-          "name": {
-            "maxLength": 40,
-            "title": "Name",
-            "type": "string"
-          },
-          "new_accounts_in_budget": {
-            "title": "New Accounts In Budget",
-            "type": "boolean"
-          },
-          "root": {
-            "enum": [
-              "Assets",
-              "Liabilities"
-            ],
-            "title": "Root",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "root",
-          "new_accounts_in_budget"
-        ],
-        "title": "GroupCreate",
-        "type": "object"
-      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -5351,48 +5137,8 @@
         "title": "IncomeShare",
         "type": "object"
       },
-      "KindChoiceRead": {
-        "description": "A place a new account can go (a kind chip, or the place it was opened for), with what the form then asks.",
-        "properties": {
-          "budget_default": {
-            "title": "Budget Default",
-            "type": "boolean"
-          },
-          "can_bill": {
-            "title": "Can Bill",
-            "type": "boolean"
-          },
-          "can_budget": {
-            "title": "Can Budget",
-            "type": "boolean"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "root": {
-            "title": "Root",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "root",
-          "can_budget",
-          "can_bill",
-          "budget_default"
-        ],
-        "title": "KindChoiceRead",
-        "type": "object"
-      },
       "KindRow": {
-        "description": "One row of cards on the Accounts page: a kind of account and its accounts.",
+        "description": "One row of cards on the Accounts page: one of the four types and its accounts.",
         "properties": {
           "add_url": {
             "title": "Add Url",
@@ -5410,16 +5156,9 @@
             "type": "array"
           },
           "group_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Group Id"
+            "format": "uuid",
+            "title": "Group Id",
+            "type": "string"
           },
           "name": {
             "title": "Name",
@@ -5437,10 +5176,21 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Total",
             "type": "string"
+          },
+          "type": {
+            "enum": [
+              "assets.bank",
+              "assets.cash",
+              "liabilities.cards",
+              "assets.wallet"
+            ],
+            "title": "Type",
+            "type": "string"
           }
         },
         "required": [
           "name",
+          "type",
           "group_id",
           "total",
           "owed",
@@ -5904,41 +5654,6 @@
         "title": "OwedRead",
         "type": "object"
       },
-      "ParentOption": {
-        "description": "Where a new account can go (the Add screen's \"New account\" sheet): a root or a group, at its depth, and whether an\naccount made there can start with a balance.",
-        "properties": {
-          "depth": {
-            "title": "Depth",
-            "type": "integer"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "opening_balance": {
-            "title": "Opening Balance",
-            "type": "boolean"
-          },
-          "root": {
-            "title": "Root",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "depth",
-          "root",
-          "opening_balance"
-        ],
-        "title": "ParentOption",
-        "type": "object"
-      },
       "ParticipantIn": {
         "description": "Who shares the expense: you (`is_self`) or a contact. `value` is what the split method needs: nothing for an\nequal split, the weight for `shares`, the percentage for `percentage` or the amount for `exact`.",
         "properties": {
@@ -6085,20 +5800,6 @@
           }
         },
         "title": "PayeeSuggestions",
-        "type": "object"
-      },
-      "PaymentCategory": {
-        "properties": {
-          "category_id": {
-            "format": "uuid",
-            "title": "Category Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "category_id"
-        ],
-        "title": "PaymentCategory",
         "type": "object"
       },
       "PaymentIn": {
@@ -6556,25 +6257,6 @@
         "title": "PickOptionRead",
         "type": "object"
       },
-      "PlacedRead": {
-        "description": "What the form says instead of the kind chips when it was opened for a place that is not a kind (\"Kind \u00b7 Other\",\n\"Inside \u00b7 HDFC\").",
-        "properties": {
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "value": {
-            "title": "Value",
-            "type": "string"
-          }
-        },
-        "required": [
-          "label",
-          "value"
-        ],
-        "title": "PlacedRead",
-        "type": "object"
-      },
       "PostingCreate-Input": {
         "properties": {
           "account_id": {
@@ -6772,6 +6454,19 @@
       },
       "ProfileRead": {
         "properties": {
+          "account_type_order": {
+            "items": {
+              "enum": [
+                "assets.bank",
+                "assets.cash",
+                "liabilities.cards",
+                "assets.wallet"
+              ],
+              "type": "string"
+            },
+            "title": "Account Type Order",
+            "type": "array"
+          },
           "created": {
             "format": "date-time",
             "title": "Created",
@@ -6817,6 +6512,7 @@
           }
         },
         "required": [
+          "account_type_order",
           "created",
           "updated"
         ],
@@ -6825,6 +6521,26 @@
       },
       "ProfileUpdate": {
         "properties": {
+          "account_type_order": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "assets.bank",
+                    "assets.cash",
+                    "liabilities.cards",
+                    "assets.wallet"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Type Order"
+          },
           "default_currency": {
             "anyOf": [
               {
@@ -7068,11 +6784,11 @@
       "RecurringFormView": {
         "description": "Where the recurring form starts: the rule's rows as the Add screen shows them (no posting day, no people), its\nschedule, and for a rule being edited where it stands.",
         "properties": {
-          "account_parents": {
+          "account_types": {
             "items": {
-              "$ref": "#/components/schemas/ParentOption"
+              "$ref": "#/components/schemas/AccountTypeOption"
             },
-            "title": "Account Parents",
+            "title": "Account Types",
             "type": "array"
           },
           "active": {
@@ -7273,7 +6989,7 @@
           "from_rows",
           "to_rows",
           "groups",
-          "account_parents",
+          "account_types",
           "category_parents",
           "frequency",
           "every",
@@ -9290,9 +9006,9 @@
       },
       "SummaryRead": {
         "properties": {
-          "assets": {
+          "cash_on_hand": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Assets",
+            "title": "Cash On Hand",
             "type": "string"
           },
           "currency": {
@@ -9309,19 +9025,9 @@
             "title": "Income",
             "type": "string"
           },
-          "liabilities": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Liabilities",
-            "type": "string"
-          },
           "net_income": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Net Income",
-            "type": "string"
-          },
-          "net_worth": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Net Worth",
             "type": "string"
           },
           "period_end": {
@@ -9344,9 +9050,7 @@
           "currency",
           "period_start",
           "period_end",
-          "assets",
-          "liabilities",
-          "net_worth",
+          "cash_on_hand",
           "income",
           "expenses",
           "spent",
@@ -9489,22 +9193,6 @@
             },
             "title": "Failing Rules",
             "type": "array"
-          },
-          "left_out_accounts": {
-            "default": [],
-            "items": {
-              "$ref": "#/components/schemas/BudgetLeftOut"
-            },
-            "title": "Left Out Accounts",
-            "type": "array"
-          },
-          "uncategorised": {
-            "default": [],
-            "items": {
-              "$ref": "#/components/schemas/BudgetUncategorised"
-            },
-            "title": "Uncategorised",
-            "type": "array"
           }
         },
         "title": "TodoRead",
@@ -9544,13 +9232,6 @@
             "title": "Card Bills",
             "type": "array"
           },
-          "categories": {
-            "items": {
-              "$ref": "#/components/schemas/CategoryChoice"
-            },
-            "title": "Categories",
-            "type": "array"
-          },
           "count": {
             "title": "Count",
             "type": "integer"
@@ -9561,29 +9242,12 @@
             },
             "title": "Failing Rules",
             "type": "array"
-          },
-          "left_out_accounts": {
-            "items": {
-              "$ref": "#/components/schemas/BudgetLeftOut"
-            },
-            "title": "Left Out Accounts",
-            "type": "array"
-          },
-          "uncategorised": {
-            "items": {
-              "$ref": "#/components/schemas/BudgetUncategorised"
-            },
-            "title": "Uncategorised",
-            "type": "array"
           }
         },
         "required": [
           "count",
-          "uncategorised",
-          "left_out_accounts",
           "card_bills",
-          "failing_rules",
-          "categories"
+          "failing_rules"
         ],
         "title": "TodoView",
         "type": "object"
@@ -10938,53 +10602,6 @@
         ]
       }
     },
-    "/api/accounts/groups": {
-      "post": {
-        "description": "Make a group, a shelf for accounts: under Assets (money you own) or Liabilities (money you owe). `new_accounts_in_budget` is what an account made in it starts as. A group has no balance and can be empty.",
-        "operationId": "create_group_api_accounts_groups_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GroupCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AccountRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Create Group",
-        "tags": [
-          "accounts"
-        ]
-      }
-    },
     "/api/accounts/{account_id}": {
       "delete": {
         "description": "Delete an account for good; refused when it has entries, sub-accounts or a recurring rule (close it instead).",
@@ -12121,72 +11738,6 @@
           }
         ],
         "summary": "Get Budget",
-        "tags": [
-          "budget"
-        ]
-      }
-    },
-    "/api/budget/accounts/{account_id}/include": {
-      "post": {
-        "description": "Make an account part of the budget (its money and its spending count from now on).",
-        "operationId": "include_account_api_budget_accounts__account_id__include_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Account Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "month",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Month"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BudgetRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Include Account",
         "tags": [
           "budget"
         ]
@@ -15166,7 +14717,7 @@
     },
     "/api/reports/summary": {
       "get": {
-        "description": "Net worth now, plus income and expenses for a period (the current month so far by default).",
+        "description": "Cash on hand now, plus income and expenses for a period (the current month so far by default).",
         "operationId": "get_summary_api_reports_summary_get",
         "parameters": [
           {
@@ -16951,65 +16502,6 @@
         ]
       }
     },
-    "/api/transactions/{transaction_id}/category": {
-      "post": {
-        "description": "Give an entry's payments into accounts outside the budget (a loan, a fund) that no category took a category: the\nto-do bell's fix. 400 when the entry has no payment waiting for one.",
-        "operationId": "label_payment_api_transactions__transaction_id__category_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "transaction_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Transaction Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PaymentCategory"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TransactionRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Label Payment",
-        "tags": [
-          "transactions"
-        ]
-      }
-    },
     "/api/transactions/{transaction_id}/related": {
       "get": {
         "description": "The entries that are related to this one (refunds, reversals), oldest first.",
@@ -17210,7 +16702,7 @@
     },
     "/api/views/account-form": {
       "get": {
-        "description": "Where the account form starts: editing `account_id`, or a new account (opened for a kind with `parent`, or for the\nplain accounts of a type with `root` = `assets` or `liabilities`). The `kinds` (and `parent_options`) say for each\nplace whether an account there can be part of the budget, takes a card's days, and starts in the budget.",
+        "description": "Where the account form starts: editing `account_id` (it keeps its type), or a new account, with `type` already\nchosen when the form was opened for one (a type's \"+ Add account\"). `types` are the four to pick from, in order.",
         "operationId": "account_form_view_api_views_account_form_get",
         "parameters": [
           {
@@ -17232,29 +16724,18 @@
           },
           {
             "in": "query",
-            "name": "parent",
+            "name": "type",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "format": "uuid",
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "Parent"
-            }
-          },
-          {
-            "in": "query",
-            "name": "root",
-            "required": false,
-            "schema": {
-              "default": "",
-              "title": "Root",
-              "type": "string"
+              "title": "Type"
             }
           }
         ],
@@ -17293,7 +16774,7 @@
     },
     "/api/views/accounts": {
       "get": {
-        "description": "The Accounts page: net worth, the pinned accounts, and a row of cards per kind (Bank Accounts, Credit Cards\u2026, then\nthe groups the person made, then the plain accounts), each card with its balance and its one quiet line (a bill, no\nentries yet, none for a month). Closed accounts are listed too, marked, for \"Load more\".",
+        "description": "The Accounts page: the pinned accounts, and a row of cards per type (Bank Account, Cash, Credit Card, Prepaid\nWallet, in the person's order), each card with its balance and its one quiet line (a bill, no entries yet, none for\na month). Closed accounts are listed too, marked, for \"Load more\".",
         "operationId": "accounts_view_api_views_accounts_get",
         "responses": {
           "200": {

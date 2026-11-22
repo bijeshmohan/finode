@@ -1,10 +1,14 @@
-"""The person's profile and settings: names and currency."""
+"""The person's profile and settings: names, currency and the order of the account types."""
+
+from typing import cast
 
 from ..currencies import find as find_currency
 from ..models.profile import Profile
 from ..repositories import ProfileRepository
+from ..schemas.account import AccountType
 from ..schemas.profile import ProfileRead, ProfileUpdate
 from .account import AccountService
+from .account_types import type_order
 
 
 class ProfileService:
@@ -17,6 +21,7 @@ class ProfileService:
             first_name=profile.first_name,
             last_name=profile.last_name,
             default_currency=profile.currency,
+            account_type_order=cast(list[AccountType], type_order(profile.account_type_order)),
             created=profile.created,
             updated=profile.updated,
         )

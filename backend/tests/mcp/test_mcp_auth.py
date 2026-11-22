@@ -91,7 +91,7 @@ async def test_a_read_only_token_can_see_but_not_use_write_tools(session, root_a
             },
             "update_transaction": {"transaction_id": "00000000-0000-4000-8000-000000000001"},
             "delete_transaction": {"transaction_id": "00000000-0000-4000-8000-000000000001"},
-            "create_account": {"name": "X", "parent": "Assets"},
+            "create_account": {"name": "X", "kind": "Cash"},
             "assign_to_category": {"category": "Food", "amount": "1"},
             "move_budget_money": {"from_category": "Food", "to_category": "Rent", "amount": "1"},
             "copy_budget_from_previous_month": {},
@@ -109,8 +109,8 @@ async def test_each_token_sees_only_its_own_users_books(session, client, root_ac
     theirs = make_token(session, OTHER_USER, name="Theirs")
     async with running_app(session), mcp_client(theirs) as c:
         accounts = payload(await c.call_tool("list_accounts", {}))["accounts"]
-        assert "Assets:Mine" not in {a["path"] for a in accounts}
-        assert payload(await c.call_tool("get_overview", {}))["net_worth"] == "0.00"
+        assert "Assets:Bank Account:Mine" not in {a["path"] for a in accounts}
+        assert payload(await c.call_tool("get_overview", {}))["cash_on_hand"] == "0.00"
         with pytest.raises(ToolFailed, match="no account matches"):
             payload(await c.call_tool("get_account", {"account": "Mine"}))
 

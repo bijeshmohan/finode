@@ -36,6 +36,7 @@ from ..schemas.transaction import (
 )
 from ..tags import clean_name, clean_tag
 from .account import GROUP_POSTING_ROOT_NAMES, AccountService
+from .account_types import in_budget
 
 # How many recent entries the payee suggestions look at.
 PAYEE_HISTORY = 300
@@ -170,7 +171,7 @@ class TransactionService:
                     )
             elif root == "Equity":
                 raise InvalidPostingError("a category cannot go on a line to an equity account!")
-            elif account.on_budget:
+            elif in_budget(account, accounts_by_id):
                 raise InvalidPostingError(
                     f"'{account.name}' is part of the budget: a category goes on the other side of the entry, "
                     "the account the money was spent on!"
@@ -221,7 +222,7 @@ class TransactionService:
                 )
             if account.closed_on is not None and account.id not in keep_closed:
                 raise InvalidPostingAccountError(f"account '{account.name}' is closed: reopen it to use it!")
-            if account.id in has_children or account.new_accounts_in_budget is not None:
+            if account.id in has_children or account.system_key is not None:
                 raise InvalidPostingAccountError(
                     f"cannot post to account '{account.name}' because it is a group of accounts!"
                 )
@@ -878,38 +879,6 @@ class TransactionService:
             self.tr.db.commit()
             self.tr.db.refresh(transaction)
         return self._to_read(transaction)
-
-    def label_payment(self, transaction_id: UUID, category_id: UUID) -> TransactionRead:
-        """Give an entry's unlabelled payments into accounts outside the budget (a loan, a fund) a category."""
-        entry = self.read(transaction_id)
-        if entry is None:
-            raise ValueError(f"transaction '{transaction_id}' not found!")
-        accounts = {a.id: a for a in self.ar.list()}
-        rows, changed = [], False
-        for p in entry.postings:
-            account = accounts[p.account_id]
-            waiting = (
-                p.side == PostingSide.DEBIT
-                and p.category_id is None
-                and not account.on_budget
-                and AccountService.root_name(account, accounts) in ("Assets", "Liabilities")
-            )
-            changed = changed or waiting
-            rows.append(
-                PostingCreate(
-                    account_id=p.account_id,
-                    side=p.side,
-                    amount=p.amount,
-                    category_id=category_id if waiting else p.category_id,
-                    posted_on=p.posted_on,
-                )
-            )
-        if not changed:
-            raise ValueError("this entry has no payment waiting for a category!")
-        updated = self.update(transaction_id, TransactionUpdate(postings=rows))
-        if updated is None:
-            raise ValueError(f"transaction '{transaction_id}' not found!")
-        return updated
 
     def delete(self, transaction_id: UUID, *, commit: bool = True) -> TransactionRead | None:
         self._refuse_contact_entry(transaction_id, "deleted")

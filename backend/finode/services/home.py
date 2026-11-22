@@ -11,6 +11,7 @@ from uuid import UUID
 from ..clock import local_today, month_progress
 from ..schemas.report import SummaryRead
 from .account import AccountService
+from .account_types import type_key
 from .budget import BudgetService
 from .category import CategoryService
 from .report import ReportService
@@ -79,7 +80,8 @@ def home_view(
     recent = list_rows(chunk, index, transactions)
     roots = {a.name: a.id for a in all_accounts if a.parent_id is None}
     system_ids = {a.id for a in all_accounts if AccountService.is_opening_balances(a, all_accounts)}
-    used_roots = {index.roots[a.id] for a in all_accounts if a.parent_id is not None and a.id not in system_ids}
+    by_id = {a.id: a for a in all_accounts}
+    has_account = any(type_key(a, by_id) for a in all_accounts)
 
     # Opening balances are bookkeeping, not a transaction the person recorded.
     def recorded(rows: list[TransactionRow]) -> bool:
@@ -93,7 +95,7 @@ def home_view(
             [to_row(t, index) for t in transactions.list(date_to=local_today(), limit=RECENT_LIMIT)]
         )
     steps = [
-        Step("account", "Add a bank account, cash or card", bool(used_roots & {"Assets", "Liabilities"})),
+        Step("account", "Add a bank account, cash or card", has_account),
         Step("spend", "Record your first spend", has_recorded, "Takes about ten seconds"),
         Step("budget", "Give your money a job", budget.started(), "Set aside rent and food"),
     ]

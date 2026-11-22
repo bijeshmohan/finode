@@ -1,6 +1,5 @@
 """/api/views/todo, /api/views/coming-up and /api/views/recurring: what the to-do bell's sheet, the Coming up list and
-the Recurring list show in the finode app, worked out by services/coming_up_view.py,
-services/recurring_view.py), and the bell's one fix with no route of its own before: giving a payment a category."""
+the Recurring list show in the finode app, worked out by services/coming_up_view.py and services/recurring_view.py."""
 
 from datetime import date
 from uuid import UUID
@@ -9,8 +8,6 @@ from sqlmodel import select
 
 from finode.models.recurring import RecurringTransaction
 from tests.books import leg, post_account
-from tests.budget.test_budget import account, move
-from tests.budget.test_budget_categories import books, paid  # noqa: F401  # books is a fixture
 from tests.budget.test_coming_up import entry, fake_today  # noqa: F401  # fake_today is a fixture
 from tests.budget.test_recurring import accounts, rule, split_accounts, split_rule  # noqa: F401  # fixtures
 from tests.budget.test_todo_card_bills import card_with_bill
@@ -26,24 +23,14 @@ def view(client, path, **params):
 # ---- the bell ---------------------------------------------------------------------------------------------------
 
 
-def test_the_todo_view_counts_and_lists_what_needs_you(client, books, root_accounts, expense_account):
-    made = paid(client, books["bank"], books["loan"], "19277")
-    card = account(client, root_accounts, "Card", "Liabilities")
-    food = account(client, root_accounts, "Food", "Expenses")
-    move(client, card, food, "75")
+def test_the_todo_view_counts_and_lists_what_needs_you(client, root_accounts, expense_account):
     visa = card_with_bill(client, root_accounts, expense_account, due_in=2)
     seen = view(client, "/api/views/todo")
-    assert [(u["transaction_id"], u["amount"], u["account"]) for u in seen["uncategorised"]] == [
-        (made["id"], "19277.00", "Liabilities:Home Loan")
-    ]
-    left = {a["path"]: a for a in seen["left_out_accounts"]}
-    assert left["Liabilities:Card"]["spent"] == "75.00" and left["Liabilities:Card"]["entries"] == 1
     assert [(b["account_id"], b["name"], b["bill"], b["days_to_due"]) for b in seen["card_bills"]] == [
         (visa["id"], "Visa", "1250.00", 2)
     ]
-    assert seen["count"] == client.get("/api/todo/").json()["count"]
-    paths = [c["path"] for c in seen["categories"]]
-    assert {"EMI", "SIP", "Food"} <= set(paths) and all(c["id"] for c in seen["categories"])
+    assert seen["count"] == client.get("/api/todo/").json()["count"] == 1
+    assert set(seen) == {"count", "card_bills", "failing_rules"}, "no payments waiting for a category any more"
 
 
 def test_a_failing_rule_is_in_the_todo_view(client, accounts, session):
@@ -56,26 +43,6 @@ def test_a_failing_rule_is_in_the_todo_view(client, accounts, session):
     assert seen["failing_rules"] == [
         {"recurring_id": made["id"], "name": "Landlord", "error": "Bank can no longer be posted to"}
     ]
-
-
-def test_labelling_a_payment_takes_it_off_the_list(client, books):
-    made = paid(client, books["bank"], books["loan"], "19277")
-    before = view(client, "/api/views/todo")["count"]
-    labelled = client.post(f"/api/transactions/{made['id']}/category", json={"category_id": books["emi"]["id"]})
-    assert labelled.status_code == 200, labelled.text
-    assert {p["category_id"] for p in labelled.json()["postings"]} == {None, books["emi"]["id"]}
-    seen = view(client, "/api/views/todo")
-    assert seen["count"] == before - 1 and seen["uncategorised"] == []
-    again = client.post(f"/api/transactions/{made['id']}/category", json={"category_id": books["sip"]["id"]})
-    assert again.status_code == 400 and "no payment waiting" in again.json()["detail"]
-    missing = client.post(
-        "/api/transactions/00000000-0000-4000-8000-0000000000aa/category", json={"category_id": books["sip"]["id"]}
-    )
-    assert missing.status_code == 404
-    with signed_in_as(B_USER):
-        stranger = client.post(f"/api/transactions/{made['id']}/category", json={"category_id": books["sip"]["id"]})
-        assert stranger.status_code == 404
-        assert view(client, "/api/views/todo")["count"] == 0
 
 
 # ---- Coming up --------------------------------------------------------------------------------------------------

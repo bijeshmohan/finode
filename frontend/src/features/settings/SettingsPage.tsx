@@ -1,4 +1,4 @@
-// Settings: your name, the currency and the look, the links to Your data, Tags, People, Recurring and AI
+// Settings: your name, the currency, the look and the order of the account types, the links to Your data, Tags, People, Recurring and AI
 // assistants, About (feedback, the test notice) and Sign out.
 import { useState } from "react";
 
@@ -13,6 +13,7 @@ import { chooseTheme, readTheme, type Theme } from "../../lib/theme";
 import { useLeaveSignedIn, useSignOut, useUpdateProfile } from "./queries";
 import { SettingLink, SettingRow } from "./SettingRow";
 import styles from "./Settings.module.css";
+import { TypeOrderRow } from "./TypeOrderRow";
 
 const THEMES: [Theme, string][] = [
   ["auto", "Match device"],
@@ -183,6 +184,7 @@ export function SettingsPage() {
       <div className={styles.tile}>
         {p && <CurrencyRow code={p.default_currency ?? ""} />}
         <AppearanceRow />
+        {p && <TypeOrderRow />}
       </div>
 
       <h2 className={styles.label}>Your data</h2>

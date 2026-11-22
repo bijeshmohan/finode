@@ -2,16 +2,14 @@
 
 import pytest
 
-from tests.books import category
+from tests.books import category, post_account
 
 MISSING = "00000000-0000-4000-8000-0000000000aa"
 
 
 @pytest.fixture
 def bank(client, root_accounts):
-    return client.post(
-        "/api/accounts/", json={"name": "HDFC", "parent_id": root_accounts["Assets"], "balance": "10000"}
-    ).json()
+    return post_account(client, {"name": "HDFC", "parent_id": root_accounts["Assets"], "balance": "10000"}).json()
 
 
 @pytest.fixture
@@ -113,10 +111,8 @@ def test_lending_moves_ready_to_assign_but_no_category(client, bank, alice):
     send(client, alice, bank)
     after = client.get("/api/budget/").json()
     assert float(after["ready_to_assign"]) == before - 5000, "the money left the budget"
-    assert after["uncategorised"] == [], "a loan is not a payment waiting for a category"
-    assert all(float(l["activity"]) == 0 for l in after["lines"])
-    todo = client.get("/api/todo/").json()
-    assert todo["uncategorised"] == [] and todo["left_out_accounts"] == []
+    assert all(float(l["activity"]) == 0 for l in after["lines"]), "lending is not spending"
+    assert client.get("/api/todo/").json()["count"] == 0
 
 
 def test_a_contacts_accounts_cannot_be_used_on_the_ordinary_screens(client, bank, alice):

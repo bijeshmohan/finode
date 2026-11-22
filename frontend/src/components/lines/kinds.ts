@@ -6,7 +6,9 @@ import type { PickGroup } from "./queries";
 export type Kind = "expense" | "income" | "transfer" | "other";
 export type Side = "credit" | "debit";
 
-const ACCOUNTS = ["Assets", "Liabilities"];
+// The pickers' headings for the person's accounts: one per type (services/pickers.py), in the person's order.
+export const ACCOUNT_GROUPS = ["Bank Account", "Cash", "Credit Card", "Prepaid Wallet"];
+const ACCOUNTS = ACCOUNT_GROUPS;
 const CATEGORIES = ["Expenses", "Income"];
 
 export const KINDS: Record<Kind, Record<Side, { roots: string[] | null; title: string }>> = {
@@ -48,15 +50,6 @@ function optionOf(id: string | null, groups: PickGroup[]) {
     if (option) return { group: group.title, option };
   }
   return null;
-}
-
-/** A payment from the budget into an account outside it (a loan, a fund) can say what it was for (syncRowCategories). */
-export function rowCategoryShown(choice: string | null, other: string | null, groups: PickGroup[]): boolean {
-  const mine = optionOf(choice, groups);
-  const theirs = optionOf(other, groups);
-  const outside = mine !== null && ACCOUNTS.includes(mine.group) && !mine.option.budget;
-  const inBudget = theirs !== null && ACCOUNTS.includes(theirs.group) && theirs.option.budget;
-  return outside && inBudget;
 }
 
 /** The name a row shows for its choice. */

@@ -74,22 +74,12 @@ describe("the Add screen", () => {
     expect(screen.getByRole("button", { name: /^To/ })).toHaveTextContent("Bank");
   });
 
-  it("asks what a payment into a loan was for, and fills nothing in", async () => {
-    const { fetch } = await screenWith();
+  it("a transfer between two accounts asks for no category", async () => {
+    await screenWith();
     await userEvent.click(screen.getByRole("button", { name: "Transfer" }));
-    await userEvent.type(screen.getByLabelText("Amount"), "500");
     await choose("From", "Bank");
-    await choose("To", "Home Loan");
-    const category = screen.getByRole("button", { name: /^Category/ });
-    expect(category).toHaveTextContent("No category");
-    await userEvent.click(category);
-    await userEvent.click(await screen.findByRole("button", { name: /EMI/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(async () => {
-      expect(await bodySent(fetch)).toMatchObject({
-        rows: [{ choice: ids.bank }, { choice: ids.loan, category_id: ids.emi }],
-      });
-    });
+    await choose("To", "Amex");
+    expect(screen.queryByRole("button", { name: /^Category/ })).not.toBeInTheDocument();
   });
 
   it("two quick taps on Save send one entry", async () => {

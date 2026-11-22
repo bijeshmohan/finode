@@ -176,11 +176,6 @@ def test_money_between_the_two_blocks_the_merge(client, books, root_accounts):
     assert refused.status_code == 400 and "move money between" in refused.json()["detail"]
 
 
-def test_budget_flag_must_match(client, books, root_accounts):
-    off = account(client, "Off", root_accounts["Assets"], on_budget=False)
-    assert "budget" in merge(client, off, books["bank"]).json()["detail"]
-
-
 @pytest.mark.anyio
 async def test_assistants_merge_only_when_allowed(session, client, books):
     spend(client, books, books["swiggy"], "30")

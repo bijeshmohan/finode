@@ -167,19 +167,6 @@ def test_only_a_category_takes_an_amount(client, setup):
     assert client.put(f"/api/budget/categories/{setup['food']['id']}", json={"amount": "lots"}).status_code == 422
 
 
-def test_a_card_outside_the_budget_is_added_from_the_bell_and_its_spending_counts(client, root_accounts):
-    from tests.budget.test_budget import move
-
-    account(client, root_accounts, "Bank", "Assets", balance="1000")
-    card = account(client, root_accounts, "Card", "Liabilities")
-    food = account(client, root_accounts, "Food", "Expenses")
-    move(client, card, food, "75")
-    assert [a["account_id"] for a in client.get("/api/todo/").json()["left_out_accounts"]] == [card["id"]]
-    assert client.post(f"/api/budget/accounts/{card['id']}/include").status_code == 200
-    assert client.get("/api/todo/").json()["count"] == 0 and rows(view(client))["Food"]["activity"] == "75.00"
-    assert client.post(f"/api/budget/accounts/{food['id']}/include").status_code == 404, "a category is not an account"
-
-
 def test_one_overspent_category_is_not_overspending_overall_but_more_spent_than_assigned_is(client, setup):
     from tests.budget.test_budget import move
 

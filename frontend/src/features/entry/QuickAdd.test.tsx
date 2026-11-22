@@ -8,13 +8,13 @@ import { ids, view } from "./fixtures";
 import type { EntryFormView } from "./queries";
 
 const NEW = "00000000-0000-4000-8000-0000000000n1";
-const ROOTS = { assets: "00000000-0000-4000-8000-0000000000r1", equity: "00000000-0000-4000-8000-0000000000r3" };
 
 const PARENTS: Partial<EntryFormView> = {
-  account_parents: [
-    { id: ROOTS.assets, name: "Assets", depth: 0, root: "Assets", opening_balance: true },
-    { id: ids.bank, name: "Bank", depth: 1, root: "Assets", opening_balance: true },
-    { id: ROOTS.equity, name: "Equity", depth: 0, root: "Equity", opening_balance: false },
+  account_types: [
+    { key: "assets.bank", name: "Bank Account", root: "Assets" },
+    { key: "assets.cash", name: "Cash", root: "Assets" },
+    { key: "liabilities.cards", name: "Credit Card", root: "Liabilities" },
+    { key: "assets.wallet", name: "Prepaid Wallet", root: "Assets" },
   ],
   category_parents: [
     { id: ids.food, name: "Food", kind: "spending" },
@@ -80,21 +80,22 @@ describe("adding from the picker", () => {
     expect(await sent(fetch, "/api/categories/")).toEqual({ name: "Freelance", kind: "earning", parent_id: null });
   });
 
-  it("an account under the chosen parent, with a balance only where it takes one", async () => {
-    const { fetch } = await screenWith(view(PARENTS), { "/api/accounts/": [201, { id: NEW, name: "Kotak" }] });
+  it("an account of the type chosen, with a balance", async () => {
+    const { fetch } = await screenWith(view(PARENTS), { "/api/accounts/": [201, { id: NEW, name: "Pluxee" }] });
     const sheet = await openNew("Paid from", "account");
-    const under = within(sheet).getByLabelText("Belongs under");
-    expect(under).toHaveValue(ROOTS.assets);
-    expect(within(sheet).getByLabelText(/Current balance/)).toBeInTheDocument();
-    await userEvent.selectOptions(under, ROOTS.equity);
-    expect(within(sheet).queryByLabelText(/Current balance/)).not.toBeInTheDocument();
-    await userEvent.selectOptions(under, ids.bank);
-    await userEvent.type(within(sheet).getByLabelText("Name"), "Kotak");
+    const kind = within(sheet).getByLabelText("Kind");
+    expect(
+      within(kind)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Bank Account", "Cash", "Credit Card", "Prepaid Wallet"]);
+    await userEvent.selectOptions(kind, "assets.wallet");
+    await userEvent.type(within(sheet).getByLabelText("Name"), "Pluxee");
     await userEvent.type(within(sheet).getByLabelText(/Current balance/), "500");
     await userEvent.click(within(sheet).getByRole("button", { name: "Add account" }));
     expect(await sent(fetch, "/api/accounts/")).toMatchObject({
-      name: "Kotak",
-      parent_id: ids.bank,
+      name: "Pluxee",
+      type: "assets.wallet",
       balance: "500.00",
     });
   });

@@ -23,6 +23,8 @@ class BackupProfile(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     default_currency: str
+    # The four account types in the person's order (files from before have none: the starting order).
+    account_type_order: list[str] | None = None
 
 
 class BackupAccount(BaseModel):
@@ -32,7 +34,9 @@ class BackupAccount(BaseModel):
     details: str | None = None
     # Version 1 only: what the account held. Read to check it is the profile's currency, never written.
     commodity: str | None = Field(default=None, exclude=True)
-    on_budget: bool = False
+    # Files from before the four types: whether the account was part of the budget. Read (a restore converts such a
+    # file, see services/cash_flow.py), never written: every account of a type is in the budget.
+    on_budget: bool = Field(default=False, exclude=True)
     closed_on: Day | None = None
     # A card's or loan's bill days (files from before have none).
     statement_day: int | None = Field(default=None, ge=1, le=31)
@@ -43,10 +47,11 @@ class BackupAccount(BaseModel):
     )  # a setting that was removed: read, never written
     # Whether the account is pinned to the top of the Accounts page (older files may carry it too, or leave it out).
     pinned: bool = False
-    # Set on the built-in groups (Bank Accounts, Cash, Investments, Credit Cards, Loans); a restore maps them onto the person's own.
+    # Set on the four types' own groups (and, in files from before, on Investments and Loans); a restore maps the types
+    # onto the person's own.
     system_key: str | None = None
-    # Set on a group: whether an account made in it starts in the budget (files from before have none).
-    new_accounts_in_budget: bool | None = None
+    # Files from before the four types: a group's choice for the accounts made in it. Read, never written.
+    new_accounts_in_budget: bool | None = Field(default=None, exclude=True)
     # Version 4 only: the built-in key of the category this Income or Expenses account stood for.
     category_key: str | None = Field(default=None, exclude=True)
 

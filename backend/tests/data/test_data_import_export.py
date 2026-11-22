@@ -10,17 +10,17 @@ from finode.services.data import ImportRejected
 from tests.books import leg, post_account
 
 JOURNAL = """\
-account Assets:Bank:HDFC
+account Assets:Bank Account:HDFC
     note Salary account
 2026-09-01 Opening
-    Assets:Bank:HDFC        10000.00
+    Assets:Bank Account:HDFC        10000.00
     Equity:Opening Balances
 2026-09-03 DMart
     ; weekly groceries
     Expenses:Food           1250.50
-    Assets:Bank:HDFC
+    Assets:Bank Account:HDFC
 2026-09-30 Salary
-    Assets:Bank:HDFC        5000.00
+    Assets:Bank Account:HDFC        5000.00
     Income:Salary
 """
 
@@ -42,7 +42,7 @@ def test_dry_run_reports_without_saving(client: TestClient):
     body = response.json()
     assert body["errors"] == [] and body["transactions"] == 3
     assert body["date_from"] == "2026-09-01" and body["date_to"] == "2026-09-30"
-    assert "Assets:Bank:HDFC" in body["new_accounts"]
+    assert "Assets:Bank Account:HDFC" in body["new_accounts"]
     assert client.get("/api/transactions/").json() == []
 
 
@@ -90,7 +90,7 @@ def test_import_rejected_when_transactions_exist(client: TestClient, account, ex
 
 
 def test_failed_import_saves_nothing(client: TestClient):
-    bad = JOURNAL + "2026-10-01 oops\n    Expenses:Food  5\n    Assets:Bank:HDFC  -4\n"
+    bad = JOURNAL + "2026-10-01 oops\n    Expenses:Food  5\n    Assets:Bank Account:HDFC  -4\n"
     response = _import(client, bad)
     assert response.status_code == 400
     assert any("does not balance" in e for e in response.json()["detail"]["errors"])
@@ -99,21 +99,21 @@ def test_failed_import_saves_nothing(client: TestClient):
 
 
 def test_unknown_top_level_account_rejected(client: TestClient):
-    text = "2026-01-01 x\n    Savings:Pot  5\n    Assets:Cash\n"
+    text = "2026-01-01 x\n    Savings:Pot  5\n    Assets:Cash:Wallet\n"
     errors = _import(client, text).json()["detail"]["errors"]
     assert "must start with Assets" in errors[0]
 
 
 def test_posting_to_asset_group_rejected_but_expense_group_allowed(client: TestClient):
-    asset_group = "2026-01-01 x\n    Assets:Bank  5\n    Assets:Bank:HDFC  -5\n"
-    assert "has sub-accounts" in _import(client, asset_group).json()["detail"]["errors"][0]
-    expense_group = "2026-01-01 x\n    Expenses:Food  5\n    Expenses:Food:Dining  3\n    Assets:Cash  -8\n"
+    a_type = "2026-01-01 x\n    Assets:Bank Account  5\n    Assets:Bank Account:HDFC  -5\n"
+    assert "has sub-accounts" in _import(client, a_type).json()["detail"]["errors"][0]
+    expense_group = "2026-01-01 x\n    Expenses:Food  5\n    Expenses:Food:Dining  3\n    Assets:Cash:Wallet  -8\n"
     assert _import(client, expense_group).status_code == 200
 
 
 def test_long_payee_moves_to_note_and_zero_postings_skipped(client: TestClient):
     payee = "P" * 50
-    text = f"2026-01-01 {payee}\n    Expenses:A  5\n    Assets:B  -5\n    Assets:C  0\n2026-01-02 nothing\n    Assets:B  0\n    Assets:C  0\n"
+    text = f"2026-01-01 {payee}\n    Expenses:A  5\n    Assets:Bank Account:B  -5\n    Assets:Bank Account:C  0\n2026-01-02 nothing\n    Assets:Bank Account:B  0\n    Assets:Bank Account:C  0\n"
     body = _import(client, text, dry_run="true").json()
     assert body["errors"] == [] and body["transactions"] == 1 and body["skipped_empty"] == 1
     assert _import(client, text).status_code == 200
@@ -138,7 +138,7 @@ def test_export_formats_and_headers(client: TestClient):
     assert response.headers["content-disposition"].startswith('attachment; filename="finode-')
     assert response.headers["content-disposition"].endswith('.ledger"')
     text = response.text
-    assert "account Assets:Bank:HDFC\n    note Salary account" in text
+    assert "account Assets:Bank Account:HDFC\n    note Salary account" in text
     assert "2026-09-03 DMart\n    ; weekly groceries\n" in text
     assert "Expenses:Food" in text and "-1250.50" in text
 
@@ -153,13 +153,16 @@ def test_export_formats_and_headers(client: TestClient):
 def test_the_csv_keeps_every_decimal_the_currency_has(client: TestClient):
     """The spreadsheet used to round every amount to two decimals, so a dinar's third one was lost."""
     client.patch("/api/profile/", json={"default_currency": "KWD"})
-    _import(client, "2026-01-01 Souk\n    Expenses:Food  1.005\n    Assets:Bank\n")
+    _import(client, "2026-01-01 Souk\n    Expenses:Food  1.005\n    Assets:Bank Account:Bank\n")
     lines = client.get("/api/export", params={"format": "csv"}).text.splitlines()
-    assert "2026-01-01,Souk,,,Expenses:Food,Food,1.005," in lines and "2026-01-01,Souk,,,Assets:Bank,,,1.005" in lines
+    assert (
+        "2026-01-01,Souk,,,Expenses:Food,Food,1.005," in lines
+        and "2026-01-01,Souk,,,Assets:Bank Account:Bank,,,1.005" in lines
+    )
 
 
 def test_csv_neutralises_spreadsheet_formulas(client: TestClient):
-    _import(client, "2026-01-01 =HYPERLINK(1)\n    Expenses:A  5\n    Assets:B\n")
+    _import(client, "2026-01-01 =HYPERLINK(1)\n    Expenses:A  5\n    Assets:Bank Account:B\n")
     lines = client.get("/api/export", params={"format": "csv"}).text.splitlines()
     assert any(line.startswith("2026-01-01,'=HYPERLINK(1),") for line in lines)
 
@@ -239,7 +242,7 @@ def test_a_bad_tags_line_in_an_import_names_the_line(client: TestClient):
         files={
             "file": (
                 "a.ledger",
-                "2026-01-01 X\n    ; tags: not valid!\n    Expenses:A  5\n    Assets:B\n",
+                "2026-01-01 X\n    ; tags: not valid!\n    Expenses:A  5\n    Assets:Bank Account:B\n",
                 "text/plain",
             )
         },
@@ -249,7 +252,9 @@ def test_a_bad_tags_line_in_an_import_names_the_line(client: TestClient):
 
 
 def test_a_posting_date_is_read_and_kept(client: TestClient):
-    text = JOURNAL.replace("    Assets:Bank:HDFC\n2026-09-30", "    Assets:Bank:HDFC  ; posted: 2026-09-05\n2026-09-30")
+    text = JOURNAL.replace(
+        "    Assets:Bank Account:HDFC\n2026-09-30", "    Assets:Bank Account:HDFC  ; posted: 2026-09-05\n2026-09-30"
+    )
     done = _import(client, text)
     assert done.status_code == 200, done.text
     lines = [p for t in client.get("/api/transactions/").json() for p in t["postings"] if p["posted_on"]]
@@ -257,7 +262,9 @@ def test_a_posting_date_is_read_and_kept(client: TestClient):
 
 
 def test_a_posting_date_before_the_entry_is_refused_with_its_line(client: TestClient):
-    text = JOURNAL.replace("    Assets:Bank:HDFC\n2026-09-30", "    Assets:Bank:HDFC  ; posted: 2026-09-01\n2026-09-30")
+    text = JOURNAL.replace(
+        "    Assets:Bank Account:HDFC\n2026-09-30", "    Assets:Bank Account:HDFC  ; posted: 2026-09-01\n2026-09-30"
+    )
     refused = _import(client, text)
     assert refused.status_code == 400 and "cannot post before the entry's own date" in refused.text
 
@@ -266,7 +273,7 @@ def test_a_posting_date_before_the_entry_is_refused_with_its_line(client: TestCl
 
 FOREIGN = """\
 2026-01-02 Opening
-    Assets:HDFC           100000.00 USD
+    Assets:Bank Account:HDFC           100000.00 USD
     Equity:Opening Balances
 """
 
@@ -281,13 +288,15 @@ def test_a_file_in_another_currency_is_refused_and_explained(client):
 
 
 def test_the_rupee_sign_and_code_are_accepted_as_labels(client):
-    text = "2026-01-02 Opening\n    Assets:HDFC  ₹500.00\n    Equity:Opening Balances  -500.00 INR\n"
+    text = "2026-01-02 Opening\n    Assets:Bank Account:HDFC  ₹500.00\n    Equity:Opening Balances  -500.00 INR\n"
     found = preview(client, text).json()
     assert found["errors"] == [] and found["assets"] == "500.00"
 
 
 def test_a_conversion_is_not_supported(client):
-    found = preview(client, "2026-01-05 Buy\n    Assets:Wise  100.00 @@ 8350.00\n    Assets:HDFC\n").json()
+    found = preview(
+        client, "2026-01-05 Buy\n    Assets:Bank Account:Wise  100.00 @@ 8350.00\n    Assets:Bank Account:HDFC\n"
+    ).json()
     assert found["errors"] and "one currency" in " ".join(found["errors"])
 
 
@@ -297,7 +306,7 @@ def test_a_preview_without_a_file_says_so(client):
 
 def test_import_is_offered_only_before_there_are_transactions(client):
     assert client.get("/api/data-options").json()["can_import"] is True
-    journal = "2026-09-01 Opening\n    Assets:Cash  100\n    Equity:Opening Balances\n"
+    journal = "2026-09-01 Opening\n    Assets:Cash:Wallet  100\n    Equity:Opening Balances\n"
     done = client.post("/api/import", files={"file": ("a.ledger", journal.encode())})
     assert done.status_code == 200, done.text
     assert client.get("/api/data-options").json()["can_import"] is False
@@ -305,7 +314,23 @@ def test_import_is_offered_only_before_there_are_transactions(client):
 
 def test_imports_are_marked(client):
     """Moved from test_web_assistants.py (step 10)."""
-    journal = "2026-09-01 Shop\n    Expenses:Food  10\n    Assets:Cash\n"
+    journal = "2026-09-01 Shop\n    Expenses:Food  10\n    Assets:Cash:Wallet\n"
     response = client.post("/api/import", files={"file": ("a.ledger", journal.encode())})
     assert response.status_code == 200, response.text
     assert client.get("/api/transactions/").json()[0]["created_via"] == "import"
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["Assets:HDFC", "Assets:Investments:Axis", "Liabilities:Loans:Home", "Assets:Banks:HDFC", "Equity:Capital"],
+)
+def test_an_account_outside_the_four_types_is_refused(client: TestClient, path):
+    errors = _import(client, f"2026-01-01 x\n    {path}  5\n    Assets:Cash:Wallet\n").json()["detail"]["errors"]
+    assert any("Cash, Bank Account, Credit Card or Prepaid Wallet" in e for e in errors), errors
+
+
+def test_the_old_group_names_are_read_as_the_types(client: TestClient):
+    text = "2026-01-01 x\n    Liabilities:Credit Cards:Amex  -5\n    Assets:Bank Accounts:HDFC  5\n"
+    assert _import(client, text).status_code == 200
+    paths = {a["name"]: a["type"] for a in client.get("/api/accounts/").json()}
+    assert (paths["Amex"], paths["HDFC"]) == ("liabilities.cards", "assets.bank")

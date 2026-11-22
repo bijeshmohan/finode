@@ -7,8 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from .account import CardBill
-from .budget import BudgetLeftOut, BudgetUncategorised
+from .account import AccountType, CardBill
 from .day import Day
 from .entry import ExpenseShare, IncomeShare, Share
 from .shared_expense import ExpensePreview
@@ -192,15 +191,13 @@ class PickGroupRead(BaseModel):
     options: list[PickOptionRead]
 
 
-class ParentOption(BaseModel):
-    """Where a new account can go (the Add screen's "New account" sheet): a root or a group, at its depth, and whether an
-    account made there can start with a balance."""
+class AccountTypeOption(BaseModel):
+    """What a new account made from the Add screen's "New account" sheet can be: one of the four types."""
 
-    id: UUID
+    key: AccountType
     name: str
-    depth: int
+    # Assets or Liabilities: the sheet offers the types of the side it was opened for.
     root: str
-    opening_balance: bool
 
 
 class CategoryParent(BaseModel):
@@ -234,7 +231,7 @@ class EntryFormView(BaseModel):
     # An entry another way of recording looks after (a settlement with a person): their page opens instead.
     person_page: UUID | None
     groups: list[PickGroupRead]
-    account_parents: list[ParentOption]
+    account_types: list[AccountTypeOption]
     category_parents: list[CategoryParent]
 
 
@@ -270,17 +267,17 @@ class AccountCard(BaseModel):
     id: UUID
     name: str
     balance: Decimal
-    on_budget: bool
     closed: bool
     pinned: bool
     note: CardNoteRead | None
 
 
 class KindRow(BaseModel):
-    """One row of cards on the Accounts page: a kind of account and its accounts."""
+    """One row of cards on the Accounts page: one of the four types and its accounts."""
 
     name: str
-    group_id: UUID | None
+    type: AccountType
+    group_id: UUID
     total: Decimal
     # A liability's total reads "owed".
     owed: bool
@@ -292,9 +289,7 @@ class KindRow(BaseModel):
 
 
 class AccountsView(BaseModel):
-    net_worth: Decimal
     account_count: int
-    has_budget_accounts: bool
     pinned: list[AccountCard]
     kinds: list[KindRow]
     # Some accounts are closed: "Load more" shows them.
@@ -408,45 +403,25 @@ class CategoryView(BaseModel):
     entries: list[RegisterRowRead]
 
 
-class KindChoiceRead(BaseModel):
-    """A place a new account can go (a kind chip, or the place it was opened for), with what the form then asks."""
+class AccountTypeChoice(BaseModel):
+    """One of the four types a new account can be (the form's switcher)."""
 
-    id: UUID
+    key: AccountType
     name: str
-    root: str
-    can_budget: bool
-    can_bill: bool
-    # Whether the "Part of the budget" box starts ticked for an account made there.
-    budget_default: bool
-
-
-class PlacedRead(BaseModel):
-    """What the form says instead of the kind chips when it was opened for a place that is not a kind ("Kind · Other",
-    "Inside · HDFC")."""
-
-    label: str
-    value: str
 
 
 class AccountFormView(BaseModel):
     editing: bool
-    is_group: bool
     name: str
     details: str | None
     balance: Decimal | None
-    parent_id: UUID | None
-    kinds: list[KindChoiceRead]
-    placed: PlacedRead | None
-    parent_options: list[KindChoiceRead]
-    root_name: str | None
-    can_budget: bool
-    can_bill: bool
-    on_budget: bool
+    # The account's type, or the one a new account was opened for; null until the person picks one.
+    type: AccountType | None
+    # The four types in the person's order (empty when editing: an account keeps its type).
+    types: list[AccountTypeChoice]
     statement_day: int | None
     due_day: int | None
     bill_rounding: Literal["none", "nearest", "up"]
-    # A group's own choice for the accounts made in it (null for an account).
-    new_accounts_in_budget: bool | None
 
 
 class CategoryFormView(BaseModel):
@@ -549,7 +524,7 @@ class BudgetMoveView(BaseModel):
 
 class TodoBill(BaseModel):
     account_id: UUID
-    # The card's own name: "Visa" for Liabilities:Credit Cards:Visa.
+    # The card's own name: "Visa" for Liabilities:Credit Card:Visa.
     name: str
     bill: Decimal
     due_date: Date
@@ -565,16 +540,8 @@ class CategoryChoice(BaseModel):
 
 class TodoView(BaseModel):
     count: int
-    uncategorised: list[BudgetUncategorised]
-    left_out_accounts: list[BudgetLeftOut]
     card_bills: list[TodoBill]
     failing_rules: list[TodoRule]
-    # The spending categories a payment can be given, as the sheet's select lists them.
-    categories: list[CategoryChoice]
-
-
-class PaymentCategory(BaseModel):
-    category_id: UUID
 
 
 class ComingRowRead(BaseModel):
@@ -640,7 +607,7 @@ class RecurringFormView(BaseModel):
     from_rows: list[FormRow]
     to_rows: list[FormRow]
     groups: list[PickGroupRead]
-    account_parents: list[ParentOption]
+    account_types: list[AccountTypeOption]
     category_parents: list[CategoryParent]
     frequency: str
     every: int

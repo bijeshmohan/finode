@@ -13,11 +13,11 @@ from .conftest import Api
 
 JOURNAL = """\
 2026-09-01 Opening
-    Assets:Bank:HDFC        10000.00
+    Assets:Bank Account:HDFC        10000.00
     Equity:Opening Balances
 2026-09-03 DMart
     Expenses:Food           1250.50
-    Assets:Bank:HDFC
+    Assets:Bank Account:HDFC
 """
 
 
@@ -45,7 +45,9 @@ def test_erasing_the_books(signed_in_page: Page, api: Api, books):
     last_button(page, "Erase my books").click()
     page.wait_for_url(re.compile(r"/$"))
     expect(page.get_by_text("Your books were erased")).to_be_visible()
-    assert [a["name"] for a in api.get("/accounts/") if a["parent_id"]] == [], "only the five types are left"
+    assert [a["name"] for a in api.get("/accounts/") if a["parent_id"] and not a["system_key"]] == [], (
+        "only the four types are left"
+    )
 
 
 def test_deleting_the_account(signed_in_page: Page, books, monkeypatch):

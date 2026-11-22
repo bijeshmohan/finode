@@ -31,7 +31,7 @@ export function view(overrides: Partial<EntryFormView> = {}): EntryFormView {
     income_share: { kind: "income", category_id: null, account_id: null, people: [] },
     person_page: null,
     groups,
-    account_parents: [],
+    account_types: [],
     category_parents: [],
     ...overrides,
   };

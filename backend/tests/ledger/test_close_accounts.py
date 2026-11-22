@@ -86,14 +86,6 @@ def test_a_future_dated_entry_blocks_closing(client, books):
     assert close(client, books["old"]).status_code == 400
 
 
-def test_closing_a_group_closes_everything_inside_and_all_must_be_empty(client, books):
-    assert close(client, books["banks"]).status_code == 400, "HDFC still holds money"
-    response = client.post(f"/api/categories/{books['food']['id']}/close")
-    assert response.status_code == 200
-    for name in ("food", "groceries"):
-        assert client.get(f"/api/categories/{books[name]['id']}").json()["closed_on"]
-
-
 def test_roots_and_system_accounts_cannot_be_closed(client, books, root_accounts):
     assert client.post(f"/api/accounts/{root_accounts['Assets']}/close").status_code == 400
     opening = next(a for a in client.get("/api/accounts/").json() if a["name"] == "Opening Balances")
@@ -105,11 +97,7 @@ def test_nothing_can_be_posted_to_a_closed_account(client, books):
     close(client, books["old"])
     refused = spend(client, books["hdfc"], books["old"])
     assert refused.status_code == 400 and "is closed" in refused.json()["detail"]
-    created = post_account(client, {"name": "Child", "parent_id": books["old"]["id"]})
-    assert created.status_code == 400 and "closed" in created.json()["detail"]
     assert client.patch(f"/api/accounts/{books['old']['id']}", json={"balance": "5"}).status_code == 400
-    moved = client.patch(f"/api/accounts/{books['hdfc']['id']}", json={"parent_id": books["old"]["id"]})
-    assert moved.status_code == 400
 
 
 def test_an_old_entry_on_a_closed_account_can_still_be_edited(client, books):
@@ -218,9 +206,9 @@ async def test_assistants_do_not_see_or_post_to_closed_accounts(session, client,
     close(client, books["old"])
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         paths = {a["path"] for a in payload(await c.call_tool("list_accounts", {}))["accounts"]}
-        assert "Assets:Banks:Old Savings" not in paths
+        assert "Assets:Bank Account:Old Savings" not in paths
         listed = payload(await c.call_tool("list_accounts", {"include_closed": True}))["accounts"]
-        entry = next(a for a in listed if a["path"] == "Assets:Banks:Old Savings")
+        entry = next(a for a in listed if a["path"] == "Assets:Bank Account:Old Savings")
         assert entry["can_post"] is False and entry["closed"]
         with pytest.raises(ToolFailed, match="is closed"):
             payload(

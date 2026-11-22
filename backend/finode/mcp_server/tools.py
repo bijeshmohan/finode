@@ -18,6 +18,7 @@ from ..models.api_token import TokenScope
 from ..models.transaction import PostingSide
 from ..models.utils import normalize_amount
 from ..schemas import AccountCreate, AccountUpdate
+from ..schemas.account import AccountType as AccountTypeKey
 from ..schemas.account import RegisterEntry
 from ..schemas.budget import BudgetRead
 from ..schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
@@ -31,6 +32,7 @@ from ..schemas.transaction import (
     TransactionRead,
     TransactionUpdate,
 )
+from ..services.account_types import TYPE_NAMES
 from ..services.validation import validation_message
 from ..tags import clean_name, clean_names, tags_in
 from ..version import VERSION
@@ -46,10 +48,10 @@ finode is the user's personal double-entry ledger.
   call list_categories). Refer to an account by its path with ':' between names (Assets:Bank:HDFC) or by
   the end of the path when that is unique (HDFC); a category path (Expenses:Food, or just Food) works
   wherever an account goes. Call list_accounts when unsure; never invent an account: ask the user, or create it with create_account if they agree.
-  New users start with built-in groups under Assets (Bank Accounts, Cash, Investments) and Liabilities
-  (Credit Cards, Loans); they cannot be changed or removed. Put a bank under Bank Accounts and a card under
-  Credit Cards (they start as part of the budget), a fund under Investments and a loan under Loans (they
-  start outside the budget).
+  Every account the user adds is one of four kinds, each a built-in group: Assets:Bank Account, Assets:Cash,
+  Assets:Prepaid Wallet (a meal card, FASTag, a gift card) and Liabilities:Credit Card. All of them are part of the
+  budget. Investments and loans are not accounts: a SIP, an EMI or a deposit is spending in a category, money
+  borrowed into the bank is income under "Borrowed", and an investment sold is income under "Redeemed".
 - Every account has an id (list_accounts, get_account). An id survives renames and moves, a path does not: keep
   ids when you remember an account, and give either to any tool that takes an account.
 - Call get_status first when unsure what this connection may do, how much room is left today, or when the books
@@ -281,15 +283,13 @@ def _recurring_id(value: str) -> UUID:
 
 @_tool_errors
 def get_overview() -> dict[str, Any]:
-    """Net worth, assets and liabilities now, and this month's income and expenses so far,
-    all in the user's currency."""
+    """Cash on hand now (money in the bank, cash and prepaid wallet accounts less what is owed on the credit cards) and
+    this month's money in and out so far, all in the user's currency."""
     with services() as s:
         summary = s.reports.summary()
         return {
             "currency": summary.currency,
-            "net_worth": text(summary.net_worth),
-            "assets": text(summary.assets),
-            "liabilities": text(summary.liabilities),
+            "cash_on_hand": text(summary.cash_on_hand),
             "this_month": {
                 "from": summary.period_start.isoformat(),
                 "to": summary.period_end.isoformat(),
@@ -309,14 +309,17 @@ def list_accounts(
     ] = False,
 ) -> dict[str, Any]:
     """Every account with its id, path, type, balance and what it is for (details). Top-level accounts show the total of everything inside.
-    Assets and liabilities say whether they are part of the budget (on_budget)."""
+    An account the user added says which of the four kinds it is (account_kind: Bank Account, Cash, Credit Card or
+    Prepaid Wallet); every one of them is part of the budget."""
     with services() as s:
         index = _index(s)
+        place = {key: i for i, key in enumerate(s.accounts.type_order())}
+        rows = sorted(index.sorted(), key=lambda e: place.get(e.account.type or "", -1) if e.account.type else -1)
         return {
             "currency": s.accounts.currency().code,
             "accounts": [
                 _account_row(e, index)
-                for e in index.sorted()
+                for e in rows
                 if (type is None or e.root == type) and (include_closed or e.account.closed_on is None)
             ],
         }
@@ -332,7 +335,7 @@ def _account_row(e: Entry, index: AccountIndex) -> dict[str, Any]:
         "can_post": e.postable and e.account.closed_on is None,
         "details": None if e.is_root else e.account.details,
         **({"closed": e.account.closed_on.isoformat()} if e.account.closed_on else {}),
-        **({"on_budget": e.account.on_budget} if not e.is_root and e.root in ("Assets", "Liabilities") else {}),
+        **({"account_kind": TYPE_NAMES[e.account.type]} if e.account.type else {}),
         **({"pinned": True} if e.account.pinned else {}),
         **({"group": e.account.system_key} if e.account.system_key else {}),
         **(
@@ -1027,14 +1030,16 @@ def delete_transaction(
 @_tool_errors
 def create_account(
     name: Annotated[str, Field(max_length=40, description="The new account's own name, without ':'")],
-    parent: Annotated[str, Field(description="Where it goes, e.g. Assets:Bank Accounts or Liabilities:Credit Cards")],
+    kind: Annotated[
+        Literal["Bank Account", "Cash", "Credit Card", "Prepaid Wallet"],
+        Field(
+            description="Which of the four kinds it is. Investments and loans are not accounts: record payments into them as spending in a category"
+        ),
+    ],
     opening_balance: Annotated[
-        Decimal | None, Field(ge=0, description="Assets and liabilities only: what it holds (or owes) today")
+        Decimal | None, Field(ge=0, description="What it holds today (a credit card: what is owed on it)")
     ] = None,
     details: Annotated[str | None, Field(max_length=200, description="What the account is for, in a few words")] = None,
-    on_budget: Annotated[
-        bool | None, Field(description="Assets and liabilities: whether the money is part of the budget")
-    ] = None,
     statement_day: Annotated[
         int | None,
         Field(ge=1, le=31, description="Cards and loans: the day of the month the bill closes (31 = last day)"),
@@ -1047,26 +1052,23 @@ def create_account(
         Field(description="Cards and loans: how the bank rounds the bill (to the paisa, nearest rupee, or up)"),
     ] = None,
 ) -> dict[str, Any]:
-    """Add an account. Check list_accounts first so you don't create a duplicate."""
+    """Add an account: a Bank Account, Cash, a Credit Card or a Prepaid Wallet; every account is part of the budget.
+    Check list_accounts first so you don't create a duplicate."""
     with services() as s:
         index = _index(s)
-        parent_entry = index.find(parent, allow_root=True)
+        key = next(k for k, n in TYPE_NAMES.items() if n == kind)
+        group = next(e for e in index.entries.values() if e.account.system_key == key)
         name = name.strip()
-        siblings = [e for e in index.entries.values() if e.account.parent_id == parent_entry.account.id]
+        siblings = [e for e in index.entries.values() if e.account.parent_id == group.account.id]
         twin = next((e for e in siblings if e.account.name.casefold() == name.casefold()), None)
         if twin:
-            raise ToolError(
-                f"'{parent_entry.path}' already has an account named '{twin.account.name}': use {twin.path}!"
-            )
-        if opening_balance and parent_entry.root not in ("Assets", "Liabilities"):
-            raise ToolError("only asset and liability accounts have an opening balance!")
+            raise ToolError(f"'{group.path}' already has an account named '{twin.account.name}': use {twin.path}!")
         created = s.accounts.create(
             AccountCreate(
                 name=name,
                 details=(details or "").strip() or None,
-                parent_id=parent_entry.account.id,
+                type=cast(AccountTypeKey, key),
                 balance=opening_balance or Decimal("0.00"),
-                on_budget=on_budget,
                 statement_day=statement_day,
                 due_day=due_day,
                 bill_rounding=bill_rounding or "none",
@@ -1075,7 +1077,7 @@ def create_account(
         return {
             "created": {
                 "id": str(created.id),
-                "path": f"{parent_entry.path}:{created.name}",
+                "path": f"{group.path}:{created.name}",
                 "balance": text(created.balance),
             }
         }
@@ -1088,10 +1090,6 @@ def update_account(
     details: Annotated[
         str | None, Field(max_length=200, description="New 'use this for…' note; empty clears it")
     ] = None,
-    parent: Annotated[
-        str | None, Field(description="Move it under this account (same top-level account; at most two levels deep)")
-    ] = None,
-    on_budget: Annotated[bool | None, Field(description="Assets and liabilities: part of the budget or not")] = None,
     pinned: Annotated[
         bool | None,
         Field(description="Pin an open asset or liability account to the top of the Accounts page, or unpin it"),
@@ -1108,9 +1106,9 @@ def update_account(
         Field(description="Cards and loans: how the bank rounds the bill (to the paisa, nearest rupee, or up)"),
     ] = None,
 ) -> dict[str, Any]:
-    """Rename an account, change its note, move it under another account, pin it, or change its budget settings. Its history
-    stays with it and its id never changes (only its path does). The built-in groups, the top-level accounts and
-    Opening Balances cannot be changed. Tell the user what you are changing first."""
+    """Rename an account, change its note, pin it, or change a credit card's bill settings. It keeps its kind, its history
+    and its id. The four kinds themselves, the top-level accounts and Opening Balances cannot be changed. Tell the user
+    what you are changing first."""
     with services() as s:
         index = _index(s)
         entry = index.find(account)
@@ -1119,10 +1117,6 @@ def update_account(
             changes["name"] = name
         if details is not None:
             changes["details"] = details.strip() or None
-        if parent is not None:
-            changes["parent_id"] = index.find(parent, allow_root=True).account.id
-        if on_budget is not None:
-            changes["on_budget"] = on_budget
         if pinned is not None:
             changes["pinned"] = pinned
         if statement_day is not None or due_day is not None:
@@ -1131,9 +1125,7 @@ def update_account(
         if bill_rounding is not None:
             changes["bill_rounding"] = bill_rounding
         if not changes:
-            raise ToolError(
-                "nothing to change: pass a name, details, parent, on_budget, pinned, a bill day or bill_rounding!"
-            )
+            raise ToolError("nothing to change: pass a name, details, pinned, a bill day or bill_rounding!")
         before = entry.path
         s.accounts.update(entry.account.id, AccountUpdate(**changes))
         fresh = _index(s)
@@ -1328,10 +1320,10 @@ def _today() -> date:
 
 
 def monthly_review(month: Annotated[str | None, Field(description="YYYY-MM; this month when left out")] = None) -> str:
-    """Review a month: where the money went and how net worth moved."""
+    """Review a month: where the money came from and where it went."""
     period = f"the month {month}" if month else "this month so far"
     return (
-        f"Give me a short review of {period} in finode. Use get_overview for net worth, "
+        f"Give me a short review of {period} in finode. Use get_overview for money in and out and cash on hand, "
         "spending_breakdown for expenses and income by account (compare with the month before), "
         "and search_transactions for the largest expenses. Point out anything unusual. Keep it brief."
     )
@@ -1395,16 +1387,7 @@ def _budget(data: BudgetRead) -> dict[str, Any]:
         ],
         **(
             {
-                "note_left_out": f"{text(data.left_out)} spent this month was paid from accounts outside the budget and is not counted: "
-                + ", ".join(a.path for a in data.left_out_accounts)
-                + ". The user can switch 'Part of the budget' on for them."
-            }
-            if data.left_out_accounts
-            else {}
-        ),
-        **(
-            {
-                "note_accounts": "No account is part of the budget yet: the user switches 'Part of the budget' on for an account."
+                "note_accounts": "The user has no account yet: add a Bank Account, Cash, a Credit Card or a Prepaid Wallet."
             }
             if not data.budget_accounts
             else {}

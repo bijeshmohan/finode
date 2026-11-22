@@ -3,7 +3,7 @@
 go."""
 
 from tests.api.test_api_entries import entry, made
-from tests.books import category, post_account
+from tests.books import category
 from tests.guards.test_isolation import B_USER, signed_in_as
 from tests.svc import services
 
@@ -138,14 +138,14 @@ def test_split_with_a_person_starts_ticked(client, root_accounts):
     assert form_view(client)["mode"] == "simple"
 
 
-def test_the_parents_a_new_account_can_go_under(client, root_accounts):
-    post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"]})
+def test_a_new_account_from_the_pickers_is_one_of_the_four_types(client):
     seen = form_view(client)
-    parents = {p["name"]: p for p in seen["account_parents"]}
-    assert "Expenses" not in parents and "Income" not in parents and "Opening Balances" not in parents
-    assert parents["Assets"]["opening_balance"] is True and parents["Assets"]["depth"] == 0
-    assert parents["Bank"]["depth"] == 1 and parents["Bank"]["root"] == "Assets"
-    assert parents["Equity"]["opening_balance"] is False
+    assert [(t["key"], t["name"], t["root"]) for t in seen["account_types"]] == [
+        ("assets.bank", "Bank Account", "Assets"),
+        ("assets.cash", "Cash", "Assets"),
+        ("liabilities.cards", "Credit Card", "Liabilities"),
+        ("assets.wallet", "Prepaid Wallet", "Assets"),
+    ]
     food = category(client, "Food")
     assert {"id": food["id"], "name": "Food", "kind": "spending"} in form_view(client)["category_parents"]
 

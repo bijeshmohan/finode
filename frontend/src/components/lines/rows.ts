@@ -8,7 +8,6 @@ import type { FormRow } from "./queries";
 export interface RowState {
   key: string;
   choice: string | null;
-  category: string | null;
   /** What was typed for the row (only a touched row has one). */
   amount: string;
   /** The day the account posts this line, when it is not the entry's own. */
@@ -20,7 +19,7 @@ let made = 0;
 
 export function blankRow(): RowState {
   made += 1;
-  return { key: `row-${String(made)}`, choice: null, category: null, amount: "", postedOn: null, touched: false };
+  return { key: `row-${String(made)}`, choice: null, amount: "", postedOn: null, touched: false };
 }
 
 /** The rows an entry starts with. Several rows keep their own amounts; one row follows the total. */
@@ -29,7 +28,6 @@ export function startRows(rows: FormRow[], grouping: Grouping): RowState[] {
   const start = rows.map((r) => ({
     ...blankRow(),
     choice: r.choice,
-    category: r.category_id,
     postedOn: r.posted_on,
     amount: several && r.amount ? groupAmount(r.amount, grouping) : "",
     touched: several && r.amount !== null,
@@ -76,7 +74,7 @@ export function amountOf(rows: RowState[], index: number, total: string, places:
 export function removeRow(rows: RowState[], index: number, categorySide: boolean): RowState[] {
   if (rows.length === 1) {
     const only = rows[0] ?? blankRow();
-    return [{ ...only, choice: null, category: null, amount: "", postedOn: null, touched: false }];
+    return [{ ...only, choice: null, amount: "", postedOn: null, touched: false }];
   }
   const left = rows.filter((_, i) => i !== index);
   if (left.length === 1 && categorySide) return left.map((r) => ({ ...r, amount: "", touched: false }));

@@ -47,8 +47,12 @@ class ProfileRepository:
 
     def update(self, data: ProfileUpdate, currency: str | None = None) -> Profile:
         profile = self.get_or_create()
-        for key, value in data.model_dump(exclude_unset=True, exclude={"default_currency"}).items():
+        for key, value in data.model_dump(
+            exclude_unset=True, exclude={"default_currency", "account_type_order"}
+        ).items():
             setattr(profile, key, value)
+        if data.account_type_order is not None:
+            profile.account_type_order = ",".join(data.account_type_order)
         if currency is not None:
             profile.currency = currency
         self.db.add(profile)

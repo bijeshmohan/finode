@@ -1,12 +1,10 @@
-"""What the to-do bell lists: payments no category took, accounts left out of the budget, failing rules, bills due."""
+"""What the to-do bell lists: failing recurring rules and card bills due."""
 
 from datetime import date as Date
 from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel
-
-from .budget import BudgetLeftOut, BudgetUncategorised
 
 
 class TodoRule(BaseModel):
@@ -21,7 +19,7 @@ class TodoCard(BaseModel):
     """A card's (or loan's) bill that is due within a few days or overdue, and still not paid."""
 
     account_id: UUID
-    # The account's path, e.g. Liabilities:Credit Cards:Visa.
+    # The account's path, e.g. Liabilities:Credit Card:Visa.
     path: str
     bill: Decimal
     due_date: Date
@@ -32,10 +30,6 @@ class TodoCard(BaseModel):
 class TodoRead(BaseModel):
     """What needs a decision now. Nothing is stored: each item is a fact about the books and goes when it is fixed."""
 
-    # Payments into an account outside the budget that no category took (this month).
-    uncategorised: list[BudgetUncategorised] = []
-    # Accounts that pay for things but are not part of the budget (this month).
-    left_out_accounts: list[BudgetLeftOut] = []
     failing_rules: list[TodoRule] = []
     # Bills due within a few days or overdue (one each).
     card_bills: list[TodoCard] = []

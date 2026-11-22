@@ -128,9 +128,9 @@ def run(session, seed: int, steps: int) -> list[str]:
         try:
             if op == "account":
                 made += 1
-                parent = rng.choice([*roots.values(), *[a.id for a in accounts() if a.parent_id in roots.values()]])
+                kind = rng.choice(["assets.bank", "assets.cash", "liabilities.cards", "assets.wallet"])
                 s.accounts.create(
-                    AccountCreate(name=f"A{made}", parent_id=parent, balance=rng.choice([Decimal(0), money(rng)]))
+                    AccountCreate(name=f"A{made}", type=kind, balance=rng.choice([Decimal(0), money(rng)]))
                 )
             elif op == "tx":
                 rows = pick_postings()
@@ -153,11 +153,11 @@ def run(session, seed: int, steps: int) -> list[str]:
                 pool = accounts()
                 if pool:
                     s.accounts.update(rng.choice(pool).id, AccountUpdate(name=f"R{step}"))
-            elif op == "move":
+            elif op == "move":  # an account keeps its type: merging is the one way two become one
                 pool = accounts()
                 if len(pool) > 1:
                     a, b = rng.sample(pool, 2)
-                    s.accounts.update(a.id, AccountUpdate(parent_id=b.id))
+                    s.accounts.merge(a.id, b.id)
             elif op in ("close", "reopen"):
                 pool = accounts()
                 if pool:
@@ -232,9 +232,8 @@ def budget_checks(session, s, label: str) -> None:
 def run_budget(session, seed: int, steps: int) -> int:
     rng = random.Random(seed)
     s = services(session)
-    roots = {a.name: a.id for a in s.accounts.list() if a.parent_id is None}
-    bank = s.accounts.create(AccountCreate(name="Bank", parent_id=roots["Assets"], balance=Decimal(5000)))
-    card = s.accounts.create(AccountCreate(name="Card", parent_id=roots["Liabilities"], on_budget=True))
+    bank = s.accounts.create(AccountCreate(name="Bank", type="assets.bank", balance=Decimal(5000)))
+    card = s.accounts.create(AccountCreate(name="Card", type="liabilities.cards"))
     salary = s.categories.create(CategoryCreate(name="Salary", kind="earning"))
     cats = [s.categories.create(CategoryCreate(name=n, kind="spending")) for n in ("Rent", "Food", "Fun", "Bills")]
     done = 0

@@ -28,8 +28,8 @@ class Node:
 
     @property
     def is_group(self) -> bool:
-        """A shelf for accounts: a built-in group or one the person made (even empty), or an account with accounts in it."""
-        return self.account.new_accounts_in_budget is not None or bool(self.children)
+        """A shelf for accounts: one of the four types (even empty), or anything with accounts in it."""
+        return self.account.system_key is not None or bool(self.children)
 
     def walk(self):
         yield self
@@ -51,13 +51,11 @@ def build_tree(accounts: list[AccountRead]) -> list[Node]:
             if AccountService.is_opening_balances(node.account, accounts):
                 node.kind = "system"
             elif node.account.system_key:
-                node.kind = "fixed"  # a built-in group (Bank Accounts, Cash, Investments, Credit Cards, Loans)
+                node.kind = "fixed"  # one of the four types (Bank Account, Cash, Credit Card, Prepaid Wallet)
 
     def finish(node: Node, depth: int, parent_path: str = "") -> None:
         node.depth = depth
-        node.postable = (
-            node.kind not in ("root", "fixed") and node.account.new_accounts_in_budget is None and node.is_leaf
-        )
+        node.postable = node.kind not in ("root", "fixed") and node.is_leaf
         node.path = f"{parent_path} › {node.account.name}" if parent_path else node.account.name
         node.children.sort(key=lambda n: AccountService.order_key(n.account))
         for child in node.children:

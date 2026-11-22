@@ -17,7 +17,7 @@ describe("an account's page", () => {
       ],
     });
     expect(await screen.findByRole("heading", { level: 1, name: "HDFC" })).toBeInTheDocument();
-    expect(screen.getByText("Banks")).toBeInTheDocument();
+    expect(screen.getByText("Bank Account")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Salary/ })).toHaveTextContent("+30.00");
     expect(screen.getByRole("button", { name: /Swiggy/ })).toHaveTextContent("4,970.00");
     // The back link and the tab bar both go to the Accounts page.
