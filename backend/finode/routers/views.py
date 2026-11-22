@@ -536,7 +536,7 @@ def account_view(account_id: UUID, accounts: Accounts, offset: int = Query(defau
         is_group=node.is_group,
         has_children=bool(node.children),
         cards=[_card(n, page.notes) for n in page.cards],
-        can_add_child=page.can_add_child,
+        add_url=page.add_url,
         can_pin=page.can_pin,
         pinned=account.pinned,
         can_edit=node.kind == "user",

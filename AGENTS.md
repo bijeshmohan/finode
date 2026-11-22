@@ -8,7 +8,7 @@ finode is a personal double-entry ledger with envelope budgeting: FastAPI + SQLM
 
 | Area | Read first |
 |---|---|
-| Accounts, transactions, postings, dates, currency, depth, built-in groups, cards, recurring, related entries, tags, query budget | `docs/developer/reference/ledger.md` |
+| Accounts and the four account types, transactions, postings, dates, currency, cards, recurring, related entries, tags, query budget | `docs/developer/reference/ledger.md` |
 | Budget, Budgets page, categories, Coming up, to-do bell | `docs/developer/reference/budget.md` |
 | The app's look, components, amounts, signs, tiles, sheets, motion, dark mode | `docs/developer/reference/ui-look.md` |
 | Each screen (Home, Add, Transactions, Accounts, Categories, Settings…) | `docs/developer/reference/ui-pages.md` |
@@ -48,17 +48,17 @@ Python commands run in `backend/` (`cd backend`), npm commands in `frontend/`; `
 - **JSON API parity**: `/api` covers everything the app does. A new feature gets its route, a test in `backend/tests/api/test_api_parity.py`, its isolation classification and a row in `docs/developer/api.md`. Nothing is left out: the app uses only `/api`. A cookie write must come from the request's own address with `X-Finode: 1` (`auth.check_app_request`). What a token alone must never do (tokens, connected apps, consent, Erase, Delete my account) takes `require_cookie_session`.
 - **Backup**: a new model or account/budget flag goes into `services/backup.py` and the round-trip in `backend/tests/data/test_backup.py`, or it silently disappears from backups. Erase walks every table with `user_id` automatically.
 - **Merging accounts**: a new table or column holding an account id must be handled in `AccountService.merge`.
-- New ways of creating accounts or transactions go through the services (limits via `limits.ensure_room`, depth via `_check_depth`, references via `create_once`/`create`). Saving an entry from a form (`/api/entries`), a bill or income shared with people included, goes through `EntryService` (`services/entry.py`, `services/entry_share.py`), never a copy of its rules. Any new path that writes transactions keeps a test asserting `trial_balance().balanced`.
+- New ways of creating accounts or transactions go through the services (limits via `limits.ensure_room`, an account only as one of the four types via `AccountService.create`, references via `create_once`/`create`). Saving an entry from a form (`/api/entries`), a bill or income shared with people included, goes through `EntryService` (`services/entry.py`, `services/entry_share.py`), never a copy of its rules. Any new path that writes transactions keeps a test asserting `trial_balance().balanced`.
 - Secrets: the Supabase service key stays server-side: never render, log or send it to the browser.
 
 ## Ledger invariants (detail in `reference/ledger.md`)
 
-- Accounts are a tree under five per-user roots (`Assets`, `Liabilities`, `Equity`, `Income`, `Expenses`); the type is the root ancestor. Roots and `Opening Balances` (the system equity account for opening balances and adjustments) cannot be renamed, moved or deleted. Accounts never move to another root.
+- Accounts are a tree under five per-user roots (`Assets`, `Liabilities`, `Equity`, `Income`, `Expenses`). **Every account a person adds is one of four types** (`services/account_types.py`: `assets.bank` Bank Account, `assets.cash` Cash, `liabilities.cards` Credit Card, `assets.wallet` Prepaid Wallet), sits directly under its type and **is part of the budget because of it**: there is no budget flag, no account outside the budget, no group of one's own, no investment or loan account (cash flow, not net worth; a SIP or an EMI is spending in a category). An account keeps its type. Roots, the four types and `Opening Balances` (the system equity account for opening balances and adjustments) cannot be renamed, moved or deleted.
 - A transaction has ≥ 2 postings, positive amounts, debits = credits, all accounts the user's own; no postings to roots except Expenses/Income; no postings to Asset/Liability groups (`GROUP_POSTING_ROOT_NAMES`); an account is never on both sides of one entry. Balances are derived from postings (up to `as_of`, today by default), never stored.
 - **Categories are not accounts** (`budget_categories`): spending and income post to the `Expenses` / `Income` root and the line carries `category_id`. Nothing can be created under Expenses or Income.
-- **Two levels** below a root at most (`MAX_ACCOUNT_DEPTH = 2`), for everyone.
+- Root › type › account: an account holds no accounts. Each person orders the four types (`profiles.account_type_order`); the Accounts page, the pickers and `list_accounts` follow it.
 - **One currency** per person (`profiles.currency`); changing it relabels, never converts. Amounts are `Numeric(24,8)`: format with `formatting.money` or `normalize_amount` on the server and `lib/money.ts` in the app, never `:.2f`. Decimals are limited by the currency (`check_places`).
-- Built-in groups (`accounts.system_key`) are guarded by key, never by name.
+- The four types (`accounts.system_key`) are guarded by key, never by name. A person's books from before the types are converted by `services/cash_flow.py` (the command `python -m finode.commands.cash_flow`, and every restore of an older backup).
 - Contact accounts ("Due from X" / "Due to X") are posted to only by `TransactionService(contacts=True)`; ordinary routes, rules, imports and assistants are refused.
 - A person is never owed both ways: anything that saves an obligation calls `NettingService.even_out` before it commits, and anything that undoes one calls `release` first (`reference/people.md`).
 - Per-person settings are typed columns on `profiles` (column + migration + `ProfileUpdate` field), never a key-value store or Supabase `user_metadata`.
@@ -78,7 +78,7 @@ Python commands run in `backend/` (`cd backend`), npm commands in `frontend/`; `
 
 ## Removed on purpose: do not bring back without the owner asking
 
-History, undo and Recently deleted · savings goals · budget targets and notes · the period lock · the Advanced switch · Build and Earn on the budget · search box and "Recently used" on Accounts · charts and colours on Categories · quick amounts on the Add screen · pre-filled accounts or categories (payee chips fill only the name) · account order / Move up/down · per-person depth limits · multiple currencies, prices and conversions. Details: `reference/removed.md` and the reference pages.
+History, undo and Recently deleted · savings goals · budget targets and notes · the period lock · the Advanced switch · Build and Earn on the budget · search box and "Recently used" on Accounts · charts and colours on Categories · quick amounts on the Add screen · pre-filled accounts or categories (payee chips fill only the name) · ordering single accounts / Move up/down · per-person depth limits · multiple currencies, prices and conversions · net worth, accounts outside the budget, investment and loan accounts, groups of one's own. Details: `reference/removed.md` and the reference pages.
 
 ## Testing
 

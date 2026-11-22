@@ -335,7 +335,8 @@ class AccountView(BaseModel):
     is_group: bool
     has_children: bool
     cards: list[AccountCard]
-    can_add_child: bool
+    # Where "Add account" goes on a type's own page (that type chosen); none on any other page.
+    add_url: str | None
     can_pin: bool
     pinned: bool
     can_edit: bool

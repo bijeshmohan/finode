@@ -121,17 +121,6 @@ class AccountService:
         parent = next((a for a in all_accounts if a.id == account.parent_id), None)
         return parent is not None and parent.name == "Equity" and parent.parent_id is None
 
-    def _validate_parent(self, parent: Account, all_accounts: list[Account]) -> None:
-        if self.is_opening_balances(parent, all_accounts):
-            raise SystemAccountError(f"cannot add sub-accounts to system account '{parent.name}'!")
-        accounts_by_id = {a.id: a for a in all_accounts}
-        if self._get_root_name(parent, accounts_by_id) in GROUP_POSTING_ROOT_NAMES:
-            raise ValueError("Expenses and Income hold categories, not accounts: add a category instead!")
-        if parent.id in self.ar.contact_account_ids():
-            raise SystemAccountError(f"'{parent.name}' belongs to a contact: it can't hold sub-accounts!")
-        if self.tr.postings_for_account(parent.id):
-            raise ValueError(f"cannot add sub-accounts to '{parent.name}' because it has postings!")
-
     @staticmethod
     def _depth(account: Account, accounts_by_id: dict[UUID, Account]) -> int:
         """Levels below the top-level account (a top-level account is 0)."""
@@ -144,14 +133,6 @@ class AccountService:
             seen.add(account.id)
             depth += 1
         return depth
-
-    def _check_depth(self, parent: Account, levels_below_parent: int, all_accounts: list[Account]) -> None:
-        """Refuse a new or moved subtree that would go deeper than two levels below the top-level account."""
-        resulting = self._depth(parent, {a.id: a for a in all_accounts}) + levels_below_parent
-        if resulting > MAX_ACCOUNT_DEPTH:
-            raise AccountDepthError(
-                "accounts can be at most two levels deep (a group and an account, like Assets › Banks › HDFC)!"
-            )
 
     @staticmethod
     def _refuse_fixed(account: Account, what: str) -> None:
@@ -254,20 +235,6 @@ class AccountService:
         if side == PostingSide.DEBIT:
             return PostingSide.CREDIT
         return PostingSide.DEBIT
-
-    def _height(self, account_id: UUID, all_accounts: list[Account]) -> int:
-        """Levels of sub-accounts below an account (0 for a leaf)."""
-        children: dict[UUID, list[UUID]] = {}
-        for a in all_accounts:
-            if a.parent_id is not None:
-                children.setdefault(a.parent_id, []).append(a.id)
-        height, level, seen = 0, [account_id], {account_id}
-        while True:
-            level = [c for p in level for c in children.get(p, []) if c not in seen]
-            if not level:
-                return height
-            seen.update(level)
-            height += 1
 
     def _get_descendants(
         self,
@@ -499,19 +466,6 @@ class AccountService:
             raise ValueError("only an account can be pinned, not a group!")
         if account.closed_on is not None:
             raise ValueError(f"'{account.name}' is closed: reopen it to pin it!")
-
-    def _detect_cycle(self, account_id: UUID, proposed_parent_id: UUID | None) -> bool:
-        if proposed_parent_id is None:
-            return False
-        current_id: UUID | None = proposed_parent_id
-        while current_id is not None:
-            if current_id == account_id:
-                return True
-            parent = self.ar.read(current_id)
-            if not parent:
-                break
-            current_id = parent.parent_id
-        return False
 
     @staticmethod
     def _check_name_free(

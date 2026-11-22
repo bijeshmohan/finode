@@ -554,6 +554,17 @@
       "AccountView": {
         "description": "An account's (or a group's) own page.",
         "properties": {
+          "add_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Add Url"
+          },
           "badge": {
             "anyOf": [
               {
@@ -598,10 +609,6 @@
           },
           "bill_soon": {
             "title": "Bill Soon",
-            "type": "boolean"
-          },
-          "can_add_child": {
-            "title": "Can Add Child",
             "type": "boolean"
           },
           "can_edit": {
@@ -749,7 +756,7 @@
           "is_group",
           "has_children",
           "cards",
-          "can_add_child",
+          "add_url",
           "can_pin",
           "pinned",
           "can_edit",

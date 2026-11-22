@@ -163,6 +163,8 @@ def test_a_groups_page_lists_its_open_accounts_as_cards(client, tree):
     seen = view(client, f"/api/views/accounts/{tree['banks']}")
     assert seen["is_group"] is True and [c["name"] for c in seen["cards"]] == ["HDFC"]
     assert seen["sub"] == "Built in · money I own" and seen["can_pin"] is False
+    assert seen["add_url"] == "/accounts/new?type=assets.bank", "a type's page adds an account of that type"
+    assert view(client, f"/api/views/accounts/{tree['hdfc']}")["add_url"] is None, "an account holds no accounts"
 
 
 def test_a_cards_bill_and_the_days_to_set(client, tree):

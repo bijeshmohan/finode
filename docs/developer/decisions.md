@@ -42,7 +42,7 @@ The decisions that look odd until you know the reason. Each entry says what was 
 
 ## The budget sits on top of the ledger
 
-**Decision.** The ledger knows nothing about budgeting. The budget stores only the plan, the targets and an `on_budget` flag.
+**Decision.** The ledger knows nothing about budgeting. The budget stores only the plan (which accounts count is their type: every account of the four types, since 2026-11-22).
 **Why.** The ledger stays correct and simple whatever the budget does, and the budget can never corrupt it.
 **Cost.** The Budget counts only what budget money paid, while the reports (Categories, breakdown, overview) count every line posted to Expenses. They agree on an EMI (a payment into a loan labelled with a category is spending in that category everywhere), and differ only where that is the point: interest the lender charges to a loan is an expense in the reports but touches no budget account, so it is not in the Budget.
 
@@ -141,3 +141,9 @@ The owner froze new features on 2026-10-14 and defined the MVP on 2026-10-18: co
 **Decision.** The repository holds the API in `backend/` (the `finode` package, migrations, tests, its own `pyproject.toml`, `uv.lock` and `Dockerfile`) next to the app in `frontend/` (its own `package.json` and `Dockerfile`). `compose.yaml`, the one `.env`, the `Makefile` and the docs stay at the root (2026-11-17). The package is `finode`, not `app`; sign-in lives in `finode/auth/`. The API's tests are grouped by area, and the guards on the app's CSS and icons are Vitest tests in `frontend/`.
 **Why.** After the move to React the API sat at the root while the app sat in a folder, and the Python package had a generic name. With two equal halves each tool runs from its own folder with its own lock file and image, CI and Dependabot point at one folder each, and a test lives with the code it checks. The owner asked for a layout an experienced full-stack developer would expect, with no debt left behind.
 **Cost.** Python commands run in `backend/` (or through `make` from the root). The deploy command is unchanged (`docker compose up -d --build` at the root), as are the database and its migration history; the API image is now built from `backend/`.
+
+## Cash flow, not net worth: four account types, all in the budget
+
+**Decision.** Every account a person adds is a Bank Account, Cash, a Credit Card or a Prepaid Wallet, and is part of the budget because of its type (2026-11-22). There are no accounts outside the budget, no groups of one's own, no investment or loan accounts and no net worth. A SIP, an EMI or a deposit is spending in a category; money borrowed into the bank is income under Borrowed, an investment sold income under Redeemed; a card purchase is spent when swiped. Each person orders the four types. Books from before were converted once (`services/cash_flow.py`, the command `python -m finode.commands.cash_flow`), and older backups are converted as they are restored.
+**Why.** The owner wants to see money in and out, not what things are worth, and nobody should have to decide whether an account is in the budget. The budget already counted cash flow; what changed is what can be added and what is shown.
+**Cost.** Worths (a fund's value, what is left on a loan) are not tracked at all. An account keeps its type for good (merge or close it to change). The conversion deleted entries that only kept a worth (opening balances of loans, value updates); a backup taken before still has them.

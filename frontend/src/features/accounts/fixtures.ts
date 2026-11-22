@@ -79,7 +79,7 @@ export function account(over: Partial<AccountView> = {}): AccountView {
     is_group: false,
     has_children: false,
     cards: [],
-    can_add_child: false,
+    add_url: null,
     can_pin: true,
     pinned: false,
     can_edit: true,

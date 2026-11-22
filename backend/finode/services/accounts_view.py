@@ -12,7 +12,7 @@ from uuid import UUID
 
 from ..schemas.account import CardBill
 from . import cards
-from .account import MAX_ACCOUNT_DEPTH, AccountService, RegisterPage
+from .account import AccountService, RegisterPage
 from .account_tree import Node, build_tree, without_contacts
 from .account_types import TYPE_KEYS, TYPE_NAMES
 from .transaction_rows import RegisterRow, UpcomingItem, account_register_row, is_inflow
@@ -184,7 +184,8 @@ class AccountPage:
     balance_after: Decimal | None
     bill: CardBill | None
     can_set_days: bool
-    can_add_child: bool
+    # Where "Add account" goes on a type's own page (that type chosen); none on any other page.
+    add_url: str | None
     # The pin button in the header: an open account that holds entries; a group, a root or a closed account has none.
     can_pin: bool
     # Part of a group's balance that was posted to the group itself.
@@ -222,9 +223,6 @@ def account_page(accounts: AccountService, account_id: UUID, today: date, offset
         for e in page.upcoming
     ]
     signs = {e.change > 0 for e in page.upcoming}
-    at_limit = node.kind != "system" and node.depth >= MAX_ACCOUNT_DEPTH
-    # Asset and liability accounts with their own postings cannot gain sub-accounts.
-    has_own_postings = node.is_leaf and page.has_any and node.kind != "root"
     bill = None
     can_set_days = False
     if root.account.name == "Liabilities" and node.kind == "user" and node.postable:
@@ -245,7 +243,7 @@ def account_page(accounts: AccountService, account_id: UUID, today: date, offset
         balance_after=page.upcoming[-1].balance if page.upcoming else None,
         bill=bill,
         can_set_days=can_set_days,
-        can_add_child=node.kind != "system" and not at_limit and not has_own_postings,
+        add_url=f"/accounts/new?type={node.account.system_key}" if node.account.system_key in TYPE_KEYS else None,
         can_pin=node.kind == "user"
         and not node.is_group
         and not node.account.closed_on

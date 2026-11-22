@@ -2622,6 +2622,8 @@ export interface components {
          * @description An account's (or a group's) own page.
          */
         AccountView: {
+            /** Add Url */
+            add_url: string | null;
             /** Badge */
             badge: ("system" | "closed") | null;
             /** Balance */
@@ -2631,8 +2633,6 @@ export interface components {
             bill: components["schemas"]["CardBill"] | null;
             /** Bill Soon */
             bill_soon: boolean;
-            /** Can Add Child */
-            can_add_child: boolean;
             /** Can Edit */
             can_edit: boolean;
             /** Can Pin */
