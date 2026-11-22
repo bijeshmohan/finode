@@ -493,6 +493,14 @@ class TransactionRepository:
             grouped.setdefault(posting.transaction_id, []).append(posting)
         return grouped
 
+    def retarget_posting(self, posting_id: UUID, account_id: UUID, category_id: UUID | None) -> None:
+        """Point one line at another account with another label (the cash-flow conversion). Nothing is committed."""
+        self.db.exec(
+            update(Posting)
+            .where(Posting.user_id == self.uid, Posting.id == posting_id)
+            .values(account_id=account_id, category_id=category_id)
+        )
+
     def posting_rows(self, date_to: date):
         """Every posting of transactions dated up to a day, as (transaction, account, side, amount, date) rows: what the
         budget is worked out from, without payees, notes or timestamps. One query, remembered for the request."""

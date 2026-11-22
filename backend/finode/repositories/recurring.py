@@ -24,6 +24,38 @@ class RecurringRepository:
         )
         return self.db.exec(statement).all()
 
+    def retarget(self, recurring_id: UUID, account_map: dict[UUID, tuple[UUID, UUID | None]]) -> None:
+        """Where a rule names an account in `account_map`, it names the new account and label instead (the cash-flow
+        conversion): a simple rule's from/to account (its own category takes the label), a split rule's rows. Nothing
+        is committed."""
+        rule = self.read(recurring_id)
+        if rule is None:
+            return
+        for field in ("from_account_id", "to_account_id"):
+            old = getattr(rule, field)
+            if old in account_map:
+                new, category_id = account_map[old]
+                setattr(rule, field, new)
+                rule.category_id = category_id
+        self.db.add(rule)
+        for row in self.db.exec(
+            select(RecurringPosting).where(
+                RecurringPosting.user_id == self.uid, RecurringPosting.recurring_id == recurring_id
+            )
+        ).all():
+            if row.account_id in account_map:
+                row.account_id, row.category_id = account_map[row.account_id]
+                self.db.add(row)
+        self.db.flush()
+
+    def end(self, recurring_id: UUID) -> None:
+        """Stop a rule for good (it records nothing more). Nothing is committed."""
+        rule = self.read(recurring_id)
+        if rule is not None:
+            rule.active = False
+            self.db.add(rule)
+            self.db.flush()
+
     def read(self, recurring_id: UUID) -> RecurringTransaction | None:
         return self.db.exec(
             select(RecurringTransaction).where(
