@@ -762,8 +762,6 @@ class BackupService:
                         due_day=a.due_day,
                         bill_rounding=a.bill_rounding,
                     ),
-                    on_budget=a.on_budget,
-                    new_accounts_in_budget=a.new_accounts_in_budget,
                     pinned=a.pinned,
                 )
                 if a.system_key in RETIRED_KEYS:  # Investments or Loans, from a file made before the four types
@@ -890,7 +888,8 @@ class BackupService:
             db.flush()
             outside = {ids[a.id] for a in file.accounts if a.parent_id is not None and a.id in ids and not a.on_budget}
             conversion = CashFlowConversion(self.accounts, self.tr, self.rr, CategoryService(self.accounts))
-            conversion.apply(conversion.plan(outside, strict=False), commit=False)
+            groups = {ids[a.id] for a in file.accounts if a.id in ids and a.new_accounts_in_budget is not None}
+            conversion.apply(conversion.plan(outside, strict=False, group_ids=groups), commit=False)
             db.commit()
         except Exception:
             db.rollback()

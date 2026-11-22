@@ -41,10 +41,10 @@ DEBIT_ROOT_NAMES = frozenset({"Assets", "Expenses"})
 GROUP_POSTING_ROOT_NAMES = frozenset({"Income", "Expenses"})
 
 # The four account types (services/account_types.py), the built-in groups every person has under Assets and
-# Liabilities: (root, name, key, whether an account made under it is in the budget: always). Every account a person
+# Liabilities: (root, name, key); every account under one is in the budget. Every account a person
 # adds goes under one of them; they cannot be renamed, moved, closed or deleted. Rules read the key, never the name.
-FIXED_PARENTS = tuple((TYPE_ROOTS[key], TYPE_NAMES[key], key, True) for key in TYPE_KEYS)
-FIXED_ORDER = {key: place for place, (_, _, key, _) in enumerate(FIXED_PARENTS)}
+FIXED_PARENTS = tuple((TYPE_ROOTS[key], TYPE_NAMES[key], key) for key in TYPE_KEYS)
+FIXED_ORDER = {key: place for place, (_, _, key) in enumerate(FIXED_PARENTS)}
 NOT_UNDER_A_TYPE = "an account goes under Cash, Bank Account, Credit Card or Prepaid Wallet!"
 
 
@@ -188,16 +188,8 @@ class AccountService:
             )
             self.ar.db.add(roots[name])
         # The four types come with the roots, and anyone missing one gets it (same transaction: a lost race makes none twice).
-        for root, name, key, starts_in_budget in missing_types:
-            self.ar.db.add(
-                Account(
-                    name=name,
-                    parent_id=roots[root].id,
-                    user_id=self.ar.uid,
-                    system_key=key,
-                    new_accounts_in_budget=starts_in_budget,
-                )
-            )
+        for root, name, key in missing_types:
+            self.ar.db.add(Account(name=name, parent_id=roots[root].id, user_id=self.ar.uid, system_key=key))
         try:
             self.ar.db.commit()
         except IntegrityError:
@@ -497,19 +489,18 @@ class AccountService:
         if group is None:
             raise FixedParentError(NOT_UNDER_A_TYPE)
         fields = account.model_dump(include=set(AccountFields.model_fields))
-        return self._create(AccountBase(**fields, parent_id=group.id), account.balance, True, all_accounts, commit)
+        return self._create(AccountBase(**fields, parent_id=group.id), account.balance, all_accounts, commit)
 
     def create_contact_account(self, name: str, root: str, *, commit: bool = True) -> AccountRead:
         """A person's "Due from" (under Assets) or "Due to" (under Liabilities) account, outside the budget."""
         all_accounts = self._ensure_roots()
         parent = next(a for a in all_accounts if a.parent_id is None and a.name == root)
-        return self._create(AccountBase(name=name, parent_id=parent.id), Decimal("0.00"), False, all_accounts, commit)
+        return self._create(AccountBase(name=name, parent_id=parent.id), Decimal("0.00"), all_accounts, commit)
 
     def _create(
         self,
         account: AccountBase,
         balance: Decimal,
-        on_budget: bool,
         all_accounts: builtins.list[Account],
         commit: bool,
     ) -> AccountRead:
@@ -522,7 +513,7 @@ class AccountService:
         self._check_bill_days(
             self._get_root_name(parent, accounts_by_id), False, account.statement_day, account.due_day
         )
-        created = self.ar.create(account, on_budget=on_budget)
+        created = self.ar.create(account)
         all_accounts_with_created = [*all_accounts, created]
 
         try:

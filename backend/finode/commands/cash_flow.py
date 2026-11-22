@@ -107,7 +107,7 @@ def main(argv: list[str], session_factory: Callable[[], Session]) -> int:
     with session_factory() as db:
         conversion = _conversion(db, args.user)
         accounts = conversion.ar.list()
-        off_budget = {a.id for a in accounts if not a.on_budget}
+        off_budget: set[UUID] = set()  # the budget flag is gone: every account is in the budget by its type
         try:
             retire_ids, types = _choices(accounts, args.retire, args.types)
             plan = conversion.plan(off_budget, strict=True, retire_ids=retire_ids, types=types)

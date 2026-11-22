@@ -14,6 +14,9 @@ from sqlmodel import SQLModel
 from finode.config import settings
 from migrations.commodity_seed import seed_id
 
+# The last revision before the budget flag was dropped (it refuses books not yet in the four account types).
+BEFORE_CASH_FLOW = "e8a0c2d4f6b9"
+
 BEFORE = "e2a4c6e8f1b3"
 NOW = datetime.now(UTC)
 ASHA, BEN = uuid4(), uuid4()
@@ -107,7 +110,7 @@ def _currency(engine, user):
 
 def test_the_schema_matches_the_models_and_commodities_are_gone(alembic):
     config, engine = alembic
-    command.upgrade(config, "head")
+    command.upgrade(config, "head")  # empty books: the whole way
     inspector = sa.inspect(engine)
     tables = set(inspector.get_table_names())
     assert "commodities" not in tables and "prices" not in tables
@@ -125,7 +128,7 @@ def test_everything_recorded_is_kept_and_the_currency_follows_the_profile(alembi
     command.upgrade(config, BEFORE)
     _tid = _ledger(engine, ASHA, "INR")
     _ledger(engine, BEN, "USD", amount="40.50")
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_CASH_FLOW)
     assert _currency(engine, ASHA) == "INR" and _currency(engine, BEN) == "USD"
     with engine.connect() as c:
         amounts = c.execute(sa.text("SELECT amount FROM postings ORDER BY amount")).scalars().all()
@@ -144,7 +147,7 @@ def test_someone_with_no_profile_yet_keeps_their_currency(alembic):
     command.upgrade(config, BEFORE)
     _ledger(engine, BEN, "EUR", profile=False)
     _ledger(engine, ASHA, "INR", profile=False)
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_CASH_FLOW)
     assert _currency(engine, BEN) == "EUR", "a profile is made for them so the currency is not lost"
     assert _currency(engine, ASHA) is None, "the default (INR) applies without a row"
 
@@ -159,7 +162,7 @@ def test_a_profile_with_nothing_recorded_keeps_the_chosen_default(alembic):
         c=seed_id("GBP"),
     )
     _run(engine, "INSERT INTO profiles (created, updated, user) VALUES (:n, :n, :u)", u=BEN)
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_CASH_FLOW)
     assert _currency(engine, ASHA) == "GBP" and _currency(engine, BEN) == "INR"
 
 
@@ -168,7 +171,7 @@ def _refuses(alembic, setup, message):
     command.upgrade(config, BEFORE)
     setup(engine)
     with pytest.raises(RuntimeError, match=message):
-        command.upgrade(config, "head")
+        command.upgrade(config, BEFORE_CASH_FLOW)
     with engine.connect() as c:
         assert c.execute(sa.text("SELECT version_num FROM alembic_version")).scalar() == BEFORE, "nothing was changed"
         assert "commodities" in sa.inspect(c).get_table_names()
@@ -248,6 +251,6 @@ def test_a_recurring_conversion_stops_the_migration(alembic):
 
 def test_the_migration_cannot_be_undone(alembic):
     config, _engine = alembic
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_CASH_FLOW)
     with pytest.raises(RuntimeError, match="cannot be undone"):
         command.downgrade(config, BEFORE)

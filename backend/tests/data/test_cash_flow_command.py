@@ -1,11 +1,14 @@
 """The command a person's books are converted with (`python -m finode.commands.cash_flow`): a dry run by default, and
 the real run only with a backup on disk and nothing left undecided."""
 
+from datetime import date
+
 from sqlmodel import Session
 
 from finode.commands.cash_flow import main
+from finode.schemas.category import CategoryCreate
 from tests.conftest import TEST_USER_ID
-from tests.data.test_cash_flow_conversion import _build
+from tests.data.test_cash_flow_conversion import _build, _entry, _line
 
 
 def _setup(session, monkeypatch):
@@ -28,7 +31,7 @@ def test_dry_run_prints_every_section_and_changes_nothing(session, monkeypatch, 
     out = capsys.readouterr().out
     for heading in ("Retired", "Moved", "Rewritten", "Deleted", "New categories", "Needs a decision"):
         assert heading in out
-    assert "Assets:Bank Accounts:Old SBI" in out
+    assert "Liabilities:Loans:Home Loan → deleted" in out
     assert "Home Loan" in _names(session)
 
 
@@ -43,7 +46,16 @@ def test_apply_needs_a_backup(session, monkeypatch, tmp_path, capsys):
 
 
 def test_apply_refuses_while_something_needs_a_decision(session, monkeypatch, tmp_path, capsys):
-    _, _, factory = _setup(session, monkeypatch)
+    s, ids, factory = _setup(session, monkeypatch)
+    refunds = s.categories.create(CategoryCreate(name="Refunds", kind="spending"))
+    _entry(  # a loan payment with a refund line: the rewrite would put Expenses on both sides
+        s,
+        date(2026, 11, 3),
+        "Odd",
+        _line(ids.loan, "debit", "1000"),
+        _line(None, "credit", "200", refunds.id),
+        _line(ids.hdfc, "credit", "800"),
+    )
     backup = tmp_path / "finode.sql.gz"
     backup.write_bytes(b"dump")
     assert main(["--user", str(TEST_USER_ID), "--apply", "--backup", str(backup)], factory) == 3
@@ -51,10 +63,7 @@ def test_apply_refuses_while_something_needs_a_decision(session, monkeypatch, tm
 
 
 def test_apply_converts(session, monkeypatch, tmp_path, capsys):
-    s, ids, factory = _setup(session, monkeypatch)
-    sbi = s.accounts.ar.read(ids.old_sbi)
-    s.accounts.ar.place(sbi.id, sbi.parent_id, sbi.name, True)
-    session.commit()
+    _, _, factory = _setup(session, monkeypatch)
     backup = tmp_path / "finode.sql.gz"
     backup.write_bytes(b"dump")
     assert main(["--user", str(TEST_USER_ID), "--apply", "--backup", str(backup)], factory) == 0

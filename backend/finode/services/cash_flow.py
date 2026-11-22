@@ -79,11 +79,14 @@ class CashFlowConversion:
         strict: bool,
         retire_ids: set[UUID] | None = None,
         types: dict[UUID, str] | None = None,
+        group_ids: set[UUID] | None = None,
     ) -> ConversionPlan:
         """`retire_ids`: accounts or groups the person chose to retire as well (their worth goes, like an investment's;
         under Liabilities, like a loan's). `types`: an account's or a group's accounts' type, chosen by the person (an
-        account outside the budget given a type goes into the budget)."""
+        account outside the budget given a type goes into the budget). `group_ids`: accounts that were groups (from a
+        backup, which says so even of an empty one); an account with accounts in it is a group anyway."""
         retire_ids = retire_ids or set()
+        group_ids = group_ids or set()
         types = types or {}
         accounts = self.ar.list()
         by_id = {a.id: a for a in accounts}
@@ -127,7 +130,7 @@ class CashFlowConversion:
             if a.parent_id in holding_roots
             and a.id not in contacts
             and a.id not in retired
-            and (a.system_key is not None or a.new_accounts_in_budget is not None or children[a.id])
+            and (a.system_key is not None or a.id in group_ids or children[a.id])
         ]
         group_ids = {a.id for a in groups}
         leaves = [
@@ -347,18 +350,15 @@ class CashFlowConversion:
         groups: dict[str, UUID] = {}
         for key, group_id in work.type_groups.items():
             if group_id is None:
-                created = self.ar.create(
-                    AccountBase(name=TYPE_NAMES[key], parent_id=work.roots[TYPE_ROOTS[key]]),
-                    new_accounts_in_budget=True,
-                )
+                created = self.ar.create(AccountBase(name=TYPE_NAMES[key], parent_id=work.roots[TYPE_ROOTS[key]]))
                 created.system_key = key
                 self.ar.db.add(created)
                 group_id = created.id
             groups[key] = group_id
         for group_id, name in work.renames.items():
-            self.ar.place(group_id, work.roots[TYPE_ROOTS[_key_of(work, group_id)]], name, False)
+            self.ar.place(group_id, work.roots[TYPE_ROOTS[_key_of(work, group_id)]], name)
         for account_id, key, name in work.places:
-            self.ar.place(account_id, groups[key], name, True)
+            self.ar.place(account_id, groups[key], name)
 
         targets = {"Expenses": work.roots["Expenses"], "Income": work.roots["Income"]}
         if any(target == "Opening Balances" for _, target, _ in work.retargets):

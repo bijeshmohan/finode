@@ -15,6 +15,7 @@ from finode.schemas.category import CategoryCreate
 from finode.schemas.contact import ContactCreate
 from finode.schemas.recurring import RecurringCreate
 from finode.schemas.transaction import PostingCreate, TransactionCreate
+from finode.services.account_types import in_budget
 from finode.services.cash_flow import CashFlowConversion, ConversionRefused
 from finode.services.contact import ContactService
 from finode.services.transaction import TransactionService
@@ -48,25 +49,25 @@ def _build(session, user=TEST_USER_ID):
     # outside the budget), a group of the person's own, and an account taken out of the budget.
     groups = {a.system_key: a for a in ar.list() if a.system_key}
     ar.delete(groups.pop("assets.wallet").id)
-    ar.place(groups["assets.bank"].id, roots["Assets"], "Bank Accounts", False)
-    ar.place(groups["liabilities.cards"].id, roots["Liabilities"], "Credit Cards", False)
+    ar.place(groups["assets.bank"].id, roots["Assets"], "Bank Accounts")
+    ar.place(groups["liabilities.cards"].id, roots["Liabilities"], "Credit Cards")
     for key, name, root in (
         ("assets.investments", "Investments", "Assets"),
         ("liabilities.loans", "Loans", "Liabilities"),
     ):
-        group = ar.create(AccountBase(name=name, parent_id=roots[root]), new_accounts_in_budget=False)
+        group = ar.create(AccountBase(name=name, parent_id=roots[root]))
         group.system_key = key
         groups[key] = group
-    wallets = ar.create(AccountBase(name="Wallets", parent_id=roots["Assets"]), new_accounts_in_budget=True)
+    wallets = ar.create(AccountBase(name="Wallets", parent_id=roots["Assets"]))
 
-    def made(name, parent_id, on_budget=True, **extra):
-        return ar.create(AccountBase(name=name, parent_id=parent_id, **extra), on_budget=on_budget)
+    def made(name, parent_id, **extra):
+        return ar.create(AccountBase(name=name, parent_id=parent_id, **extra))
 
     hdfc = made("HDFC", groups["assets.bank"].id)
-    old_sbi = made("Old SBI", groups["assets.bank"].id, on_budget=False)
+    old_sbi = made("Old SBI", groups["assets.bank"].id)
     card = made("Amex", groups["liabilities.cards"].id, statement_day=5, due_day=25)
-    loan = made("Home Loan", groups["liabilities.loans"].id, on_budget=False)
-    fund = made("Axis Bluechip", groups["assets.investments"].id, on_budget=False)
+    loan = made("Home Loan", groups["liabilities.loans"].id)
+    fund = made("Axis Bluechip", groups["assets.investments"].id)
     paytm = made("Paytm", wallets.id)
     session.commit()
     opening = s.accounts.opening_balances_account()
@@ -129,8 +130,11 @@ def _build(session, user=TEST_USER_ID):
 def books(session, monkeypatch):
     s, ids = _build(session)
 
+    # What was outside the budget before the four types (the flag is gone: the books say it as a file would).
+    outside = {ids.old_sbi, ids.loan, ids.fund}
+
     def off_budget_ids():
-        return {a.id for a in s.accounts.ar.list() if not a.on_budget}
+        return set(outside)
 
     def kept():
         return [ids.hdfc, ids.old_sbi, ids.card, ids.paytm, ids.asha.receivable_account_id]
@@ -141,9 +145,7 @@ def books(session, monkeypatch):
         return {d: {a.id: a.balance for a in s.accounts.list(as_of=d) if a.id in kept()} for d in days}
 
     def put_old_sbi_in_budget():
-        sbi = s.accounts.ar.read(ids.old_sbi)
-        s.accounts.ar.place(sbi.id, sbi.parent_id, sbi.name, True)
-        session.commit()
+        outside.discard(ids.old_sbi)
 
     def lines_of(payee):
         made = [t for t in s.transactions.list(limit=1000) if t.payee == payee]
@@ -239,7 +241,7 @@ def test_kept_accounts_are_under_their_types_and_in_the_budget(books):
         books.ids.card: "liabilities.cards",
         books.ids.paytm: "assets.bank",
     }
-    assert all(by_id[i].on_budget for i in (books.ids.hdfc, books.ids.card, books.ids.paytm, books.ids.old_sbi))
+    assert all(in_budget(by_id[i], by_id) for i in (books.ids.hdfc, books.ids.card, books.ids.paytm, books.ids.old_sbi))
     assert by_id[books.ids.asha.receivable_account_id].parent_id == books.s.accounts.ar.root_ids()["Assets"]
 
 
@@ -302,7 +304,9 @@ def test_non_strict_plan_decides_by_default(books):
     assert plan.undecided_accounts == [] and plan.undecided_entries == []
     books.conversion.apply(plan)
     by_id = {a.id: a for a in books.s.accounts.ar.list()}
-    assert by_id[books.ids.old_sbi].on_budget and by_id[by_id[books.ids.old_sbi].parent_id].name == "Bank Account"
+    assert (
+        in_budget(by_id[books.ids.old_sbi], by_id) and by_id[by_id[books.ids.old_sbi].parent_id].name == "Bank Account"
+    )
     assert books.balances_by_day() == before
 
 
@@ -356,4 +360,7 @@ def test_a_chosen_type_puts_an_account_outside_the_budget_in_it(books):
     assert plan.undecided_accounts == []
     books.conversion.apply(plan)
     by_id = {a.id: a for a in books.s.accounts.ar.list()}
-    assert by_id[books.ids.old_sbi].on_budget and by_id[by_id[books.ids.old_sbi].parent_id].system_key == "assets.cash"
+    assert (
+        in_budget(by_id[books.ids.old_sbi], by_id)
+        and by_id[by_id[books.ids.old_sbi].parent_id].system_key == "assets.cash"
+    )

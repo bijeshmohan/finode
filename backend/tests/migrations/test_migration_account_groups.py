@@ -10,6 +10,9 @@ from alembic.config import Config
 
 from finode.config import settings
 
+# The last revision before the budget flag was dropped (it refuses books not yet in the four account types).
+BEFORE_CASH_FLOW = "e8a0c2d4f6b9"
+
 BEFORE = "b4e6f8a0c2d5"
 NOW = datetime.now(UTC)
 USER = uuid4()
@@ -52,7 +55,7 @@ def test_the_built_in_groups_get_their_choice_and_nothing_else_does(alembic):
         ("HDFC", None),
     ):
         _account(engine, name, key)
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_CASH_FLOW)
     with engine.connect() as c:
         found = dict(c.execute(sa.text("SELECT name, new_accounts_in_budget FROM accounts")).all())
     assert found == {
@@ -67,7 +70,7 @@ def test_the_built_in_groups_get_their_choice_and_nothing_else_does(alembic):
 
 def test_it_can_be_undone(alembic):
     config, engine = alembic
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_CASH_FLOW)
     command.downgrade(config, BEFORE)
     assert "new_accounts_in_budget" not in {c["name"] for c in sa.inspect(engine).get_columns("accounts")}
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_CASH_FLOW)
