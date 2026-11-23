@@ -109,7 +109,7 @@ async def test_each_token_sees_only_its_own_users_books(session, client, root_ac
     theirs = make_token(session, OTHER_USER, name="Theirs")
     async with running_app(session), mcp_client(theirs) as c:
         accounts = payload(await c.call_tool("list_accounts", {}))["accounts"]
-        assert "Assets:Bank Account:Mine" not in {a["path"] for a in accounts}
+        assert "Assets:Mine" not in {a["path"] for a in accounts}
         assert payload(await c.call_tool("get_overview", {}))["cash_on_hand"] == "0.00"
         with pytest.raises(ToolFailed, match="no account matches"):
             payload(await c.call_tool("get_account", {"account": "Mine"}))

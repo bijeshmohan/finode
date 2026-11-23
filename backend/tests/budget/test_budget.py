@@ -91,7 +91,7 @@ def setup(client, root_accounts):
 def test_the_money_in_budget_accounts_is_ready_to_assign(client, setup):
     data = budget(client)
     assert data["ready_to_assign"] == "1000.00" and data["cash"] == "1000.00"
-    assert data["budget_accounts"] == ["Assets:Bank Account:Bank"] and data["currency"] == "INR"
+    assert data["budget_accounts"] == ["Assets:Bank"] and data["currency"] == "INR"
     assert {l["name"] for l in data["lines"]} == {"Food", "Rent"}
 
 
@@ -153,7 +153,7 @@ def test_a_card_in_the_budget_makes_purchases_count_and_payments_neutral(client,
     move(client, setup["bank"], card, "100")  # paid the card off
     data = budget(client)
     assert data["cash"] == "900.00" and data["ready_to_assign"] == "700.00"
-    assert "Liabilities:Credit Card:Card" in data["budget_accounts"]
+    assert "Liabilities:Card" in data["budget_accounts"]
 
 
 # ---- months ------------------------------------------------------------------------------------------
@@ -470,7 +470,7 @@ def test_a_card_shows_what_is_set_aside_for_its_bill(client, card_books):
     move(client, card_books["card"], card_books["food"], "100")  # a purchase on the card
     data = budget(client)
     [card] = data["cards"]
-    assert card["path"] == "Liabilities:Credit Card:Visa" and card["owed"] == "100.00"
+    assert card["path"] == "Liabilities:Visa" and card["owed"] == "100.00"
     assert card["charged"] == "100.00" and card["paid"] == "0.00"
     assert data["reserved_for_cards"] == "100.00" and data["money_in_accounts"] == "1000.00"
     assert line(data, "Food")["available"] == "50.00" and data["ready_to_assign"] == "850.00"

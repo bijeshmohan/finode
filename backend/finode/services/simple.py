@@ -26,7 +26,7 @@ def label_simple(accounts: dict[UUID, Account], postings: list[PostingCreate], c
     and the entry's checks name the problem."""
     for posting in postings:
         account = accounts.get(posting.target)
-        if account is not None and not in_budget(account, accounts):
+        if account is not None and not in_budget(account):
             posting.category_id = category
             return
     postings[0].category_id = category

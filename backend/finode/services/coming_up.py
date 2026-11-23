@@ -38,7 +38,7 @@ class ComingUpService:
             raise BudgetError(f"look at most {MAX_DAYS_AHEAD} days ahead!")
         accounts = self.accounts.ar.list()
         by_id = {a.id: a for a in accounts}
-        in_budget = {a.id for a in accounts if budgeted(a, by_id)}
+        in_budget = {a.id for a in accounts if budgeted(a)}
         roots = {a.id: AccountService.root_name(a, by_id) for a in accounts}
         items: list[ComingUpItem] = []
 

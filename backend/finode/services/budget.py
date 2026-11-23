@@ -115,13 +115,12 @@ class BudgetService:
         currency = self.accounts.currency()
         accounts = self.accounts.ar.list()
         by_id = {a.id: a for a in accounts}
-        parents = {a.parent_id for a in accounts if a.parent_id is not None}
         categories = self._categories()
 
         in_budget: set[UUID] = set()
         budget_accounts: list[str] = []
         for a in accounts:
-            if budgeted(a, by_id) and a.id not in parents:
+            if budgeted(a):
                 in_budget.add(a.id)
                 budget_accounts.append(":".join(self._path_with_root(a, by_id)))
         budget_accounts.sort()

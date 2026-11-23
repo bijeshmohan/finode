@@ -5,7 +5,9 @@ from tests.books import post_account
 
 
 def group(client, key):
-    return next(a for a in client.get("/api/accounts/").json() if a["system_key"] == key)
+    """Where an account of the type `key` goes: its root (there are no type accounts)."""
+    root = "Liabilities" if key.startswith("liabilities") else "Assets"
+    return next(a for a in client.get("/api/accounts/").json() if a["parent_id"] is None and a["name"] == root)
 
 
 def bank(client, name="HDFC"):

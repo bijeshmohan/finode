@@ -496,7 +496,6 @@ def accounts_view(accounts: Accounts):
             KindRow(
                 name=k.name,
                 type=cast(AccountType, k.type),
-                group_id=k.group_id,
                 total=k.total,
                 owed=k.owed,
                 open_count=k.open_count,
@@ -536,7 +535,6 @@ def account_view(account_id: UUID, accounts: Accounts, offset: int = Query(defau
         is_group=node.is_group,
         has_children=bool(node.children),
         cards=[_card(n, page.notes) for n in page.cards],
-        add_url=page.add_url,
         can_pin=page.can_pin,
         pinned=account.pinned,
         can_edit=node.kind == "user",

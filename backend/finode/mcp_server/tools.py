@@ -32,7 +32,7 @@ from ..schemas.transaction import (
     TransactionRead,
     TransactionUpdate,
 )
-from ..services.account_types import TYPE_NAMES
+from ..services.account_types import TYPE_NAMES, TYPE_ROOTS
 from ..services.validation import validation_message
 from ..tags import clean_name, clean_names, tags_in
 from ..version import VERSION
@@ -337,7 +337,6 @@ def _account_row(e: Entry, index: AccountIndex) -> dict[str, Any]:
         **({"closed": e.account.closed_on.isoformat()} if e.account.closed_on else {}),
         **({"account_kind": TYPE_NAMES[e.account.type]} if e.account.type else {}),
         **({"pinned": True} if e.account.pinned else {}),
-        **({"group": e.account.system_key} if e.account.system_key else {}),
         **(
             {
                 "statement_day": e.account.statement_day,
@@ -1057,12 +1056,12 @@ def create_account(
     with services() as s:
         index = _index(s)
         key = next(k for k, n in TYPE_NAMES.items() if n == kind)
-        group = next(e for e in index.entries.values() if e.account.system_key == key)
+        root = next(e for e in index.entries.values() if e.is_root and e.account.name == TYPE_ROOTS[key])
         name = name.strip()
-        siblings = [e for e in index.entries.values() if e.account.parent_id == group.account.id]
+        siblings = [e for e in index.entries.values() if e.account.parent_id == root.account.id]
         twin = next((e for e in siblings if e.account.name.casefold() == name.casefold()), None)
         if twin:
-            raise ToolError(f"'{group.path}' already has an account named '{twin.account.name}': use {twin.path}!")
+            raise ToolError(f"'{root.path}' already has an account named '{twin.account.name}': use {twin.path}!")
         created = s.accounts.create(
             AccountCreate(
                 name=name,
@@ -1077,7 +1076,7 @@ def create_account(
         return {
             "created": {
                 "id": str(created.id),
-                "path": f"{group.path}:{created.name}",
+                "path": f"{root.path}:{created.name}",
                 "balance": text(created.balance),
             }
         }

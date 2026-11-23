@@ -2562,8 +2562,6 @@ export interface components {
             pinned: boolean;
             /** Statement Day */
             statement_day?: number | null;
-            /** System Key */
-            system_key?: string | null;
             /** Type */
             type?: ("assets.bank" | "assets.cash" | "liabilities.cards" | "assets.wallet") | null;
             /**
@@ -2622,8 +2620,6 @@ export interface components {
          * @description An account's (or a group's) own page.
          */
         AccountView: {
-            /** Add Url */
-            add_url: string | null;
             /** Badge */
             badge: ("system" | "closed") | null;
             /** Balance */
@@ -4312,11 +4308,6 @@ export interface components {
             all_closed: boolean;
             /** Cards */
             cards: components["schemas"]["AccountCard"][];
-            /**
-             * Group Id
-             * Format: uuid
-             */
-            group_id: string;
             /** Name */
             name: string;
             /** Open Count */

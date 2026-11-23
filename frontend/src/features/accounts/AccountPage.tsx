@@ -57,12 +57,6 @@ function AccountMenu({
         <Icon name="edit" />
         Edit
       </Link>
-      {view.add_url && !view.closed_on && (
-        <Link to={view.add_url}>
-          <Icon name="plus" />
-          Add account
-        </Link>
-      )}
       {view.closed_on ? (
         <>
           <MenuNote>
@@ -240,12 +234,6 @@ export function AccountPage() {
             {view.cards.map((c) => (
               <AccountCard key={c.id} card={c} />
             ))}
-            {view.add_url && !view.closed_on && (
-              <Link className={`${styles.card} ${styles.addCard}`} to={view.add_url}>
-                <Icon name="plus" />
-                Add account
-              </Link>
-            )}
           </div>
         </>
       )}

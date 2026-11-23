@@ -14,7 +14,7 @@ from ..schemas.account import CardBill
 from . import cards
 from .account import AccountService, RegisterPage
 from .account_tree import Node, build_tree, without_contacts
-from .account_types import TYPE_KEYS, TYPE_NAMES
+from .account_types import TYPE_KEYS, TYPE_NAMES, TYPE_ROOTS
 from .transaction_rows import RegisterRow, UpcomingItem, account_register_row, is_inflow
 
 # An account whose newest entry is older than this says so on its card; a newer one has nothing to add.
@@ -30,8 +30,6 @@ class Kind:
     items: list[Node]
     total: Decimal
     type: str
-    group_id: UUID
-    closed: bool = False  # the type itself was closed (never: kept for older books)
 
     @property
     def owed(self) -> bool:
@@ -47,8 +45,8 @@ class Kind:
 
     @property
     def all_closed(self) -> bool:
-        """A kind whose accounts are all closed (or that was closed itself) hides whole until closed ones are shown."""
-        return self.closed or (bool(self.items) and all(n.closed for n in self.items))
+        """A kind whose accounts are all closed hides whole until closed ones are shown."""
+        return bool(self.items) and all(n.closed for n in self.items)
 
 
 @dataclass
@@ -80,22 +78,15 @@ def load(accounts: AccountService, account_id: UUID) -> tuple[list[Node], Node]:
 
 
 def kinds(roots: list[Node], order: list[str] | None = None) -> list[Kind]:
-    """The accounts as the page lists them: a row per type in the person's order (an empty one too)."""
-    root_name = {id(n): r.account.name for r in roots for n in r.walk()}
-    by_key = {n.account.system_key: n for r in roots for n in r.children if n.account.system_key in TYPE_KEYS}
-    return [
-        Kind(
-            g.account.name,
-            root_name[id(g)],
-            g.children,
-            g.account.balance,
-            key,
-            g.account.id,
-            g.account.closed_on is not None,
-        )
-        for key in order or list(TYPE_KEYS)
-        if (g := by_key.get(key)) is not None
-    ]
+    """The accounts as the page lists them: a row per type in the person's order (an empty one too), its total what
+    its accounts hold (or, for Credit Card, owe)."""
+    typed = [n for r in roots for n in r.children if n.account.type in TYPE_KEYS]
+    rows = []
+    for key in order or list(TYPE_KEYS):
+        items = [n for n in typed if n.account.type == key]
+        total = sum((n.account.balance for n in items), Decimal("0.00"))
+        rows.append(Kind(TYPE_NAMES[key], TYPE_ROOTS[key], items, total, key))
+    return rows
 
 
 def mark_closed(roots: list[Node]) -> None:
@@ -159,15 +150,14 @@ def accounts_page(accounts: AccountService, today: date) -> AccountsPage:
 
 
 def sub_line(node: Node, root: Node) -> str:
-    """What an account's page says under its name: the type it is (Bank Account, Credit Card...), never the type's
-    own name; for a group, whether it is built in and what it holds."""
-    trail = node.path.split(" › ")
+    """What an account's page says under its name: the type it is (Bank Account, Credit Card...); for a root, what it
+    holds."""
     owed = root.account.name == "Liabilities"
-    if len(trail) > 2:
-        return trail[1]
+    if node.account.type in TYPE_NAMES:
+        return TYPE_NAMES[node.account.type]
     if not node.is_group:
         return "Other you owe" if owed else "Other"
-    return f"{'Built in' if node.kind == 'fixed' else 'Group'} · {'money I owe' if owed else 'money I own'}"
+    return "money I owe" if owed else "money I own"
 
 
 @dataclass
@@ -184,8 +174,6 @@ class AccountPage:
     balance_after: Decimal | None
     bill: CardBill | None
     can_set_days: bool
-    # Where "Add account" goes on a type's own page (that type chosen); none on any other page.
-    add_url: str | None
     # The pin button in the header: an open account that holds entries; a group, a root or a closed account has none.
     can_pin: bool
     # Part of a group's balance that was posted to the group itself.
@@ -243,7 +231,6 @@ def account_page(accounts: AccountService, account_id: UUID, today: date, offset
         balance_after=page.upcoming[-1].balance if page.upcoming else None,
         bill=bill,
         can_set_days=can_set_days,
-        add_url=f"/accounts/new?type={node.account.system_key}" if node.account.system_key in TYPE_KEYS else None,
         can_pin=node.kind == "user"
         and not node.is_group
         and not node.account.closed_on

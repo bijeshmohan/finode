@@ -368,11 +368,11 @@ def test_b_sees_only_b_in_every_list_and_page(client: TestClient, session, world
         assert plain(theirs.reports.summary())["cash_on_hand"] == "660.00"
         trial = client.get("/api/reports/trial-balance").json()
         assert trial["balanced"] and {a["account"] for a in trial["lines"]} <= {
-            "Assets:Bank Account:Mine",
+            "Assets:Mine",
             "Expenses:Bills",
             "Equity:Opening Balances",
         }
-        assert {a["name"] for a in client.get("/api/accounts/").json() if a["parent_id"] and not a["system_key"]} == {
+        assert {a["name"] for a in client.get("/api/accounts/").json() if a["parent_id"]} == {
             "Mine",
             "Opening Balances",
             "Due from Bea's friend",

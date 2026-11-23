@@ -7,6 +7,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date as Date
 from decimal import Decimal
+from typing import cast
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -21,7 +22,7 @@ from ..models.category import BudgetCategory
 from ..models.transaction import Posting, PostingSide
 from ..models.utils import normalize_amount
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
-from ..schemas.account import AccountBase
+from ..schemas.account import AccountBase, AccountType
 from ..schemas.category import CategoryCreate
 from ..schemas.data import ImportSummary
 from ..schemas.transaction import PostingCreate, TransactionCreate
@@ -50,6 +51,7 @@ TYPE_ALIASES = {
     "credit cards": "Credit Card",
 }
 TYPE_ROOT_OF = {name: TYPE_ROOTS[key] for key, name in TYPE_NAMES.items()}
+TYPE_KEY_OF = {name: key for key, name in TYPE_NAMES.items()}
 NOT_A_TYPE = (
     "accounts go under Cash, Bank Account, Credit Card or Prepaid Wallet; record investments and loans as categories"
 )
@@ -132,6 +134,19 @@ def _resolve(path: str) -> Key:
     return tuple(parts)
 
 
+def _account_key(account: Account, by_id: dict[UUID, Account]) -> Key:
+    """An account as the journal names it: an account of a type with the type between the root and its name
+    (`Assets:Bank Account:HDFC`), anything else by its root and name."""
+    names = [_segment(account.name)]
+    current = account
+    while current.parent_id is not None and current.parent_id in by_id:
+        current = by_id[current.parent_id]
+        names.append(_segment(current.name))
+    if account.type in TYPE_NAMES:
+        names.insert(1, TYPE_NAMES[account.type])
+    return tuple(reversed(names))
+
+
 def _account_place_error(key: Key) -> str | None:
     """Why an account path cannot be an account any more (None when it can): under Assets and Liabilities an account is
     one of the four types ("Assets:Bank Account:HDFC"); under Equity there is only Opening Balances."""
@@ -172,17 +187,7 @@ class DataService:
         accounts = self.accounts.ensure_roots()
         by_id = {a.id: a for a in accounts}
 
-        def path(account_id: UUID) -> str:
-            names = []
-            current = by_id[account_id]
-            while True:
-                names.append(_segment(current.name))
-                if current.parent_id is None:
-                    break
-                current = by_id[current.parent_id]
-            return ":".join(reversed(names))
-
-        paths = {account_id: path(account_id) for account_id in by_id}
+        paths = {account_id: ":".join(_account_key(by_id[account_id], by_id)) for account_id in by_id}
         postings: dict[UUID, list] = {}
         for posting in sorted(self.tr.all_postings(), key=lambda p: (p.side != PostingSide.DEBIT, p.created)):
             postings.setdefault(posting.transaction_id, []).append(posting)
@@ -299,16 +304,10 @@ class DataService:
     def _existing_keys(self) -> dict[Key, UUID]:
         accounts = self.accounts.ensure_roots()
         by_id = {a.id: a for a in accounts}
-        keys: dict[Key, UUID] = {}
-        for account in accounts:
-            names = []
-            current = account
-            while True:
-                names.append(current.name)
-                if current.parent_id is None:
-                    break
-                current = by_id[current.parent_id]
-            keys[tuple(reversed(names))] = account.id
+        keys: dict[Key, UUID] = {_account_key(a, by_id): a.id for a in accounts}
+        for a in accounts:  # a type's segment (Assets:Bank Account) stands for its root
+            if a.parent_id is None and a.name in ("Assets", "Liabilities"):
+                keys |= {(a.name, TYPE_NAMES[k]): a.id for k, root in TYPE_ROOTS.items() if root == a.name}
         return keys
 
     def _plan(self, text: str) -> _Plan:
@@ -585,7 +584,12 @@ class DataService:
         ids = self._existing_keys()
         try:
             for key, note in plan.new_accounts:
-                created = self.ar.create(AccountBase(name=key[-1], details=note, parent_id=ids[key[:-1]]))
+                kind = TYPE_KEY_OF.get(key[1]) if len(key) == 3 else None
+                created = self.ar.create(
+                    AccountBase(
+                        name=key[-1], details=note, parent_id=ids[key[:-1]], type=cast(AccountType | None, kind)
+                    )
+                )
                 ids[key] = created.id
             categories = self._category_keys()
             repository = CategoryRepository(self.ar.db, self.ar.uid)

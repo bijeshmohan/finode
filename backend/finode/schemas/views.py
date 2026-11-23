@@ -277,12 +277,11 @@ class KindRow(BaseModel):
 
     name: str
     type: AccountType
-    group_id: UUID
     total: Decimal
     # A liability's total reads "owed".
     owed: bool
     open_count: int
-    # Every account in it is closed (or the group itself is): the row shows only with the closed accounts.
+    # Every account in it is closed: the row shows only with the closed accounts.
     all_closed: bool
     add_url: str
     cards: list[AccountCard]
@@ -335,8 +334,6 @@ class AccountView(BaseModel):
     is_group: bool
     has_children: bool
     cards: list[AccountCard]
-    # Where "Add account" goes on a type's own page (that type chosen); none on any other page.
-    add_url: str | None
     can_pin: bool
     pinned: bool
     can_edit: bool

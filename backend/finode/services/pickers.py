@@ -8,7 +8,7 @@ from uuid import UUID
 
 from ..schemas.category import CategoryRead
 from .account_tree import Node
-from .account_types import TYPE_KEYS
+from .account_types import TYPE_KEYS, TYPE_NAMES
 from .contact import ContactService
 
 
@@ -33,22 +33,22 @@ def posting_groups(
     then what else can be posted to by its root (Equity's Opening Balances). Closed accounts are left out, except those
     in `keep` (what an entry being edited already uses)."""
     groups: PickGroups = []
-    by_type = {n.account.system_key: n for r in roots for n in r.children if n.account.system_key in TYPE_KEYS}
-    places = [by_type[key] for key in order or list(TYPE_KEYS) if key in by_type]
-    places += [r for r in roots if r.account.name not in ("Assets", "Liabilities")]
-    for root in places:
-        options = [
-            PickOption(
-                n.account.id,
-                n.account.name
-                if root.account.system_key
-                else (n.path.split(" › ", 1)[1] if " › " in n.path else n.path),
-                budget=n.account.type is not None,
-                balance=n.account.balance,
-            )
-            for n in root.walk()
-            if n.postable and not n.account.contact_account and (n.account.closed_on is None or n.account.id in keep)
-        ]
+
+    def shown(n: Node) -> bool:
+        return n.postable and not n.account.contact_account and (n.account.closed_on is None or n.account.id in keep)
+
+    def option(n: Node) -> PickOption:
+        return PickOption(n.account.id, n.account.name, budget=n.account.type is not None, balance=n.account.balance)
+
+    typed = [n for r in roots for n in r.children if n.account.type in TYPE_KEYS and shown(n)]
+    for key in order or list(TYPE_KEYS):
+        options = [option(n) for n in typed if n.account.type == key]
+        if options:
+            groups.append((TYPE_NAMES[key], options))
+    for root in roots:
+        if root.account.name in ("Assets", "Liabilities"):
+            continue
+        options = [option(n) for n in root.walk() if shown(n)]
         if options:
             groups.append((root.account.name, options))
     return groups

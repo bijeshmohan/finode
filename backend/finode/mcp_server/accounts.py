@@ -52,9 +52,7 @@ class AccountIndex:
             while current.parent_id is not None:
                 current = by_id[current.parent_id]
                 segments.insert(0, current.name)
-            self.entries[account.id] = Entry(
-                account, segments, segments[0], account.id in parents or account.system_key is not None
-            )
+            self.entries[account.id] = Entry(account, segments, segments[0], account.id in parents)
         # Categories are not accounts; they are only named here, as the journal would write them (Expenses:Food).
         self.category_paths: dict[UUID, str] = {
             c.id: ("Expenses" if c.kind == "spending" else "Income") + ":" + c.path for c in categories or []

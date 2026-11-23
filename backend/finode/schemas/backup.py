@@ -8,7 +8,7 @@ from uuid import UUID
 from pydantic import AliasChoices, BaseModel, Field
 
 from ..models.transaction import PostingSide
-from .account import BillRounding
+from .account import AccountType, BillRounding
 from .day import Day
 
 FORMAT = "finode-backup"
@@ -47,9 +47,11 @@ class BackupAccount(BaseModel):
     )  # a setting that was removed: read, never written
     # Whether the account is pinned to the top of the Accounts page (older files may carry it too, or leave it out).
     pinned: bool = False
-    # Set on the four types' own groups (and, in files from before, on Investments and Loans); a restore maps the types
-    # onto the person's own.
-    system_key: str | None = None
+    # Which of the four types the account is (null for a root, Opening Balances, a person's "Due from"/"Due to").
+    type: AccountType | None = None
+    # Files from before version 7: set on the four types' own groups (and, earlier still, on Investments and Loans).
+    # Read (a restore flattens such a file), never written: there are no type accounts any more.
+    system_key: str | None = Field(default=None, exclude=True)
     # Files from before the four types: a group's choice for the accounts made in it. Read, never written.
     new_accounts_in_budget: bool | None = Field(default=None, exclude=True)
     # Version 4 only: the built-in key of the category this Income or Expenses account stood for.

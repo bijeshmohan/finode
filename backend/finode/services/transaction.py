@@ -171,7 +171,7 @@ class TransactionService:
                     )
             elif root == "Equity":
                 raise InvalidPostingError("a category cannot go on a line to an equity account!")
-            elif in_budget(account, accounts_by_id):
+            elif in_budget(account):
                 raise InvalidPostingError(
                     f"'{account.name}' is part of the budget: a category goes on the other side of the entry, "
                     "the account the money was spent on!"
@@ -222,7 +222,7 @@ class TransactionService:
                 )
             if account.closed_on is not None and account.id not in keep_closed:
                 raise InvalidPostingAccountError(f"account '{account.name}' is closed: reopen it to use it!")
-            if account.id in has_children or account.system_key is not None:
+            if account.id in has_children:
                 raise InvalidPostingAccountError(
                     f"cannot post to account '{account.name}' because it is a group of accounts!"
                 )

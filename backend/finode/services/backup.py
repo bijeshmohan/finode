@@ -34,7 +34,7 @@ from ..repositories.obligation import ObligationRepository
 from ..repositories.recurring import RecurringRepository
 from ..repositories.shared_expense import SharedExpenseRepository
 from ..repositories.transaction import NewEntry
-from ..schemas.account import AccountBase, BillRounding
+from ..schemas.account import AccountBase, AccountType, BillRounding
 from ..schemas.backup import (
     FORMAT,
     READS,
@@ -60,7 +60,7 @@ from ..schemas.backup import (
 from ..schemas.transaction import PostingCreate, TransactionCreate
 from ..tags import clean_names, split_note
 from .account import MAX_ACCOUNT_DEPTH, OPENING_BALANCES_ACCOUNT_NAME, AccountService
-from .account_types import RETIRED_KEYS, type_order
+from .account_types import type_order
 from .cash_flow import CashFlowConversion
 from .category import CategoryService
 
@@ -118,7 +118,7 @@ class BackupService:
                     statement_day=a.statement_day,
                     due_day=a.due_day,
                     bill_rounding=cast(BillRounding, a.bill_rounding),
-                    system_key=a.system_key,
+                    type=cast(AccountType | None, a.type),
                     pinned=a.pinned,
                 )
                 for a in accounts
@@ -280,11 +280,7 @@ class BackupService:
     def can_restore(self) -> bool:
         """Only an empty ledger can be restored into: nothing recorded, no accounts of the user's own."""
         accounts = self.accounts.ensure_roots()
-        own = [
-            a
-            for a in accounts
-            if a.parent_id is not None and a.system_key is None and not self.accounts.is_opening_balances(a, accounts)
-        ]
+        own = [a for a in accounts if a.parent_id is not None and not self.accounts.is_opening_balances(a, accounts)]
         return (
             not own
             and not self.cr.list()
@@ -733,17 +729,10 @@ class BackupService:
             for a in file.accounts:
                 if a.parent_id is None:
                     ids[a.id] = roots[a.name].id
-            # The four types: the ones a file carries (by key) map onto the person's own.
-            fixed = {a.system_key: a for a in self.accounts.ensure_roots() if a.system_key is not None}
-            kept: set[UUID] = set()
-            for a in file.accounts:
-                if a.system_key in fixed:
-                    ids[a.id] = fixed[a.system_key].id
-                    kept.add(a.id)
             opening = None
             closed: list[tuple[Account, date]] = []
             for a in sorted(file.accounts, key=lambda a: self._depth(a, by_old) or 0):
-                if a.parent_id is None or a.id in kept:
+                if a.parent_id is None:
                     continue
                 if (
                     a.name == OPENING_BALANCES_ACCOUNT_NAME
@@ -761,11 +750,10 @@ class BackupService:
                         statement_day=a.statement_day,
                         due_day=a.due_day,
                         bill_rounding=a.bill_rounding,
+                        type=a.type,
                     ),
                     pinned=a.pinned,
                 )
-                if a.system_key in RETIRED_KEYS:  # Investments or Loans, from a file made before the four types
-                    created.system_key = a.system_key
                 ids[a.id] = created.id
                 if a.closed_on is not None:
                     closed.append((created, a.closed_on))
@@ -905,16 +893,11 @@ class BackupService:
                 and ids[a.id] not in groups
                 and a.name != OPENING_BALANCES_ACCOUNT_NAME
             }
+            # The old files' built-in groups (the four types, Investments, Loans), by key: their accounts move straight
+            # under the roots with that type, or are retired.
+            keys = {ids[a.id]: a.system_key for a in file.accounts if a.system_key and a.id in ids}
             conversion = CashFlowConversion(self.accounts, self.tr, self.rr, CategoryService(self.accounts))
-            conversion.apply(
-                conversion.plan(
-                    outside,
-                    strict=False,
-                    retire_ids=outside,
-                    group_ids=groups,
-                ),
-                commit=False,
-            )
+            conversion.apply(conversion.plan(keys, retire_ids=outside, group_ids=groups), commit=False)
             db.commit()
         except Exception:
             db.rollback()

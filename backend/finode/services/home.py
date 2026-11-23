@@ -80,8 +80,7 @@ def home_view(
     recent = list_rows(chunk, index, transactions)
     roots = {a.name: a.id for a in all_accounts if a.parent_id is None}
     system_ids = {a.id for a in all_accounts if AccountService.is_opening_balances(a, all_accounts)}
-    by_id = {a.id: a for a in all_accounts}
-    has_account = any(type_key(a, by_id) for a in all_accounts)
+    has_account = any(type_key(a) for a in all_accounts)
 
     # Opening balances are bookkeeping, not a transaction the person recorded.
     def recorded(rows: list[TransactionRow]) -> bool:

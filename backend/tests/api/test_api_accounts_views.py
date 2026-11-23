@@ -17,14 +17,14 @@ from tests.guards.test_isolation import B_USER, signed_in_as
 @pytest.fixture
 def tree(client, root_accounts, session):
     """Accounts of every type: two Bank Accounts, a Credit Card, two Prepaid Wallets and a Cash account."""
-    groups = {a["system_key"]: a["id"] for a in client.get("/api/accounts/").json() if a["system_key"]}
+    roots = {a["name"]: a["id"] for a in client.get("/api/accounts/").json() if a["parent_id"] is None}
 
     def make(name, kind, **extra):
         made = client.post("/api/accounts/", json={"name": name, "type": kind, **extra})
         assert made.status_code == 201, made.text
         return made.json()["id"]
 
-    ids = {"banks": groups["assets.bank"], "cards": groups["liabilities.cards"], "food": groups["assets.wallet"]}
+    ids = {"banks": roots["Assets"], "cards": roots["Liabilities"], "food": roots["Assets"]}
     ids |= {"hdfc": make("HDFC", "assets.bank", balance="5000"), "old": make("Old Savings", "assets.bank")}
     ids["amex"] = make("Amex", "liabilities.cards", balance="300")
     ids["groceries"] = make("Groceries", "assets.wallet")
@@ -158,13 +158,11 @@ def test_load_more_never_repeats_or_drops_an_entry(client, tree):
     running(seen)
 
 
-def test_a_groups_page_lists_its_open_accounts_as_cards(client, tree):
-    client.post(f"/api/accounts/{tree['old']}/close")
-    seen = view(client, f"/api/views/accounts/{tree['banks']}")
-    assert seen["is_group"] is True and [c["name"] for c in seen["cards"]] == ["HDFC"]
-    assert seen["sub"] == "Built in · money I own" and seen["can_pin"] is False
-    assert seen["add_url"] == "/accounts/new?type=assets.bank", "a type's page adds an account of that type"
-    assert view(client, f"/api/views/accounts/{tree['hdfc']}")["add_url"] is None, "an account holds no accounts"
+def test_an_accounts_page_says_its_type(client, tree):
+    """There are no type pages: an account's own page names its type under its name, and holds no accounts."""
+    seen = view(client, f"/api/views/accounts/{tree['hdfc']}")
+    assert seen["sub"] == "Bank Account" and seen["is_group"] is False and "add_url" not in seen
+    assert view(client, f"/api/views/accounts/{tree['amex']}")["sub"] == "Credit Card"
 
 
 def test_a_cards_bill_and_the_days_to_set(client, tree):

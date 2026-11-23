@@ -354,17 +354,6 @@
             ],
             "title": "Statement Day"
           },
-          "system_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "System Key"
-          },
           "type": {
             "anyOf": [
               {
@@ -554,17 +543,6 @@
       "AccountView": {
         "description": "An account's (or a group's) own page.",
         "properties": {
-          "add_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Add Url"
-          },
           "badge": {
             "anyOf": [
               {
@@ -756,7 +734,6 @@
           "is_group",
           "has_children",
           "cards",
-          "add_url",
           "can_pin",
           "pinned",
           "can_edit",
@@ -5162,11 +5139,6 @@
             "title": "Cards",
             "type": "array"
           },
-          "group_id": {
-            "format": "uuid",
-            "title": "Group Id",
-            "type": "string"
-          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -5198,7 +5170,6 @@
         "required": [
           "name",
           "type",
-          "group_id",
           "total",
           "owed",
           "open_count",

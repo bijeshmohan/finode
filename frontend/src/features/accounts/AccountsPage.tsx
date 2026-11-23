@@ -48,9 +48,7 @@ export function AccountsPage() {
             .map((k) => (
               <section key={k.type} className={styles.kind}>
                 <div className={styles.kindHead}>
-                  <h2>
-                    <Link to={`/accounts/${k.group_id}`}>{k.name}</Link>
-                  </h2>
+                  <h2>{k.name}</h2>
                   <p>
                     {formatMoney(k.total, grouping)}
                     {k.owed ? " owed" : ""} · {plural(k.open_count)}

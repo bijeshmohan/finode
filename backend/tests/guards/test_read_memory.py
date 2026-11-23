@@ -75,4 +75,4 @@ def test_one_person_never_sees_anothers_remembered_rows(session):
     mine = services(session)
     mine.accounts.list()
     theirs = AccountRepository(session, other)
-    assert theirs.list() == [] and len(AccountRepository(session, TEST_USER_ID).list()) == 9
+    assert theirs.list() == [] and len(AccountRepository(session, TEST_USER_ID).list()) == 5
