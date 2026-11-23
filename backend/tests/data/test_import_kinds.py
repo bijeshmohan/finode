@@ -97,3 +97,32 @@ def test_a_type_label_is_read_too(client):
     text = "account Assets:Wallet  ; type: Cash\n\n2026-01-01 x\n    Assets:Wallet  5\n    Equity:Opening Balances\n"
     assert _import(client, text).status_code == 200
     assert _kinds(client) == {"Wallet": "assets.cash"}
+
+
+def test_an_account_named_after_its_kind_survives_an_export_and_an_import(client):
+    """An account called "Cash" of the type Cash (or "Bank Account"…): its path is the type's name, never the root."""
+    from tests.conftest import TEST_USER_ID
+    from tests.data.test_backup import OTHER, as_user
+
+    cash = client.post("/api/accounts/", json={"name": "Cash", "type": "assets.cash", "balance": "100"}).json()
+    food = client.post("/api/categories/", json={"name": "Food", "kind": "spending"}).json()
+    assert client.post("/api/transactions/", json={"postings": [leg(food, "debit", "40"), leg(cash, "credit", "40")]})
+    text = client.get("/api/export", params={"format": "ledger"}).text
+    try:
+        as_user(OTHER)
+        done = _import(client, text)
+        assert done.status_code == 200, done.text
+        accounts = client.get("/api/accounts/").json()
+        assert {a["name"]: (a["type"], a["balance"]) for a in accounts if a["type"]} == {
+            "Cash": ("assets.cash", "60.00")
+        }
+        lines = {line["account"] for line in client.get("/api/reports/trial-balance").json()["lines"]}
+        assert "Assets" not in lines and "Assets:Cash" in lines, "nothing posted to the root"
+    finally:
+        as_user(TEST_USER_ID)
+
+
+def test_a_line_to_a_kind_itself_is_refused(client):
+    text = "2026-01-01 x\n    Assets:Bank Account  5\n    Equity:Opening Balances\n"
+    refused = _import(client, text)
+    assert refused.status_code == 400 and "'Assets:Bank Account' is a kind, not an account" in refused.text

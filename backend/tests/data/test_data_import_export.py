@@ -68,7 +68,7 @@ def test_import_creates_accounts_and_transactions(client: TestClient):
 
 
 def test_import_maps_top_level_aliases_and_opening_balances(client: TestClient):
-    text = "2026-01-01 x\n    asset:Cash  50\n    equity:opening balances\n"
+    text = "2026-01-01 x\n    asset:Cash:Wallet  50\n    equity:opening balances\n"
     assert _import(client, text).status_code == 200
     equity = next(a for a in client.get("/api/accounts/").json() if a["name"] == "Opening Balances")
     assert equity["balance"] == "50.00"
@@ -106,7 +106,7 @@ def test_unknown_top_level_account_rejected(client: TestClient):
 
 def test_posting_to_asset_group_rejected_but_expense_group_allowed(client: TestClient):
     a_type = "2026-01-01 x\n    Assets:Bank Account  5\n    Assets:Bank Account:HDFC  -5\n"
-    assert "has sub-accounts" in _import(client, a_type).json()["detail"]["errors"][0]
+    assert "is a kind, not an account" in _import(client, a_type).json()["detail"]["errors"][0]
     expense_group = "2026-01-01 x\n    Expenses:Food  5\n    Expenses:Food:Dining  3\n    Assets:Cash:Wallet  -8\n"
     assert _import(client, expense_group).status_code == 200
 

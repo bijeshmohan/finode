@@ -60,7 +60,7 @@ from ..schemas.backup import (
 from ..schemas.transaction import PostingCreate, TransactionCreate
 from ..tags import clean_names, split_note
 from .account import OPENING_BALANCES_ACCOUNT_NAME, AccountService
-from .account_types import type_order
+from .account_types import TYPE_NAMES, TYPE_ROOTS, type_order
 from .cash_flow import CashFlowConversion
 from .category import CategoryService
 from .flatten import flat_category_names
@@ -437,6 +437,17 @@ class BackupService:
         # a chain that never reaches a top-level account is a cycle
         if any(self._depth(a, accounts) is None for a in file.accounts):
             errors.append("the accounts contain a cycle.")
+            return
+        misplaced = []
+        for a in file.accounts:
+            parent = accounts.get(a.parent_id) if a.parent_id is not None else None
+            if a.type is not None and (
+                parent is None or parent.parent_id is not None or parent.name != TYPE_ROOTS[a.type]
+            ):
+                where = f"{parent.name}:{a.name}" if parent is not None else a.name
+                misplaced.append(f"'{where}' cannot be a {TYPE_NAMES[a.type]}")
+        if misplaced:
+            errors.append(f"an account's type must fit the root it sits under: {'; '.join(misplaced)}.")
             return
         too_deep = [a.name for a in file.accounts if (self._depth(a, accounts) or 0) > OLDEST_DEPTH]
         if too_deep:

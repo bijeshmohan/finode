@@ -133,7 +133,7 @@ def _resolve(path: str) -> Key:
     parts[0] = root
     if root == "Equity" and len(parts) == 2 and parts[1].casefold() in OPENING_BALANCE_NAMES:
         parts[1] = OPENING_BALANCES_ACCOUNT_NAME
-    if root in ("Assets", "Liabilities") and len(parts) >= 2 and parts[1].casefold() in TYPE_ALIASES:
+    if root in ("Assets", "Liabilities") and len(parts) >= 3 and parts[1].casefold() in TYPE_ALIASES:
         parts[1] = TYPE_ALIASES[parts[1].casefold()]
     return tuple(parts)
 
@@ -371,14 +371,25 @@ class DataService:
                 labels[labelled] = kind
         flat_existing = {(k[0], k[2]): k for k in existing if len(k) == 3 and k[1] in TYPE_ROOT_OF}
         untyped: set[Key] = set()
+        kinds_posted: set[Key] = set()
 
-        def canon(key: Key, line: int) -> Key:
-            if key[0] not in ("Assets", "Liabilities") or len(key) != 2 or key[1] in TYPE_ROOT_OF or key in existing:
+        def canon(key: Key, line: int, posted: bool = True) -> Key:
+            """`posted`: the key is a line's (a type's own segment is never posted to; an older export declares it)."""
+            if key[0] not in ("Assets", "Liabilities") or len(key) != 2:
                 return key
-            if key in flat_existing:
+            if key in flat_existing:  # an account here already (one named like its type, "Cash", included)
                 return flat_existing[key]
             if key in labels:
                 return (key[0], labels[key], key[1])
+            if key[1] in TYPE_ROOT_OF:
+                if posted and key not in kinds_posted:
+                    kinds_posted.add(key)
+                    errors.append(
+                        f"line {line}: '{':'.join(key)}' is a kind, not an account: post to one of its accounts"
+                    )
+                return key
+            if key in existing:  # a person's "Due from"/"Due to"
+                return key
             if key not in untyped:
                 untyped.add(key)
                 errors.append(
@@ -392,7 +403,7 @@ class DataService:
         used: dict[Key, int] = {}
         for decl in journal.accounts:
             try:
-                declared.setdefault(canon(_resolve(decl.name), decl.line), (decl.note, decl.line))
+                declared.setdefault(canon(_resolve(decl.name), decl.line, posted=False), (decl.note, decl.line))
             except ValueError as e:
                 errors.append(f"line {decl.line}: {e}")
         for transaction in journal.transactions:
@@ -511,7 +522,7 @@ class DataService:
                 errors,
                 tags,
                 known | set(existing) | known_categories,
-                lambda key: canon(key, 0),
+                lambda key: canon(key, 0, posted=False),
             )
             if planned is None:
                 continue

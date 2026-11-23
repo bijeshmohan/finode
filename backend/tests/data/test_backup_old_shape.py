@@ -196,3 +196,23 @@ def test_a_version_7_file_with_an_untyped_account_is_refused(client, rich):
         assert [a for a in client.get("/api/accounts/").json() if a["parent_id"]] == [], "nothing was restored"
     finally:
         as_user(TEST_USER_ID)
+
+
+def test_a_type_that_does_not_fit_its_root_is_refused(client, rich):
+    doc = client.get("/api/backup").json()
+    roots = {a["name"]: a["id"] for a in doc["accounts"] if a["parent_id"] is None}
+    doc["accounts"] += [
+        {"id": str(uuid4()), "parent_id": roots["Assets"], "name": "Amex", "type": "liabilities.cards"},
+        {"id": str(uuid4()), "parent_id": roots["Equity"], "name": "Weird", "type": "assets.bank"},
+    ]
+    try:
+        as_user(OTHER)
+        done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
+        assert done.status_code == 400
+        assert (
+            "'Assets:Amex' cannot be a Credit Card" in done.text
+            and "'Equity:Weird' cannot be a Bank Account" in done.text
+        )
+        assert [a for a in client.get("/api/accounts/").json() if a["parent_id"]] == [], "nothing was restored"
+    finally:
+        as_user(TEST_USER_ID)
