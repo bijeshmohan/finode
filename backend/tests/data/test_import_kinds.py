@@ -24,8 +24,8 @@ def test_the_export_writes_the_kind_as_a_label(client):
 
 
 def test_an_export_imports_again_for_someone_else(client):
-    from tests.data.test_backup import OTHER, as_user
     from tests.conftest import TEST_USER_ID
+    from tests.data.test_backup import OTHER, as_user
 
     hdfc = client.post("/api/accounts/", json={"name": "HDFC", "type": "assets.bank", "balance": "100"}).json()
     amex = client.post("/api/accounts/", json={"name": "Amex", "type": "liabilities.cards"}).json()

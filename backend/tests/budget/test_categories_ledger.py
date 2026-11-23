@@ -219,7 +219,7 @@ def test_the_plan_is_kept_against_the_category(client, session, books):
 
 def test_the_category_service_makes_changes_closes_and_removes_categories(session, root_accounts):
     svc = services(session)
-    food = svc.categories.create(CategoryCreate(name="Food", kind="spending"))
+    svc.categories.create(CategoryCreate(name="Food", kind="spending"))
     dining = svc.categories.create(CategoryCreate(name="Dining", kind="spending"))
     assert dining.name == "Dining"
     with pytest.raises(ValueError, match="you already have a category called 'Dining'!"):
