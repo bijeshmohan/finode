@@ -32,7 +32,6 @@ export function view(overrides: Partial<EntryFormView> = {}): EntryFormView {
     person_page: null,
     groups,
     account_types: [],
-    category_parents: [],
     ...overrides,
   };
 }

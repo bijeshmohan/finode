@@ -90,16 +90,11 @@ class ReportService:
         root_name: str,
         period_start: date | None = None,
         period_end: date | None = None,
-        depth: int = 1,
     ) -> BreakdownRead:
-        """Income or expenses for a period, `depth` levels down: what the money was for, as the Budget and Categories
-        count it (a payment into a loan is spending in its category). Money on deeper levels counts towards its
-        ancestor at `depth`.
-        """
+        """Income or expenses for a period by category: what the money was for, as the Budget and Categories count it
+        (a payment into a loan is spending in its category)."""
         if root_name not in ("Income", "Expenses"):
             raise ValueError("a breakdown is of Income or Expenses!")
-        if depth < 1:
-            raise ValueError("depth must be at least 1!")
         today = local_today()
         period_start = period_start or today.replace(day=1)
         period_end = period_end or today
@@ -109,15 +104,7 @@ class ReportService:
         by_id = {c.id: c for c in self.accounts_categories()}
 
         def group_of(category_id: UUID) -> str:
-            chain = []
-            current = by_id[category_id]
-            while True:
-                chain.append(current.name)
-                if current.parent_id is None or current.parent_id not in by_id:
-                    break
-                current = by_id[current.parent_id]
-            chain.reverse()
-            return " › ".join(chain[:depth])
+            return by_id[category_id].name
 
         own = self.category_totals("spending" if root_name == "Expenses" else "earning", period_start, period_end)
         totals: dict[str, Decimal] = {}
@@ -205,12 +192,7 @@ class ReportService:
         categories = {c.id: c for c in self.cr.list()}
 
         def category_path(category_id: UUID) -> str:
-            names, current, seen = [], categories.get(category_id), set()
-            while current is not None and current.id not in seen:
-                seen.add(current.id)
-                names.append(current.name)
-                current = categories.get(current.parent_id) if current.parent_id else None
-            return ":".join(reversed(names))
+            return categories[category_id].name
 
         result_lines = [
             TrialBalanceLine(

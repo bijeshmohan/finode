@@ -196,32 +196,6 @@ def test_any_day_in_the_month_names_it(client, setup):
 # ---- groups --------------------------------------------------------------------------------------------
 
 
-def test_sub_categories_roll_up_into_their_group(client, root_accounts, setup):
-    groceries = post_account(client, {"name": "Groceries", "parent_id": setup["food"]["id"]}).json()
-    dining = post_account(client, {"name": "Dining", "parent_id": setup["food"]["id"]}).json()
-    assign(client, groceries, "200")
-    assign(client, dining, "100")
-    move(client, setup["bank"], groceries, "50")
-    data = budget(client)
-    names = [l["name"] for l in data["lines"]]
-    assert names == ["Food", "Dining", "Groceries", "Rent"]
-    food = line(data, "Food")
-    assert (
-        food["group"] and food["assigned"] == "300.00" and food["activity"] == "50.00" and food["available"] == "250.00"
-    )
-    assert not line(data, "Groceries")["group"]
-    assert data["available"] == "250.00" and data["ready_to_assign"] == "700.00"
-
-
-def test_a_group_posted_to_directly_gets_its_own_row(client, root_accounts, setup):
-    post_account(client, {"name": "Groceries", "parent_id": setup["food"]["id"]})
-    move(client, setup["bank"], setup["food"], "30")
-    data = budget(client)
-    other = line(data, "Food (other)")
-    assert other["activity"] == "30.00" and other["category_id"] == setup["food"]["id"] and other["depth"] == 2
-    assert line(data, "Food")["activity"] == "30.00"
-
-
 # ---- moving money --------------------------------------------------------------------------------------
 
 
@@ -344,21 +318,6 @@ def test_money_assigned_later_in_the_month_can_still_cover_a_deficit(client, roo
     last = budget(client, LAST_MONTH)
     assert line(last, "Food")["available"] == "40.00" and last["overspent_last_month"] == "0.00"
     assert line(budget(client, THIS_MONTH), "Food")["available"] == "40.00"
-
-
-def test_groups_add_up_the_overspending_of_their_categories(client, root_accounts):
-    bank = account(client, root_accounts, "Bank", "Assets")
-    salary = account(client, root_accounts, "Salary", "Income")
-    food = account(client, root_accounts, "Food", "Expenses")
-    groceries = post_account(client, {"name": "Groceries", "parent_id": food["id"]}).json()
-    dining = post_account(client, {"name": "Dining", "parent_id": food["id"]}).json()
-    move(client, salary, bank, "1000", on=LAST_MONTH.replace(day=2).isoformat())
-    assign(client, groceries, "10", LAST_MONTH)
-    move(client, bank, groceries, "30", on=LAST_MONTH.replace(day=5).isoformat())
-    move(client, bank, dining, "20", on=LAST_MONTH.replace(day=6).isoformat())
-    data = budget(client, THIS_MONTH)
-    assert line(data, "Food")["overspent_last_month"] == "40.00" and data["overspent_last_month"] == "40.00"
-    assert data["ready_to_assign"] == "950.00"
 
 
 def test_a_category_with_nothing_available_cannot_give_money_away(client, lastmonth):

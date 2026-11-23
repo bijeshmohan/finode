@@ -63,6 +63,7 @@ from .account import MAX_ACCOUNT_DEPTH, OPENING_BALANCES_ACCOUNT_NAME, AccountSe
 from .account_types import type_order
 from .cash_flow import CashFlowConversion
 from .category import CategoryService
+from .flatten import flat_category_names
 
 ROOTS = ("Assets", "Liabilities", "Equity", "Income", "Expenses")
 
@@ -128,12 +129,11 @@ class BackupService:
                     id=c.id,
                     name=c.name,
                     kind=c.kind,
-                    parent_id=c.parent_id,
                     details=c.details,
                     closed_on=c.closed_on,
                     system_key=c.system_key,
                 )
-                for c in sorted(self.cr.list(), key=lambda c: (c.parent_id is not None, c.kind, c.name.lower()))
+                for c in sorted(self.cr.list(), key=lambda c: (c.kind, c.name.lower()))
             ],
             contacts=self._export_contacts(),
             **self._export_party(),
@@ -636,6 +636,16 @@ class BackupService:
                 return
 
     @staticmethod
+    def _categories_in_use(file: BackupFile) -> set[UUID]:
+        """Every category the file's lines, rules, budget rows and shared expenses name."""
+        used = {p.category for t in file.transactions for p in t.postings if p.category}
+        used |= {r.category for r in file.recurring if r.category}
+        used |= {p.category for r in file.recurring for p in r.postings if p.category}
+        used |= {a.category_id for a in file.allocations}
+        used |= {e.category for e in file.shared_expenses if e.category}
+        return used
+
+    @staticmethod
     def _spending_plan(file: BackupFile) -> list:
         """The plan rows that belong to spending categories (a file from when the Plan had Build and Earn also carries
         rows for funds, loans and income accounts, which the budget no longer has: they are not categories)."""
@@ -776,16 +786,21 @@ class BackupService:
                 contact_ids[c.id] = contact.id
                 self.contacts.link(contact.id, ids[c.receivable_account], "receivable")
                 self.contacts.link(contact.id, ids[c.payable_account], "payable")
-            # Categories: a group first, then the categories in it.
+            # Categories, one flat list: an older file's subcategories become categories and its empty groups go
+            # (services/flatten.py).
+            names, dropped = flat_category_names(
+                [(c.id, c.name, c.kind, c.parent_id) for c in file.categories], self._categories_in_use(file)
+            )
             cats: dict[UUID, UUID] = {}
-            for c in sorted(file.categories, key=lambda c: c.parent_id is not None):
+            for c in file.categories:
+                if c.id in dropped:
+                    continue
                 made_category = self.cr.add(
                     BudgetCategory(
                         user_id=self.cr.uid,
-                        name=c.name,
+                        name=names[c.id],
                         details=c.details,
                         kind=c.kind,
-                        parent_id=cats.get(c.parent_id) if c.parent_id else None,
                         system_key=c.system_key,
                         closed_on=c.closed_on,
                     )

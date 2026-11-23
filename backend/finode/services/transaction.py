@@ -308,13 +308,7 @@ class TransactionService:
         found = {c.id: c for c in self.cr.list()}
         paths: dict[UUID, str] = {}
         for category_id, category in found.items():
-            chain, current = [], category
-            while current is not None:
-                chain.append(current.name)
-                current = found.get(current.parent_id) if current.parent_id else None
-            paths[category_id] = (
-                ("Expenses" if category.kind == "spending" else "Income") + ":" + ":".join(reversed(chain))
-            )
+            paths[category_id] = ("Expenses" if category.kind == "spending" else "Income") + ":" + category.name
         return paths
 
     def _account_paths(self) -> dict[UUID, str]:
@@ -602,11 +596,10 @@ class TransactionService:
         return subtree
 
     def _category_subtree(self, category_id: UUID) -> builtins.list[UUID]:
-        """A category and the categories inside it."""
-        categories = self.cr.list()
-        if not any(c.id == category_id for c in categories):
+        """The category, which must be the person's."""
+        if self.cr.read(category_id) is None:
             raise ValueError(f"category '{category_id}' not found!")
-        return [c.id for c in categories if c.id == category_id or c.parent_id == category_id]
+        return [category_id]
 
     def _args(
         self, account: UUID | None, kind: str | None, also: UUID | None

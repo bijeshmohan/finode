@@ -54,28 +54,13 @@ def posting_groups(
     return groups
 
 
-def _category_options(
-    category: CategoryRead, by_parent: dict[UUID | None, list[CategoryRead]], label: str
-) -> list[PickOption]:
-    options = [PickOption(category.id, label)]
-    for child in by_parent.get(category.id, []):
-        options += _category_options(child, by_parent, f"{label} › {child.name}")
-    return options
-
-
 def category_groups(categories: list[CategoryRead], keep: Collection[UUID] = frozenset()) -> PickGroups:
-    """The categories an entry's lines may be labelled with, grouped as Income and Expenses (each with its categories
-    and subcategories), for the same pickers as the accounts. Closed categories are left out, except those in `keep`
-    (what an entry being edited already uses)."""
+    """The categories an entry's lines may be labelled with, grouped as Income and Expenses, A to Z, for the same pickers
+    as the accounts. Closed categories are left out, except those in `keep` (what an entry being edited already uses)."""
     found: PickGroups = []
     for root, kind in (("Income", "earning"), ("Expenses", "spending")):
         mine = [c for c in categories if c.kind == kind and (c.closed_on is None or c.id in keep)]
-        by_parent: dict[UUID | None, list[CategoryRead]] = {}
-        for c in sorted(mine, key=lambda c: c.name.lower()):
-            by_parent.setdefault(c.parent_id, []).append(c)
-        options: list[PickOption] = []
-        for top in by_parent.get(None, []):
-            options += _category_options(top, by_parent, top.name)
+        options = [PickOption(c.id, c.name) for c in sorted(mine, key=lambda c: c.name.lower())]
         if options:
             found.append((root, options))
     return found

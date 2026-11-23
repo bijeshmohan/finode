@@ -28,13 +28,7 @@ class BudgetCard(BaseModel):
 
 class BudgetLine(BaseModel):
     category_id: UUID
-    # The category's name, and its path below Expenses, e.g. "Food:Groceries".
     name: str
-    path: str
-    # Levels below Expenses (Expenses:Food is 1).
-    depth: int
-    # True for a category with subcategories: its figures are the sum of theirs.
-    group: bool = False
     # What was assigned in the month, what was spent (refunds subtract) and what is left,
     # counting everything assigned and spent in earlier months too.
     assigned: Decimal = Money
@@ -96,9 +90,3 @@ class BudgetCopy(BaseModel):
     """Assign a month what each category got the month before, where nothing is assigned yet."""
 
     month: Day | None = None
-
-
-class GroupAssign(BaseModel):
-    month: Day | None = None
-    # The group's whole budget for the month: at least what its subcategories add up to.
-    total: Decimal = Amount

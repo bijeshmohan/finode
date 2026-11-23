@@ -14,7 +14,6 @@ from ..schemas.budget import (
     BudgetCopy,
     BudgetMove,
     BudgetRead,
-    GroupAssign,
 )
 from ..schemas.coming_up import ComingUpRead
 from ..services.budget import BudgetError
@@ -73,9 +72,3 @@ def move_money(data: BudgetMove, budget: Budget):
 def copy_previous_month(data: BudgetCopy, budget: Budget):
     """Assign a month what each category got the month before, where nothing is assigned yet (nothing is overwritten)."""
     return _run(budget.copy_previous, data.month)
-
-
-@router.put("/groups/{category_id}", response_model=BudgetRead)
-def assign_group(category_id: UUID, data: GroupAssign, budget: Budget):
-    """Set a group's budget for a month: at least what its subcategories add up to; the rest is the group's own money."""
-    return _run(budget.assign_group, data.month, category_id, data.total)

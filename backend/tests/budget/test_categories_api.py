@@ -24,25 +24,20 @@ def books(client, root_accounts):
 # ---- the JSON API ------------------------------------------------------------------------------
 
 
-def test_the_list_has_every_category_with_its_path_and_kind(client, books):
-    got = {c["path"]: c for c in client.get("/api/categories/").json()}
-    assert set(got) == {"Food", "Food:Groceries", "EMI", "Salary"}
-    assert got["Food:Groceries"]["parent_id"] == got["Food"]["id"] == books["food"]["id"]
+def test_the_list_has_every_category_with_its_kind(client, books):
+    got = {c["name"]: c for c in client.get("/api/categories/").json()}
+    assert set(got) == {"Food", "Groceries", "EMI", "Salary"}
+    assert got["Food"]["id"] == books["food"]["id"] and not {"parent_id", "path"} & set(got["Food"])
     assert (got["Food"]["kind"], got["Salary"]["kind"]) == ("spending", "earning")
-    assert [c["path"] for c in client.get("/api/categories/", params={"kind": "earning"}).json()] == ["Salary"]
+    assert [c["name"] for c in client.get("/api/categories/", params={"kind": "earning"}).json()] == ["Salary"]
 
 
 def test_a_category_is_made_changed_closed_and_removed(client, books):
-    made = client.post(
-        "/api/categories/", json={"name": "Dining", "kind": "spending", "parent_id": books["food"]["id"]}
-    )
-    assert made.status_code == 201 and made.json()["path"] == "Food:Dining"
+    made = client.post("/api/categories/", json={"name": "Dining", "kind": "spending"})
+    assert made.status_code == 201 and made.json()["name"] == "Dining"
     category_id = made.json()["id"]
     assert client.get(f"/api/categories/{category_id}").json()["name"] == "Dining"
-    assert (
-        client.patch(f"/api/categories/{category_id}", json={"name": "Eating out"}).json()["path"] == "Food:Eating out"
-    )
-    assert client.patch(f"/api/categories/{category_id}", json={"parent_id": None}).json()["path"] == "Eating out"
+    assert client.patch(f"/api/categories/{category_id}", json={"name": "Eating out"}).json()["name"] == "Eating out"
     assert client.post(f"/api/categories/{category_id}/close").json()["closed_on"]
     assert category_id not in [c["id"] for c in client.get("/api/categories/").json()]
     assert client.post(f"/api/categories/{category_id}/reopen").json()["closed_on"] is None
@@ -64,17 +59,10 @@ def test_a_category_with_history_is_closed_not_deleted(client, books):
     assert answer["outcome"] == "closed" and answer["category"]["closed_on"]
 
 
-def test_the_rules_of_names_and_levels_apply(client, books):
+def test_the_rules_of_names_apply(client, books):
     taken = client.post("/api/categories/", json={"name": "food", "kind": "spending"})
-    assert taken.status_code == 400
-    deep = client.post(
-        "/api/categories/", json={"name": "Pizza", "kind": "spending", "parent_id": books["groceries"]["id"]}
-    )
-    assert deep.status_code == 400
-    wrong_kind = client.post(
-        "/api/categories/", json={"name": "Tips", "kind": "earning", "parent_id": books["food"]["id"]}
-    )
-    assert wrong_kind.status_code == 400 and "cannot hold" in wrong_kind.text
+    assert taken.status_code == 400 and "you already have a category called 'Food'!" in taken.text
+    assert client.post("/api/categories/", json={"name": "Food", "kind": "earning"}).status_code == 201
     assert client.get(f"/api/categories/{MISSING}").status_code == 404
     assert client.post(f"/api/categories/{MISSING}/close").status_code == 404
     assert client.post(f"/api/categories/{MISSING}/delete").status_code == 404
@@ -148,13 +136,13 @@ async def test_a_split_row_may_name_only_a_category_and_a_rule_may_carry_one(ses
                 c,
                 "record_split",
                 postings=[
-                    {"category": "Food:Groceries", "side": "debit", "amount": "30"},
+                    {"category": "Groceries", "side": "debit", "amount": "30"},
                     {"category": "EMI", "side": "debit", "amount": "70"},
                     {"account": "Bank", "side": "credit", "amount": "100"},
                 ],
             )
         )["recorded"]
-        assert {p.get("category") for p in saved["postings"]} == {"Food:Groceries", "EMI", None}
+        assert {p.get("category") for p in saved["postings"]} == {"Groceries", "EMI", None}
         rule = (await call(c, "create_recurring", amount="500", from_account="Bank", to_account="EMI"))["created"]
         assert rule["id"]
         assert client.get("/api/recurring/").json()[0]["category_id"] == books["emi"]["id"]
@@ -163,22 +151,22 @@ async def test_a_split_row_may_name_only_a_category_and_a_rule_may_carry_one(ses
 @pytest.mark.anyio
 async def test_making_a_category_needs_write_and_changing_one_needs_manage(session, client, books):
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="write")) as c:
-        made = (await call(c, "create_category", name="Dining", kind="spending", group="Food"))["created"]
-        assert made["path"] == "Food:Dining" and made["kind"] == "spending"
+        made = (await call(c, "create_category", name="Dining", kind="spending"))["created"]
+        assert made["name"] == "Dining" and made["kind"] == "spending"
         with pytest.raises(ToolFailed, match="not manage accounts, categories or tags"):
-            await call(c, "update_category", category="Food:Dining", name="Eating out")
+            await call(c, "update_category", category="Dining", name="Eating out")
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, name="Manager", scope="manage")) as c:
-        assert (await call(c, "update_category", category="Food:Dining", name="Eating out"))["updated"][
-            "path"
-        ] == "Food:Eating out"
-        closed = await call(c, "close_category", category="Food:Eating out")
+        assert (await call(c, "update_category", category="Dining", name="Eating out"))["updated"][
+            "name"
+        ] == "Eating out"
+        closed = await call(c, "close_category", category="Eating out")
         assert closed["closed"]["closed"]
-        assert "closed" not in (await call(c, "reopen_category", category="Food:Eating out"))["reopened"]
-        preview = await call(c, "merge_categories", category="Food:Eating out", into="Food:Groceries", dry_run=True)
-        assert preview["dry_run"] is True and preview["into"] == "Food:Groceries"
-        done = await call(c, "merge_categories", category="Food:Eating out", into="Food:Groceries")
+        assert "closed" not in (await call(c, "reopen_category", category="Eating out"))["reopened"]
+        preview = await call(c, "merge_categories", category="Eating out", into="Groceries", dry_run=True)
+        assert preview["dry_run"] is True and preview["into"] == "Groceries"
+        done = await call(c, "merge_categories", category="Eating out", into="Groceries")
         assert done["merged"] is True
-        assert "Food:Eating out" not in {x["path"] for x in (await call(c, "list_categories"))["categories"]}
+        assert "Eating out" not in {x["name"] for x in (await call(c, "list_categories"))["categories"]}
 
 
 def test_a_category_id_is_not_an_account_id(client, books):

@@ -146,8 +146,7 @@ def test_a_new_account_from_the_pickers_is_one_of_the_four_types(client):
         ("liabilities.cards", "Credit Card", "Liabilities"),
         ("assets.wallet", "Prepaid Wallet", "Assets"),
     ]
-    food = category(client, "Food")
-    assert {"id": food["id"], "name": "Food", "kind": "spending"} in form_view(client)["category_parents"]
+    assert "category_parents" not in form_view(client), "categories are flat: a new one goes nowhere in particular"
 
 
 def test_the_share_preview(client, root_accounts):

@@ -42,7 +42,7 @@ CEILING = {
 ONE_ACCOUNT_CEILING = {"view": 8, "list": 14}
 PEOPLE_CEILING = {"list": 7, "one": 15}
 ONE_CATEGORY_CEILING = 10
-BUDGET_VIEW_CEILING = {"group": 6, "move": 6}
+BUDGET_VIEW_CEILING = {"move": 6}
 SCHEDULE_CEILING = {"todo": 8, "coming up": 7, "recurring": 7}
 RECURRING_FORM_CEILING = {"new": 4, "edit": 6}
 
@@ -651,11 +651,9 @@ def test_a_categorys_page_and_its_view_do_not_grow_either(client, root_accounts,
     assert second <= first + 2 and second <= ONE_CATEGORY_CEILING, (first, second)
 
 
-def test_a_budget_groups_view_and_the_move_view_do_not_grow_either(client, root_accounts, count_queries):
+def test_the_move_view_does_not_grow_either(client, root_accounts, count_queries):
     grow(client, root_accounts, accounts=6, transactions=6)
-    group = client.get("/api/categories/").json()[0]
-    category(client, "Inside", parent=group["id"])
-    views = {"group": f"/api/views/budget/groups/{group['id']}", "move": "/api/views/budget-move"}
+    views = {"move": "/api/views/budget-move"}
     first = {k: count_queries(lambda p=p: client.get(p)) for k, p in views.items()}
     grow(client, root_accounts, accounts=6, transactions=60, start=6)
     second = {k: count_queries(lambda p=p: client.get(p)) for k, p in views.items()}
@@ -666,9 +664,7 @@ def test_a_budget_groups_view_and_the_move_view_do_not_grow_either(client, root_
 
 def test_a_past_month_of_the_budgets_pages_asks_no_more_than_this_month(client, root_accounts, count_queries):
     grow(client, root_accounts, accounts=6, transactions=6)
-    group = client.get("/api/categories/").json()[0]
-    category(client, "Inside", parent=group["id"])
-    pages = ["/api/views/budget", f"/api/views/budget/groups/{group['id']}"]
+    pages = ["/api/views/budget", "/api/views/budget-move"]
     for page in pages:
         now = count_queries(lambda p=page: client.get(p))
         past = count_queries(lambda p=page: client.get(p, params={"month": "2026-01"}))
@@ -679,12 +675,10 @@ def test_the_budgets_pages_work_out_the_budget_once(client, root_accounts, monke
     from finode.services.budget import BudgetService
 
     grow(client, root_accounts, accounts=2, transactions=2)
-    group = client.get("/api/categories/").json()[0]
-    category(client, "Inside", parent=group["id"])
     computed = []
     real = BudgetService._compute
     monkeypatch.setattr(BudgetService, "_compute", lambda self, *a, **k: computed.append(1) or real(self, *a, **k))
-    for page in ["/api/views/budget", f"/api/views/budget/groups/{group['id']}"]:
+    for page in ["/api/views/budget", "/api/views/budget-move"]:
         computed.clear()
         assert client.get(page, params={"month": "2026-01"}).status_code == 200
         assert len(computed) == 1, f"{page} worked out the budget {len(computed)} times"

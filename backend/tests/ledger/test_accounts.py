@@ -273,20 +273,6 @@ def test_account_register_has_running_balance(
     assert entries[-1]["balance"] == client.get(f"/api/accounts/{bank['id']}").json()["balance"]
 
 
-def test_account_register_uses_normal_side_and_sub_accounts(
-    client: TestClient, root_accounts: dict[str, str], account: dict, session
-):
-    parent = post_account(client, {"name": "food", "parent_id": root_accounts["Expenses"]}).json()
-    child = post_account(client, {"name": "dining", "parent_id": parent["id"]}).json()
-    _transfer(client, child, account, "12.50", "2026-02-02", "lunch")
-
-    entries = plain(services(session).categories.register(UUID(parent["id"])))
-    assert len(entries) == 1
-    assert entries[0]["change"] == "12.50"
-    assert entries[0]["balance"] == "12.50"
-    assert entries[0]["counter_accounts"] == ["checking"]
-
-
 def test_account_register_not_found(session):
     assert services(session).accounts.register(uuid4()) is None
 

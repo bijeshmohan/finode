@@ -168,7 +168,7 @@ def as_old_file(doc, version=3):
         doc["accounts"].append(
             {
                 "id": c["id"],
-                "parent_id": c["parent_id"] or root_of[c["kind"]],
+                "parent_id": c.get("parent_id") or root_of[c["kind"]],
                 "name": c["name"],
                 "details": c["details"],
                 "closed_on": c["closed_on"],

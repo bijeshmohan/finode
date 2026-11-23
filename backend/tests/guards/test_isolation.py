@@ -575,12 +575,6 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
                 ]
             },
         )
-        refused(
-            "a category inside A's group",
-            "POST",
-            "/api/categories/",
-            json={"name": "Mine", "kind": "spending", "parent_id": a["Groceries"]},
-        )
         refused("a category merged into A's", "POST", f"/api/categories/{bills}/merge", json={"into": a["Groceries"]})
         refused(
             "batch with A's account",
@@ -661,7 +655,6 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             "/api/budget/move",
             json={"from_category": a["Groceries"], "to_category": bills, "amount": "1"},
         )
-        refused("API group budget for A's", "PUT", f"/api/budget/groups/{a['Groceries']}", json={"total": "5"})
         refused("API reopen A's account", "POST", f"/api/accounts/{a['HDFC']}/reopen")
         refused("API register of A's account", "GET", f"/api/accounts/{a['HDFC']}/register")
         refused("API filter by A's category", "GET", "/api/transactions/", params={"category_id": a["Groceries"]})
@@ -684,12 +677,6 @@ def test_b_cannot_use_a_s_things_in_requests(client: TestClient, world: World):
             },
         )
         refused("move view for A's category", "GET", "/api/views/budget-move", params={"source": a["Groceries"]})
-        refused(
-            "a category inside A's",
-            "POST",
-            "/api/categories/",
-            json={"name": "x", "kind": "spending", "parent_id": a["Groceries"]},
-        )
     assert len(refusals) >= 18
     assert books_of(client, TEST_USER_ID) == before_a, "A's books were changed"
     assert books_of(client, B_USER) == before_b, "a refused request still changed B's books"

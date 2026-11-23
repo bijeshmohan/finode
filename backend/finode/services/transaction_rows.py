@@ -221,10 +221,7 @@ def filter_options(
                 continue
             sub = parents.get(node.depth - 1) if node.depth > 1 else ""
             accounts.append({"id": str(node.account.id), "name": node.account.name, "sub": sub})
-    names = {c.id: c.name for c in categories}
-    found = [
-        {"id": str(c.id), "name": c.name, "sub": names.get(c.parent_id, "") if c.parent_id else ""} for c in categories
-    ]
+    found = [{"id": str(c.id), "name": c.name, "sub": ""} for c in categories]
     return {"accounts": accounts, "categories": found, "merchants": [name for name, _ in transactions.payees()]}
 
 

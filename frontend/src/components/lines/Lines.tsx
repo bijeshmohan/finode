@@ -29,7 +29,7 @@ import {
 import styles from "./Lines.module.css";
 import { Picker } from "./Picker";
 import { QuickAdd, type QuickKind } from "./QuickAdd";
-import type { CategoryParent, AccountTypeOption, PickGroup } from "./queries";
+import type { AccountTypeOption, PickGroup } from "./queries";
 import { RowSettings } from "./RowSettings";
 import { amountOf, removeRow, type RowState, settle } from "./rows";
 
@@ -114,7 +114,6 @@ interface LinesProps<S extends LinesState> {
   update: Update<S>;
   groups: PickGroup[];
   accountTypes: AccountTypeOption[];
-  categoryParents: CategoryParent[];
   /** Whether a row's settings offer a posting day of its own (an entry: yes; a recurring rule: no). */
   dated: boolean;
   /** Whether the amount takes the focus at once. */
@@ -132,7 +131,6 @@ export function Lines<S extends LinesState>({
   update,
   groups,
   accountTypes,
-  categoryParents,
   dated,
   autoFocus = false,
   onKind,
@@ -346,7 +344,6 @@ export function Lines<S extends LinesState>({
             <QuickAdd
               making={making.kind}
               accountTypes={accountTypes}
-              categoryParents={categoryParents}
               onMade={(id) => {
                 changeRow(making.side, making.index, { choice: id });
               }}

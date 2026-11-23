@@ -55,9 +55,9 @@ class AccountIndex:
             self.entries[account.id] = Entry(account, segments, segments[0], account.id in parents)
         # Categories are not accounts; they are only named here, as the journal would write them (Expenses:Food).
         self.category_paths: dict[UUID, str] = {
-            c.id: ("Expenses" if c.kind == "spending" else "Income") + ":" + c.path for c in categories or []
+            c.id: ("Expenses" if c.kind == "spending" else "Income") + ":" + c.name for c in categories or []
         }
-        self.category_names: dict[UUID, str] = {c.id: c.path for c in categories or []}
+        self.category_names: dict[UUID, str] = {c.id: c.name for c in categories or []}
 
     def where(self, account: UUID, category: UUID | None) -> tuple[str, UUID]:
         """What a line is called to an assistant: a line on Expenses or Income by its category (Expenses:Food:Groceries
@@ -178,15 +178,15 @@ class Places:
                 ends = [
                     c
                     for c in self.categories.categories.values()
-                    if [s.casefold() for s in c.path.split(":")][-len(wanted) :] == wanted and c.closed_on is None
+                    if [s.casefold() for s in c.name.split(":")][-len(wanted) :] == wanted and c.closed_on is None
                 ]
                 if len(ends) > 1 and not _is_id(name):
                     listed = ", ".join(
-                        sorted(("Expenses:" if c.kind == "spending" else "Income:") + c.path for c in ends)
+                        sorted(("Expenses:" if c.kind == "spending" else "Income:") + c.name for c in ends)
                     )
                     raise ValueError(f"'{text}' matches {len(ends)} places: {listed}. Use the full path!")
             root = "Expenses" if category.kind == "spending" else "Income"
-            found.append(Place(f"{root}:{category.path}", self.roots[root], category.id))
+            found.append(Place(f"{root}:{category.name}", self.roots[root], category.id))
         except ValueError as e:
             problems.append(str(e))
         if len(found) == 1:

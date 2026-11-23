@@ -44,11 +44,7 @@ export function CategorySheet({ row, month, monthName, onClose }: SheetProps) {
   const [amount, setAmount] = useState(!sameAmount(row.assigned, "0") ? groupAmount(row.assigned, grouping) : "");
   return (
     <Sheet open onClose={onClose} title={row.name} showTitle={false}>
-      <SheetHead
-        title={row.name}
-        sub={row.group_name ? `${monthName} · ${row.group_name}` : monthName}
-        available={row.available}
-      />
+      <SheetHead title={row.name} sub={monthName} available={row.available} />
       <form
         className={styles.sheetForm}
         noValidate

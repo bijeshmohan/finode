@@ -11,7 +11,6 @@ import { AccountPage } from "../features/accounts/AccountPage";
 import { AccountsPage } from "../features/accounts/AccountsPage";
 import { BudgetPage } from "../features/budget/BudgetPage";
 import { ComingUpPage } from "../features/budget/ComingUpPage";
-import { GroupPage, OldGroupAddress } from "../features/budget/GroupPage";
 import { MovePage } from "../features/budget/MovePage";
 import { CategoriesPage } from "../features/categories/CategoriesPage";
 import { CategoryForm } from "../features/categories/CategoryForm";
@@ -111,8 +110,9 @@ export const routes: RouteObject[] = [
                 handle: { title: "Edit recurring transaction" },
               },
               { path: "/recurring/:recurringId", element: <RuleAddress /> },
-              { path: "/budget/groups/:categoryId", element: <GroupPage />, handle: { title: "Budgets" } },
-              { path: "/budget/group/:categoryId", element: <OldGroupAddress /> },
+              // A group's page went with the groups of categories (2026-11-23): old links land on Budgets.
+              { path: "/budget/groups/:categoryId", element: <MovedTo path="/budget" /> },
+              { path: "/budget/group/:categoryId", element: <MovedTo path="/budget" /> },
               { path: "/categories", element: <CategoriesPage />, handle: { title: "Categories" } },
               { path: "/categories/new", element: <CategoryForm />, handle: { title: "Add category" } },
               { path: "/categories/:categoryId", element: <CategoryPage />, handle: { title: "Categories" } },

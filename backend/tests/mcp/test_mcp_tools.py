@@ -22,14 +22,14 @@ def make(client, name, parent, **extra):
 
 @pytest.fixture
 def books(client, root_accounts):
-    """A small set of books: a bank with money, a card, food under two parents, salary."""
+    """A small set of books: a bank with money, a card, three spending categories, salary."""
     bank_group = make(client, "Bank", root_accounts["Assets"])
     hdfc = make(client, "HDFC", bank_group["id"], balance="10000")
     card = make(client, "Card", root_accounts["Liabilities"])
     food = make(client, "Food", root_accounts["Expenses"])
     groceries = make(client, "Groceries", food["id"])
-    travel = make(client, "Travel", root_accounts["Expenses"])
-    travel_food = make(client, "Food", travel["id"])
+    make(client, "Travel", root_accounts["Expenses"])
+    travel_food = make(client, "Travel food", root_accounts["Expenses"])
     salary = make(client, "Salary", root_accounts["Income"])
     return {
         "hdfc": hdfc,
@@ -79,7 +79,7 @@ async def test_record_by_short_names_and_read_it_back(session, client, books, se
         )["recorded"]
         assert recorded["total"] == "450.00" and recorded["payee"] == "DMart"
         assert {(p["account"], p["side"]) for p in recorded["postings"]} == {
-            ("Expenses:Food:Groceries", "debit"),
+            ("Expenses:Groceries", "debit"),
             ("Assets:HDFC", "credit"),
         }
         assert recorded["created_via"] == "assistant (Claude)"
@@ -92,12 +92,10 @@ async def test_record_by_short_names_and_read_it_back(session, client, books, se
 
 async def test_ambiguous_and_unknown_accounts_are_explained(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
-        with pytest.raises(ToolFailed, match="matches 2 places: Expenses:Food, Expenses:Travel:Food"):
-            await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Food")
         with pytest.raises(ToolFailed, match="Did you mean .*Groceries"):
             await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Grocries")
         # the full path, the end of one and other separators all work
-        for name in ("Expenses:Travel:Food", "Travel:Food", "expenses › travel › food", "Expense:Food"):
+        for name in ("Expenses:Travel food", "Travel food", "expenses › travel food", "Expense:Food"):
             await call(c, "record_transaction", amount="1", from_account="HDFC", to_account=name)
 
 
@@ -153,7 +151,7 @@ async def test_split_update_and_delete(session, client, books, secret):
                 date=(TODAY - timedelta(days=1)).isoformat(),
                 postings=[
                     {"account": "Groceries", "side": "debit", "amount": "300"},
-                    {"account": "Expenses:Travel:Food", "side": "debit", "amount": "200"},
+                    {"account": "Expenses:Travel food", "side": "debit", "amount": "200"},
                     {"account": "Card", "side": "credit", "amount": "500"},
                 ],
             )
@@ -215,7 +213,7 @@ async def test_search_filters(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
         for amount, payee, to in (
             ("100", "DMart", "Groceries"),
-            ("2500", "Airline", "Travel:Food"),
+            ("2500", "Airline", "Travel food"),
             ("40", "Tea stall", "Groceries"),
         ):
             await call(c, "record_transaction", amount=amount, from_account="HDFC", to_account=to, payee=payee)
@@ -235,20 +233,15 @@ async def test_spending_breakdown(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
         await call(c, "record_transaction", amount="100", from_account="HDFC", to_account="Groceries")
         await call(c, "record_transaction", amount="30", from_account="HDFC", to_account="Expenses:Food")
-        await call(c, "record_transaction", amount="500", from_account="HDFC", to_account="Travel:Food")
+        await call(c, "record_transaction", amount="500", from_account="HDFC", to_account="Travel food")
         await call(c, "record_transaction", amount="5000", from_account="Salary", to_account="HDFC")
         top = await call(c, "spending_breakdown")
         assert top["total"] == "630.00"
         assert top["by_category"] == [
-            {"category": "Travel", "amount": "500.00"},
-            {"category": "Food", "amount": "130.00"},
+            {"category": "Travel food", "amount": "500.00"},
+            {"category": "Groceries", "amount": "100.00"},
+            {"category": "Food", "amount": "30.00"},
         ]
-        deep = await call(c, "spending_breakdown", depth=2)
-        assert {line["category"]: line["amount"] for line in deep["by_category"]} == {
-            "Travel:Food": "500.00",
-            "Food:Groceries": "100.00",
-            "Food": "30.00",
-        }
         income = await call(c, "spending_breakdown", kind="income")
         assert income["by_category"] == [{"category": "Salary", "amount": "5000.00"}]
         last_year = await call(c, "spending_breakdown", date_from="2020-01-01", date_to="2020-12-31")

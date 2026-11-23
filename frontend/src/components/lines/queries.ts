@@ -11,7 +11,6 @@ export type PickGroup = components["schemas"]["PickGroupRead"];
 export type PickOption = components["schemas"]["PickOptionRead"];
 export type FormRow = components["schemas"]["FormRow"];
 export type AccountTypeOption = components["schemas"]["AccountTypeOption"];
-export type CategoryParent = components["schemas"]["CategoryParent"];
 
 /** Make an account or a category from a picker's "＋ New"; every view is refreshed, so the pickers list it. */
 export function useAddAccount() {

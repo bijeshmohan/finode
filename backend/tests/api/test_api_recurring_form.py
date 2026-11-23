@@ -135,7 +135,7 @@ def test_the_form_view_new_and_editing(client, accounts):
     assert [f["value"] for f in new["frequencies"]] == ["daily", "weekly", "monthly", "yearly"]
     assert [f["name"] for f in new["frequencies"]] == ["day", "week", "month", "year"]
     assert "People" not in [g["title"] for g in new["groups"]]
-    assert len(new["account_types"]) == 4 and new["category_parents"] is not None
+    assert len(new["account_types"]) == 4 and "category_parents" not in new
     made = saved(client, form(plain(accounts), tags=["home"]))
     seen = client.get("/api/views/recurring-form", params={"recurring_id": made["id"]}).json()
     assert (seen["editing"], seen["kind"], seen["total"], seen["payee"], seen["tags"]) == (

@@ -613,12 +613,11 @@ def spending_breakdown(
     kind: Annotated[Literal["expenses", "income"], Field(description="Expenses or income")] = "expenses",
     date_from: Annotated[date | None, Field(description="First day; the 1st of this month when left out")] = None,
     date_to: Annotated[date | None, Field(description="Last day; today when left out")] = None,
-    depth: Annotated[int, Field(ge=1, le=2, description="1 = Food, Rent...; 2 = Food:Groceries...")] = 1,
 ) -> dict[str, Any]:
     """Expenses (or income) for a period per category, largest first: what the money was for, as the budget counts
     it, so paying into a loan is spending in its category."""
     with services() as s:
-        report = s.reports.breakdown("Expenses" if kind == "expenses" else "Income", date_from, date_to, depth)
+        report = s.reports.breakdown("Expenses" if kind == "expenses" else "Income", date_from, date_to)
         return {
             "kind": kind,
             "currency": report.currency,
@@ -1375,8 +1374,7 @@ def _budget(data: BudgetRead) -> dict[str, Any]:
         "categories": [
             {
                 "category_id": str(line.category_id),
-                "category": line.path,
-                "is_group": line.group,
+                "category": line.name,
                 "assigned": text(line.assigned),
                 "spent": text(line.activity),
                 "available": text(line.available),
@@ -1553,9 +1551,8 @@ def delete_tag(tag: Annotated[str, Field(description="The tag to remove")]) -> d
 def _category_row(c: CategoryRead) -> dict[str, Any]:
     return {
         "id": str(c.id),
-        "path": c.path,
+        "name": c.name,
         "kind": c.kind,
-        "group": c.parent_id is None,
         **({"closed": c.closed_on.isoformat()} if c.closed_on else {}),
         **({"details": c.details} if c.details else {}),
     }
@@ -1579,15 +1576,11 @@ def list_categories(
 def create_category(
     name: Annotated[str, Field(max_length=40, description="The new category's name")],
     kind: Annotated[Literal["spending", "earning"], Field(description="Spending (budgeted) or earning (income)")],
-    group: Annotated[
-        str | None, Field(description="A group to put it in, by its path; leave out to make a group or a lone category")
-    ] = None,
     details: Annotated[str | None, Field(max_length=200, description="What it is for")] = None,
 ) -> dict[str, Any]:
-    """Make a category (two levels at most: a group and the categories in it). Check list_categories first."""
+    """Make a category (categories are one flat list). Check list_categories first."""
     with services() as s:
-        parent = _categories(s).find(group, kind=kind, open_only=True).id if group else None
-        made = s.categories.create(CategoryCreate(name=name, kind=kind, parent_id=parent, details=details))
+        made = s.categories.create(CategoryCreate(name=name, kind=kind, details=details))
         return {"created": _category_row(made)}
 
 
@@ -1596,11 +1589,8 @@ def update_category(
     category: Annotated[str, Field(description="The category's path or id")],
     name: Annotated[str | None, Field(max_length=40, description="New name")] = None,
     details: Annotated[str | None, Field(max_length=200, description="New note; an empty string clears it")] = None,
-    group: Annotated[
-        str | None, Field(description="Move it into this group (a path); an empty string takes it out of its group")
-    ] = None,
 ) -> dict[str, Any]:
-    """Rename a category, change its note or move it into another group. Its id never changes."""
+    """Rename a category or change its note. Its id never changes."""
     with services() as s:
         found = _categories(s).find(category)
         fields: dict[str, Any] = {}
@@ -1608,12 +1598,8 @@ def update_category(
             fields["name"] = name
         if details is not None:
             fields["details"] = details.strip() or None
-        if group is not None:
-            fields["parent_id"] = (
-                _categories(s).find(group, kind=found.kind, open_only=True).id if group.strip() else None
-            )
         if not fields:
-            raise ToolError("nothing to change: give name, details or group!")
+            raise ToolError("nothing to change: give name or details!")
         return {"updated": _category_row(s.categories.update(found.id, CategoryUpdate(**fields)))}
 
 
@@ -1647,8 +1633,8 @@ def merge_categories(
         return {
             "dry_run": dry_run,
             "merged": result.merged,
-            "from": source.path,
-            "into": target.path,
+            "from": source.name,
+            "into": target.name,
             "entries_moved": result.entries_moved,
             "plan_months_moved": result.plan_months_moved,
             "recurring_rules_moved": result.recurring_rules_moved,

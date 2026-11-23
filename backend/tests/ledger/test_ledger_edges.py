@@ -64,9 +64,8 @@ def test_the_first_and_last_day_work_everywhere(client, account, expense_account
 
 @pytest.mark.parametrize("month", ["0001-01", "9999-12", "1899-12", "2200-01", "1900-01", "2999-12"])
 def test_odd_months_in_the_address_never_break_a_page(client, expense_account, month):
-    group = category(client, "Bills")
-    category(client, "Power", parent=group["id"])
-    for page in ("/api/views/budget", "/api/views/categories", f"/api/views/budget/groups/{group['id']}"):
+    bills = category(client, "Bills")
+    for page in ("/api/views/budget", "/api/views/categories", f"/api/views/categories/{bills['id']}"):
         assert client.get(f"{page}?month={month}").status_code == 200, (page, month)
 
 
@@ -99,8 +98,7 @@ def test_account_names_are_trimmed_and_unique_where_they_sit(client, root_accoun
     clash = make("food", root_accounts["Expenses"])
     assert clash.status_code == 400 and "a category called 'Food'" in clash.json()["detail"]
     assert make("Food", root_accounts["Income"]).status_code == 201, "the same name elsewhere is fine"
-    sub = make("Food", food.json()["id"])
-    assert sub.status_code == 201, "a subcategory may share its parent's name"
+    assert make("Food", food.json()["id"]).status_code == 400, "an old client's parent changes nothing: a clash"
 
     fun = make("Fun", root_accounts["Expenses"]).json()
     assert client.patch(f"/api/categories/{fun['id']}", json={"name": "FOOD"}).status_code == 400
@@ -108,10 +106,6 @@ def test_account_names_are_trimmed_and_unique_where_they_sit(client, root_accoun
         "its own name, new capitals"
     )
     assert client.patch(f"/api/categories/{food.json()['id']}", json={"name": "Fun"}).status_code == 400
-    moved = client.patch(f"/api/categories/{sub.json()['id']}", json={"parent_id": None})
-    assert moved.status_code == 400 and "a category called" in moved.json()["detail"], (
-        "moving it out would clash with Food"
-    )
 
 
 def test_a_payee_is_one_tidy_line_and_a_blank_one_is_none(client, account, expense_account):

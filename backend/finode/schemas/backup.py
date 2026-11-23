@@ -59,12 +59,13 @@ class BackupAccount(BaseModel):
 
 
 class BackupCategory(BaseModel):
-    """Version 5: what money was for (Groceries, EMI, Salary). A group has no parent; the categories in it name it."""
+    """Version 5: what money was for (Groceries, EMI, Salary). Categories are one flat list (version 7)."""
 
     id: UUID
     name: str
     kind: str
-    parent_id: UUID | None = None
+    # Files from before version 7: the group a category was in. Read (a restore flattens such a file), never written.
+    parent_id: UUID | None = Field(default=None, exclude=True)
     details: str | None = None
     closed_on: Day | None = None
     # "uncategorised.spending" / "uncategorised.earning" on the built-in ones.

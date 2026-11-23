@@ -1,5 +1,5 @@
-// The Categories page: one month, Spending or Earning, what each category came to, biggest first, with
-// the biggest inside it and its share of the month. The month and the tab live in the address.
+// The Categories page: one month, Spending or Earning, what each category came to, biggest first, with its share of
+// the month. The month and the tab live in the address.
 import { Link, useSearchParams } from "react-router";
 
 import { useGrouping } from "../../app/currency";
@@ -28,13 +28,7 @@ function Rows({ view }: { view: CategoriesView }) {
     <div className={styles.tile}>
       {view.rows.map((r) => {
         const empty = sameAmount(r.total, "0");
-        const sub = empty
-          ? "Nothing yet"
-          : r.hint
-            ? `${r.hint}${r.share ? ` · ${r.share}` : ""}`
-            : r.share
-              ? `${r.share} of ${earning ? "earnings" : "spending"}`
-              : "";
+        const sub = empty ? "Nothing yet" : r.share ? `${r.share} of ${earning ? "earnings" : "spending"}` : "";
         return (
           <Link key={r.id} className={styles.row} to={`/categories/${r.id}?month=${view.month}`}>
             <span className={styles.main}>

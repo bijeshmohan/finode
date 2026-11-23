@@ -52,7 +52,7 @@ def paths(accounts: AccountService, categories: CategoryService) -> dict[UUID, s
     """A name for every account and every category, by id (a category's path reads "Expenses › Food › Groceries")."""
     names = {n.account.id: n.path for root in build_tree(accounts.list()) for n in root.walk()}
     for c in categories.list(include_closed=True):
-        names[c.id] = ("Expenses" if c.kind == "spending" else "Income") + " › " + c.path.replace(":", " › ")
+        names[c.id] = ("Expenses" if c.kind == "spending" else "Income") + " › " + c.name
     return names
 
 

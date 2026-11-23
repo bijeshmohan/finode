@@ -197,17 +197,7 @@ class DataService:
     def _category_paths(self) -> dict[UUID, str]:
         """Each category as the path a ledger line names it by: its group and its name ("Food:Groceries")."""
         by_id = {c.id: c for c in CategoryRepository(self.ar.db, self.ar.uid).list()}
-        found: dict[UUID, str] = {}
-        for category_id, category in by_id.items():
-            names, seen, current = [], set(), category
-            while current.id not in seen:
-                seen.add(current.id)
-                names.append(current.name)
-                if current.parent_id is None or current.parent_id not in by_id:
-                    break
-                current = by_id[current.parent_id]
-            found[category_id] = ":".join(reversed(names))
-        return found
+        return {category_id: category.name for category_id, category in by_id.items()}
 
     def _line_paths(
         self, accounts: Sequence[Account], paths: dict[UUID, str]

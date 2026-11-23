@@ -257,14 +257,6 @@ def test_create_transaction_to_expense_group(client: TestClient, account: dict, 
     assert spent["total"] == "10.00"
 
 
-def test_create_transaction_to_leaf_sub_account(client: TestClient, account: dict, expense_account: dict):
-    child = post_account(client, {"name": "child", "parent_id": expense_account["id"]}).json()
-    response = client.post("/api/transactions/", json=_two_postings(child, account))
-    assert response.status_code == 201
-    spent = client.get("/api/reports/breakdown", params={"kind": "expenses"}).json()
-    assert spent["total"] == "10.00" and spent["lines"][0]["account"] == "groceries"
-
-
 def test_update_transaction_rejects_root_account(
     client: TestClient, account: dict, expense_account: dict, root_accounts: dict[str, str]
 ):
@@ -309,24 +301,6 @@ def test_list_transactions_filter_by_date_range(client: TestClient, account: dic
 
     response = client.get("/api/transactions/", params={"date_from": "2026-01-06", "date_to": "2026-01-10"})
     assert [t["payee"] for t in response.json()] == ["b"]
-
-
-def test_list_transactions_filter_by_account_includes_sub_accounts(
-    client: TestClient,
-    root_accounts: dict[str, str],
-    account: dict,
-    other_account: dict,
-    expense_account: dict,
-):
-    child = post_account(client, {"name": "food", "parent_id": expense_account["id"]}).json()
-    _post(client, child, account, "5.00", "2026-01-05", "food")
-    _post(client, other_account, account, "9.00", "2026-01-06", "transfer")
-
-    by_parent = client.get("/api/transactions/", params={"category_id": expense_account["id"]})
-    assert [t["payee"] for t in by_parent.json()] == ["food"]
-
-    by_other = client.get("/api/transactions/", params={"account_id": other_account["id"]})
-    assert [t["payee"] for t in by_other.json()] == ["transfer"]
 
 
 def test_list_transactions_filter_by_unknown_account(client: TestClient):

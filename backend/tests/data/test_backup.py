@@ -190,7 +190,7 @@ def canonical(doc: dict) -> dict:
     paths = {account_id: path(account_id) for account_id in by_id}
     cats = {c["id"]: c for c in doc["categories"]}
     for category_id, c in cats.items():
-        group = cats.get(c["parent_id"])
+        group = cats.get(c.get("parent_id"))
         paths[category_id] = (
             ("Expenses" if c["kind"] == "spending" else "Income")
             + ":"

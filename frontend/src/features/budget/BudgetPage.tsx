@@ -1,6 +1,6 @@
 // The Budgets page: Ready to assign with the sum behind it, Copy last month's amounts,
 // a first-time welcome, the overspent warning, and the month's categories biggest budget first, each opening the sheet
-// where its amount is set (a group opens its own page). Whole groups with nothing in them wait behind "Show".
+// where its amount is set.
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
@@ -111,11 +111,9 @@ export function BudgetPage() {
   const [params, setParams] = useSearchParams();
   const query = useBudget(params.get("month"));
   const copy = useCopyLastMonth();
-  const [showUnused, setShowUnused] = useState(false);
   const [open, setOpen] = useState<BudgetRow | null>(null);
   const view = query.data;
   const month = view?.month ?? params.get("month") ?? today.slice(0, 7);
-  const shown = view ? view.rows.filter((r) => showUnused || !r.unused) : [];
 
   return (
     <>
@@ -183,24 +181,7 @@ export function BudgetPage() {
             </div>
           )}
           {view.rows.length > 0 ? (
-            <>
-              <BudgetRows rows={shown} month={view.month} onOpen={setOpen} />
-              {view.unused_count > 0 && (
-                <p className={look.toggle}>
-                  <button
-                    type="button"
-                    className={look.linkButton}
-                    onClick={() => {
-                      setShowUnused((on) => !on);
-                    }}
-                  >
-                    {showUnused
-                      ? `Hide the ${String(view.unused_count)} unused`
-                      : `${String(view.unused_count)} unused group${view.unused_count === 1 ? "" : "s"} hidden · Show`}
-                  </button>
-                </p>
-              )}
-            </>
+            <BudgetRows rows={view.rows} onOpen={setOpen} />
           ) : (
             view.has_budget_accounts && (
               <div className={look.empty}>

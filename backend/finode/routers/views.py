@@ -41,7 +41,6 @@ from ..schemas.views import (
     AccountView,
     ActivityRowRead,
     AppliedFilter,
-    BudgetGroupView,
     BudgetMoveView,
     BudgetRowRead,
     BudgetSum,
@@ -49,8 +48,6 @@ from ..schemas.views import (
     CardNoteRead,
     CategoriesView,
     CategoryFormView,
-    CategoryParent,
-    CategoryRef,
     CategoryRowRead,
     CategoryView,
     ComingDayRead,
@@ -63,7 +60,6 @@ from ..schemas.views import (
     FilterSummary,
     FormRow,
     FrequencyChoice,
-    GlanceBlock,
     GlanceRead,
     HomeView,
     KindRow,
@@ -87,7 +83,6 @@ from ..schemas.views import (
     SharePreviewAsk,
     ShowChoice,
     StepRead,
-    SubcategoryRead,
     TodoBill,
     TodoView,
     TransactionDetails,
@@ -108,7 +103,6 @@ from ..services.accounts_view import (
 )
 from ..services.budget import BudgetError, BudgetService
 from ..services.categories_view import TABS, categories_page, category_form, category_page
-from ..services.category import CategoryService
 from ..services.coming_up_view import coming_days
 from ..services.entry_form import EditStart, EntryStart, edit_start, new_start
 from ..services.entry_share import expense_create, expense_start, income_create, income_start
@@ -400,7 +394,6 @@ def entry_form(
             )
         ),
         account_types=_account_types(),
-        category_parents=_category_parents(categories),
     )
 
 
@@ -420,11 +413,6 @@ def _account_types() -> list[AccountTypeOption]:
     return [
         AccountTypeOption(key=cast(AccountType, key), name=TYPE_NAMES[key], root=TYPE_ROOTS[key]) for key in TYPE_KEYS
     ]
-
-
-def _category_parents(categories: CategoryService) -> list[CategoryParent]:
-    """Where a new category can go from the pickers' "＋ New"."""
-    return [CategoryParent(id=c.id, name=c.name, kind=c.kind) for c in categories.list() if c.parent_id is None]
 
 
 @router.post("/entry-share-preview", response_model=SharePreview)
@@ -566,7 +554,7 @@ def _month_span(month: str) -> tuple[date, date, bool]:
 @router.get("/categories", response_model=CategoriesView)
 def categories_view(categories: Categories, reports: Reports, month: str = "", tab: str = "expense"):
     """The Categories page for a month (`YYYY-MM`; this month by default) and a tab (`expense` or `income`): what each
-    top-level category came to, biggest first, with the biggest inside it (`hint`) and its share of the month."""
+    category came to, biggest first, with its share of the month."""
     when, end, is_current = _month_span(month)
     shown = tab if tab in TABS else "expense"
     rows, grand = categories_page(categories, reports, TABS[shown], when, end)
@@ -575,17 +563,13 @@ def categories_view(categories: Categories, reports: Reports, month: str = "", t
         is_current=is_current,
         tab="income" if shown == "income" else "expense",
         grand=grand,
-        rows=[
-            CategoryRowRead(id=r.node.category.id, name=r.node.category.name, total=r.total, hint=r.hint, share=r.share)
-            for r in rows
-        ],
+        rows=[CategoryRowRead(id=r.category.id, name=r.category.name, total=r.total, share=r.share) for r in rows],
     )
 
 
 @router.get("/categories/{category_id}", response_model=CategoryView)
 def category_view(category_id: UUID, categories: Categories, reports: Reports, month: str = ""):
-    """A category's own page for a month: the whole category's figure, its subcategories with theirs and what was
-    labelled with it itself besides them (`own_here`), and its own entries newest first."""
+    """A category's own page for a month: its figure and its entries newest first."""
     when, end, is_current = _month_span(month)
     try:
         page = category_page(categories, reports, category_id, when, end)
@@ -599,13 +583,9 @@ def category_view(category_id: UUID, categories: Categories, reports: Reports, m
         kind=category.kind,
         built_in=category.system_key is not None,
         closed_on=category.closed_on,
-        group=CategoryRef(id=page.group.id, name=page.group.name) if page.group else None,
         month=when.strftime("%Y-%m"),
         is_current=is_current,
         total=page.total,
-        subs=[SubcategoryRead(id=n.category.id, name=n.category.name, total=t) for n, t in page.subs],
-        own_here=page.own_here,
-        can_add_child=page.can_add_child,
         can_delete=category.system_key is None and category.closed_on is None,
         new_transaction_url=page.new_transaction_url,
         entries=[register_read(r) for r in page.entries],
@@ -640,13 +620,10 @@ def account_form_view(accounts: Accounts, account_id: UUID | None = None, type: 
 
 
 @router.get("/category-form", response_model=CategoryFormView)
-def category_form_view(
-    categories: Categories, category_id: UUID | None = None, parent: UUID | None = None, root: str = "expense"
-):
-    """Where the category form starts: editing `category_id`, or a new category (`root` = `expense` or `income`; inside
-    the group `parent`, whose kind it takes). `groups` are where it can go (none for a group that holds categories)."""
+def category_form_view(categories: Categories, category_id: UUID | None = None, root: str = "expense"):
+    """Where the category form starts: editing `category_id`, or a new category (`root` = `expense` or `income`)."""
     try:
-        form = category_form(categories, category_id, parent, root)
+        form = category_form(categories, category_id, root)
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from None
     current = form.category
@@ -655,8 +632,6 @@ def category_form_view(
         kind="earning" if form.kind == "earning" else "spending",
         name=current.name if current else "",
         details=current.details if current else None,
-        parent_id=form.parent_id,
-        groups=[CategoryRef(id=g.id, name=g.name) for g in form.groups],
     )
 
 
@@ -668,12 +643,11 @@ def _budget_money(budget: BudgetService):
     return lambda value: money(value, style)
 
 
-def _budget_row(row: budget_view.Row, group: str | None = None) -> BudgetRowRead:
-    line, r = row.node.line, row.reading
+def _budget_row(row: budget_view.Row) -> BudgetRowRead:
+    line, r = row.line, row.reading
     return BudgetRowRead(
         category_id=line.category_id,
         name=line.name,
-        is_group=row.node.is_group,
         assigned=line.assigned,
         activity=line.activity,
         available=line.available,
@@ -683,8 +657,6 @@ def _budget_row(row: budget_view.Row, group: str | None = None) -> BudgetRowRead
         hint=row.hint,
         percent=r.percent,
         over=r.over,
-        group_name=group,
-        unused=row.unused,
     )
 
 
@@ -692,7 +664,7 @@ def _budget_row(row: budget_view.Row, group: str | None = None) -> BudgetRowRead
 def budget_page_view(budget: Budget, month: str = ""):
     """The Budgets page for a month (`YYYY-MM`; this month for anything else): Ready to assign and the sum behind it,
     what copying last month would assign, and the categories biggest budget first, each with how its row reads (`of`,
-    `state`, `hint`, the bar's `percent`); whole groups with nothing in them are `unused` once anything is in use."""
+    `state`, `hint`, the bar's `percent`)."""
     page = budget_view.budget_page(budget, budget_view.parse_month(month), _budget_money(budget))
     data = page.budget
     return BudgetView(
@@ -711,29 +683,6 @@ def budget_page_view(budget: Budget, month: str = ""):
         has_budget_accounts=bool(data.budget_accounts),
         overspent=page.overspent,
         rows=[_budget_row(r) for r in page.rows],
-        unused_count=page.unused_count,
-    )
-
-
-@router.get("/budget/groups/{category_id}", response_model=BudgetGroupView)
-def budget_group_view(category_id: UUID, budget: Budget, month: str = ""):
-    """One group's budget for a month: its glance (what is left, spent out of what there was), its categories, and the
-    least the group itself can be given (`minimum`: what its categories add up to)."""
-    try:
-        found = budget_view.group_page(budget, budget_view.parse_month(month), category_id, _budget_money(budget))
-    except LookupError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from None
-    line, g = found.group.line, found.glance
-    return BudgetGroupView(
-        id=line.category_id,
-        name=line.name,
-        month=found.page.month.strftime("%Y-%m"),
-        is_current=found.page.is_current,
-        pace=found.page.pace,
-        glance=GlanceBlock(left=g.left, spent=g.spent, of=g.of, percent=g.percent, planned=g.planned),
-        assigned=line.assigned,
-        minimum=found.minimum,
-        kids=[_budget_row(k, line.name) for k in found.kids],
     )
 
 
@@ -742,16 +691,13 @@ def budget_move_view(budget: Budget, month: str = "", source: UUID | None = None
     """The categories money can move between in a month, each with what it has left; `source` is the one it moves from
     (404 when it is not one of them)."""
     when = budget_view.parse_month(month)
-    lines = budget_view.move_lines(budget.view(when))
+    lines = budget.view(when).lines
     if source is not None and not any(line.category_id == source for line in lines):
         raise HTTPException(status_code=404, detail="category not found")
     return BudgetMoveView(
         month=when.strftime("%Y-%m"),
         source=source,
-        lines=[
-            MoveLine(category_id=ln.category_id, path=ln.path.replace(":", " › "), available=ln.available)
-            for ln in lines
-        ],
+        lines=[MoveLine(category_id=ln.category_id, name=ln.name, available=ln.available) for ln in lines],
     )
 
 
@@ -869,7 +815,6 @@ def recurring_form_view(
             )
         ),
         account_types=_account_types(),
-        category_parents=_category_parents(categories),
         frequency=rule.frequency if rule else "monthly",
         every=rule.every if rule else 1,
         start_date=rule.start_date if rule else local_today(),

@@ -71,15 +71,14 @@ def update_category(category_id: UUID, data: CategoryUpdate, categories: Categor
 def category_register(
     category_id: UUID,
     categories: Categories,
-    own_only: bool = False,
     limit: int | None = Query(default=None, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
 ):
-    """The entries that have a line labelled with the category (and with the categories in it, unless `own_only`),
-    oldest first, each with what it changed and the running total."""
+    """The entries that have a line labelled with the category, oldest first, each with what it changed and the running
+    total."""
     if categories.read(category_id) is None:
         raise HTTPException(status_code=404, detail="category not found")
-    entries = categories.register(category_id, own_only=own_only)
+    entries = categories.register(category_id)
     return entries[offset : offset + limit] if limit else entries[offset:]
 
 
