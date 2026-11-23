@@ -1,0 +1,5 @@
+/* A category's icon: a quiet line drawing, nothing behind it. */
+.icon {
+  display: block;
+  flex: none;
+}

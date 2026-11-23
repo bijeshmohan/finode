@@ -2,14 +2,19 @@ import { existsSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import categoryIcons from "./category-icons.json";
 import icons from "./icons.json";
 
 // icons.json is the icons' one source: components/Icon draws them, and TypeScript refuses a name it does not hold. The
-// markup is put into the page as it is, so it must be plain SVG drawing only. Vitest runs from frontend/.
+// markup is put into the page as it is, so it must be plain SVG drawing only; so must the category icons'
+// (category-icons.json, drawn by components/CategoryIcon). Vitest runs from frontend/.
 const DRAWING = new Set(["path", "circle", "rect", "line", "polyline", "polygon", "ellipse", "g"]);
-const entries = Object.entries(icons as Record<string, string>);
+const entries = [
+  ...Object.entries(icons as Record<string, string>),
+  ...Object.entries(categoryIcons.paths as Record<string, string>).map(([n, m]) => [`category ${n}`, m] as const),
+];
 
-describe("icons.json", () => {
+describe("icons.json and category-icons.json", () => {
   it("holds plain SVG drawing only", () => {
     expect(entries.length).toBeGreaterThan(0);
     for (const [name, markup] of entries) {
