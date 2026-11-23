@@ -304,7 +304,7 @@ class TransactionService:
         return [self._to_read(t, postings.get(t.id, []), tags.get(t.id, [])) for t in transactions]
 
     def _category_paths(self) -> dict[UUID, str]:
-        """Each category as the journal account it stands for: Expenses:Food:Groceries, Income:Salary."""
+        """Each category as the journal account it stands for: Expenses:Groceries, Income:Salary."""
         found = {c.id: c for c in self.cr.list()}
         paths: dict[UUID, str] = {}
         for category_id, category in found.items():
@@ -795,7 +795,7 @@ class TransactionService:
         """`payee_routes` with account paths and the kind of entry, for the API and the assistants."""
         paths = self._account_paths()
         categories = {c.id: c for c in self.cr.list()}
-        paths.update(self._category_paths())  # a category reads like the journal's account: Expenses:Food:Groceries
+        paths.update(self._category_paths())  # a category reads like the journal's account: Expenses:Groceries
 
         def side(account_id: UUID) -> RouteAccount:
             return RouteAccount(id=account_id, path=paths.get(account_id, "?"))

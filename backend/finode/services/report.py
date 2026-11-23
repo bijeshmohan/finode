@@ -75,8 +75,7 @@ class ReportService:
 
     def category_totals(self, kind: str, period_start: date, period_end: date) -> dict:
         """What each category took in a period, by what its lines say they were for (a payment into a loan counts for
-        the category it was labelled with). It is what the Budget and the Categories page show. A group's own figure is
-        what was labelled with the group itself, not its sub-categories'."""
+        the category it was labelled with). It is what the Budget and the Categories page show."""
         if kind not in ("spending", "earning"):
             raise ValueError("categories are spending or earning!")
         normal_side = PostingSide.DEBIT if kind == "spending" else PostingSide.CREDIT

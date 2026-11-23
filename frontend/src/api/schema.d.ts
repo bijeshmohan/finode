@@ -589,8 +589,7 @@ export interface paths {
         put?: never;
         /**
          * Create Category
-         * @description Make a category, or a group (leave out `parent_id`) to put categories in. Two levels at most; names are unique
-         *     inside a group, capitals aside.
+         * @description Make a category. Categories are one flat list; names are unique per kind, capitals aside.
          */
         post: operations["create_category_api_categories__post"];
         delete?: never;
@@ -631,7 +630,7 @@ export interface paths {
         put?: never;
         /**
          * Close Category
-         * @description Close a category (and what is inside a group): its history stays, nothing more can be labelled with it.
+         * @description Close a category: its history stays, nothing more can be labelled with it.
          */
         post: operations["close_category_api_categories__category_id__close_post"];
         delete?: never;

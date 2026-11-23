@@ -18,11 +18,11 @@ class CategoryIndex:
         return category.name if category else None
 
     def find(self, text: str, *, kind: str | None = None, open_only: bool = False) -> CategoryRead:
-        """The one category `text` names: its id, its path ("Food:Groceries") or the end of one ("Groceries").
+        """The one category `text` names: its id or its name ("Groceries", or "Expenses:Groceries").
         Raises ValueError naming the choices when it is not one."""
         text = (text or "").strip()
         if not text:
-            raise ValueError("a category is required: give its path, for example Food:Groceries!")
+            raise ValueError("a category is required: give its name, for example Groceries!")
         try:
             by_id = self.categories.get(UUID(text))
         except ValueError:

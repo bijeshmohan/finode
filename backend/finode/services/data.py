@@ -225,7 +225,7 @@ class DataService:
         return accounts, paths, postings, transactions, self.tr.all_tag_map()
 
     def _category_paths(self) -> dict[UUID, str]:
-        """Each category as the path a ledger line names it by: its group and its name ("Food:Groceries")."""
+        """Each category's name, as a ledger line names it below Expenses or Income ("Groceries")."""
         by_id = {c.id: c for c in CategoryRepository(self.ar.db, self.ar.uid).list()}
         return {category_id: category.name for category_id, category in by_id.items()}
 
@@ -233,7 +233,7 @@ class DataService:
         self, accounts: Sequence[Account], paths: dict[UUID, str]
     ) -> tuple[Callable[[Posting], str], set[UUID]]:
         """How a line is named in a journal: a line on Expenses or Income is written as the account of its category
-        (`Expenses:Food:Groceries`, which is what other ledger tools expect); any other line by its account."""
+        (`Expenses:Groceries`, which is what other ledger tools expect); any other line by its account."""
         roots = {a.id for a in accounts if a.parent_id is None and a.name in CATEGORY_ROOTS}
         names = self._category_paths()
 
@@ -311,7 +311,7 @@ class DataService:
     # --- import -----------------------------------------------------------
 
     def _category_keys(self) -> dict[Key, UUID]:
-        """The categories as the journal paths that name them (`Expenses:Food:Groceries`)."""
+        """The categories as the journal paths that name them (`Expenses:Groceries`)."""
         found: dict[Key, UUID] = {}
         for category_id, path in self._category_paths().items():
             category = next(c for c in CategoryRepository(self.ar.db, self.ar.uid).list() if c.id == category_id)

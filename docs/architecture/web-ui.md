@@ -20,7 +20,6 @@ finode's one UI is **the finode app**: React + TypeScript, built with Vite, in `
 flowchart LR
     Home["/ Home"] --> Tx["/transactions"]
     Home --> New["/transactions/new"]
-    Budget["/budget"] --> Grp["/budget/groups/{id}"]
     Budget --> Move["/budget/move"]
     Budget --> Coming["/budget/coming-up"]
     Accounts["/accounts"] --> Acc["/accounts/{id}"]

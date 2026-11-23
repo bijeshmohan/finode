@@ -583,7 +583,8 @@ class BackupService:
 
     @staticmethod
     def _check_categories(file: BackupFile, accounts: dict[UUID, BackupAccount], errors: list[str]) -> None:
-        """The categories are sound (two levels, one kind in a group, names unique in a place) and a category on a line
+        """The categories are sound (an older file's at most two levels, one kind in a group, names unique in a place;
+        a restore flattens them) and a category on a line
         (or a rule) is one of the file's and fits the line: spending on Expenses or a payment out of the budget, earning
         on Income, nothing on Equity."""
         cats = {c.id: c for c in file.categories}

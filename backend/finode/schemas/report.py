@@ -22,7 +22,7 @@ class SummaryRead(BaseModel):
 
 
 class BreakdownLine(BaseModel):
-    # Account path below the top-level account, e.g. "Food › Groceries".
+    # The category's name, e.g. "Groceries".
     account: str
     amount: Decimal
 

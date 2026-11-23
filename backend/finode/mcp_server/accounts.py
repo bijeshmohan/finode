@@ -60,7 +60,7 @@ class AccountIndex:
         self.category_names: dict[UUID, str] = {c.id: c.name for c in categories or []}
 
     def where(self, account: UUID, category: UUID | None) -> tuple[str, UUID]:
-        """What a line is called to an assistant: a line on Expenses or Income by its category (Expenses:Food:Groceries
+        """What a line is called to an assistant: a line on Expenses or Income by its category (Expenses:Groceries
         and the category's id), any other line by its account."""
         entry = self.entries.get(account)
         if (

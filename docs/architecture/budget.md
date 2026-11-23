@@ -66,7 +66,7 @@ Credit cards need no assigning. The collapsible credit-accounts row on Home show
 
 ## Groups
 
-Two-level categories (`Food › Groceries`) show **the sum of their children**. A group's own budget (tapping the figure on its page) starts at that sum and may be raised but never lowered below it (`BudgetService.assign_group`); the extra is kept on the group's own account in `budget_allocations`, so a group's total always adds up its own money and its categories'. The page shows no separate row for it.
+Categories are one flat list (since 2026-11-23): every row's figures are the category's own; there are no group totals or group budgets. The page shows no separate row for it.
 
 ## Targets and notes (removed)
 
@@ -78,7 +78,7 @@ Budget targets (monthly, weekly, refill, by-date and yearly wishes per category,
 
 ## Where it surfaces
 
-- **Web:** `/budget` (Ready to assign, categories ranked by size, sheets for assigning), a group's page, `/budget/move`.
+- **Web:** `/budget` (Ready to assign, categories ranked by size, sheets for assigning), `/budget/move`.
 - **Home:** one number, *Left to spend*, taken from the same `view()`.
 - **API:** `GET /api/budget/`, `PUT /api/budget/categories/{account_id}`.
 - **MCP:** `get_budget`, `assign_to_category`, `move_budget_money`, `copy_budget_from_previous_month`.

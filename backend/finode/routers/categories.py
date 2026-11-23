@@ -40,8 +40,7 @@ def list_categories(
 
 @router.post("/", response_model=CategoryRead, status_code=201)
 def create_category(data: CategoryCreate, categories: Categories):
-    """Make a category, or a group (leave out `parent_id`) to put categories in. Two levels at most; names are unique
-    inside a group, capitals aside."""
+    """Make a category. Categories are one flat list; names are unique per kind, capitals aside."""
     try:
         return categories.create(data)
     except ValueError as e:
@@ -84,7 +83,7 @@ def category_register(
 
 @router.post("/{category_id}/close", response_model=CategoryRead)
 def close_category(category_id: UUID, categories: Categories):
-    """Close a category (and what is inside a group): its history stays, nothing more can be labelled with it."""
+    """Close a category: its history stays, nothing more can be labelled with it."""
     try:
         return categories.close(category_id)
     except ValueError as e:

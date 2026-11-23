@@ -15,7 +15,7 @@ from .contact import ContactService
 @dataclass
 class PickOption:
     """One choice in an account or category picker: what it is called (below its type: "Banks › HDFC",
-    "Food › Groceries"), and for an account its budget flag and balance."""
+    "Groceries"), and for an account its budget flag and balance."""
 
     id: UUID
     label: str

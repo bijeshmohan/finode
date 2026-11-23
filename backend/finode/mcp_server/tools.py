@@ -43,14 +43,14 @@ from .context import Services, services
 INSTRUCTIONS = """\
 finode is the user's personal double-entry ledger.
 
-- Accounts form a tree under Assets, Liabilities and Equity; spending and income post to the single
-  Expenses and Income accounts and are told apart by a budget category (Food, Food:Groceries, Salary:
-  call list_categories). Refer to an account by its path with ':' between names (Assets:Bank:HDFC) or by
-  the end of the path when that is unique (HDFC); a category path (Expenses:Food, or just Food) works
-  wherever an account goes. Call list_accounts when unsure; never invent an account: ask the user, or create it with create_account if they agree.
-  Every account the user adds is one of four kinds, each a built-in group: Assets:Bank Account, Assets:Cash,
-  Assets:Prepaid Wallet (a meal card, FASTag, a gift card) and Liabilities:Credit Card. All of them are part of the
-  budget. Investments and loans are not accounts: a SIP, an EMI or a deposit is spending in a category, money
+- Accounts sit straight under Assets and Liabilities (and Equity's Opening Balances); spending and income post to
+  the single Expenses and Income accounts and are told apart by a budget category (Food, Rent, Salary: call
+  list_categories; categories are one flat list). Refer to an account by its path (Assets:HDFC) or just its name
+  when that is unique (HDFC); a category (Expenses:Food, or just Food) works wherever an account goes. Call
+  list_accounts when unsure; never invent an account: ask the user, or create it with create_account if they agree.
+  Every account the user adds is one of four kinds, shown as account_kind: Bank Account, Cash, Prepaid Wallet
+  (a meal card, FASTag, a gift card) under Assets and Credit Card under Liabilities; the kind must be given when one
+  is created (never guess it: ask). All of them are part of the budget. Investments and loans are not accounts: a SIP, an EMI or a deposit is spending in a category, money
   borrowed into the bank is income under "Borrowed", and an investment sold is income under "Redeemed".
 - Every account has an id (list_accounts, get_account). An id survives renames and moves, a path does not: keep
   ids when you remember an account, and give either to any tool that takes an account.
@@ -138,7 +138,7 @@ SourceUrl = Annotated[str | None, Field(max_length=500, description="A web link 
 CategoryParam = Annotated[
     str | None,
     Field(
-        description="What the money was for, a spending category such as EMI or Food:Groceries (see list_categories). "
+        description="What the money was for, a spending category such as EMI or Groceries (see list_categories). "
         "Say it for an expense or an income, and for a payment into a loan or fund (EMI, SIP); nothing is filled in for "
         "you: an expense or income left without one is Uncategorised, a payment into a loan stays without"
     ),
@@ -354,7 +354,7 @@ def get_account(
     account: AccountRef,
     recent: Annotated[int, Field(ge=0, le=100, description="How many recent entries to include")] = 10,
 ) -> dict[str, Any]:
-    """One account: its balance and its recent entries with a running balance. Entries of sub-accounts count towards a group."""
+    """One account: its balance and its recent entries with a running balance."""
     with services() as s:
         index = _index(s)
         entry = index.find(account, allow_root=True)
@@ -1397,15 +1397,14 @@ def get_budget(
     month: Annotated[str | None, Field(description="YYYY-MM; this month by default")] = None,
 ) -> dict[str, Any]:
     """The envelope budget for a month: what is still ready to assign, and for each expense category what
-    was assigned this month, what was spent and what is available (leftovers carry over; a category overspent last month starts at zero and that amount was already taken out of ready to assign).
-    Groups sum their subcategories."""
+    was assigned this month, what was spent and what is available (leftovers carry over; a category overspent last month starts at zero and that amount was already taken out of ready to assign)."""
     with services() as s:
         return _budget(s.budget.view(_month(month)))
 
 
 @_tool_errors
 def assign_to_category(
-    category: Annotated[str, Field(description="A spending category, e.g. Groceries or Expenses:Food:Groceries")],
+    category: Annotated[str, Field(description="A spending category, e.g. Groceries or Expenses:Groceries")],
     amount: Annotated[
         Decimal, Field(ge=0, description="The month's total for the category (replaces what was assigned; 0 clears it)")
     ],
@@ -1566,8 +1565,8 @@ def list_categories(
     include_closed: Annotated[bool, Field(description="Also list categories the user has closed")] = False,
 ) -> dict[str, Any]:
     """The user's categories: what money was for. Spending categories (Food, Rent, EMI) are what the budget plans
-    against; earning ones (Salary, Interest) label income. Each has an id and a path (Food:Groceries); a group has no
-    parent. Give a path to the category parameter of record_transaction and the other tools."""
+    against; earning ones (Salary, Interest) label income. Categories are one flat list; each has an id and a name.
+    Give a name to the category parameter of record_transaction and the other tools."""
     with services() as s:
         return {"categories": [_category_row(c) for c in s.categories.list(kind, include_closed)]}
 
