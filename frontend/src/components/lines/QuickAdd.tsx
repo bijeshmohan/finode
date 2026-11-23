@@ -46,7 +46,7 @@ export function QuickAdd({ making, accountTypes, onMade, onClose }: QuickAddProp
       const opening = balance.trim() ? tidyAmount(balance, places).replace(/,/g, "") : "0";
       addAccount.mutate({ name: name.trim(), type, balance: opening, bill_rounding: "none" }, { onSuccess: made });
     } else {
-      addCategory.mutate({ name: name.trim(), kind: making.kind }, { onSuccess: made });
+      addCategory.mutate({ name: name.trim(), kind: making.kind, icon: "tag" }, { onSuccess: made });
     }
   };
 

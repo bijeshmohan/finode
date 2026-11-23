@@ -32,7 +32,7 @@ def test_the_tab_bar_has_categories_and_no_transactions(signed_in_page: Page, bo
 
 def test_categories_are_ranked_and_a_category_opens_its_page(signed_in_page: Page, api: Api, books):
     page = signed_in_page
-    delivery = api.post("/categories/", name="Delivery", kind="spending")
+    delivery = api.post("/categories/", name="Delivery", kind="spending", icon="tag")
     spend(api, books, delivery, "120")
     spend(api, books, books["rent"], "900")
     page.goto("/categories")

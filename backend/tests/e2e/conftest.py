@@ -191,7 +191,12 @@ class Api:
             parent = body.get("parent_id")
             if roots.get(parent) in ("Expenses", "Income") or parent in kinds:
                 kind = ("spending" if roots[parent] == "Expenses" else "earning") if parent in roots else kinds[parent]
-                send = {"name": body["name"], "kind": kind, **({"parent_id": parent} if parent in kinds else {})}
+                send = {
+                    "name": body["name"],
+                    "kind": kind,
+                    "icon": "tag",
+                    **({"parent_id": parent} if parent in kinds else {}),
+                }
                 made = self.post("/categories/", **send)
                 return {**made, "id": made["id"]}
             # Before the four types an account went under a root or inside another account: it is now one of the

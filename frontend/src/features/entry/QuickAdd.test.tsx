@@ -52,7 +52,7 @@ describe("adding from the picker", () => {
     await userEvent.type(within(sheet).getByLabelText("Name"), "Coffee");
     expect(within(sheet).queryByLabelText("Under")).not.toBeInTheDocument();
     await userEvent.click(within(sheet).getByRole("button", { name: "Add category" }));
-    expect(await sent(fetch, "/api/categories/")).toEqual({ name: "Coffee", kind: "spending" });
+    expect(await sent(fetch, "/api/categories/")).toEqual({ name: "Coffee", kind: "spending", icon: "tag" });
     await waitFor(() => {
       expect(screen.queryByRole("dialog", { name: "New category" })).not.toBeInTheDocument();
     });
@@ -72,7 +72,7 @@ describe("adding from the picker", () => {
     expect(within(sheet).getByPlaceholderText("e.g. Freelance")).toBeInTheDocument();
     await userEvent.type(within(sheet).getByLabelText("Name"), "Freelance");
     await userEvent.click(within(sheet).getByRole("button", { name: "Add category" }));
-    expect(await sent(fetch, "/api/categories/")).toEqual({ name: "Freelance", kind: "earning" });
+    expect(await sent(fetch, "/api/categories/")).toEqual({ name: "Freelance", kind: "earning", icon: "tag" });
   });
 
   it("an account of the type chosen, with a balance", async () => {

@@ -23,6 +23,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from uuid import UUID
 
+from ..category_icons import DEFAULT as DEFAULT_ICON
 from ..models.account import Account
 from ..models.category import BudgetCategory
 from ..models.transaction import Posting, PostingSide
@@ -315,7 +316,7 @@ class CashFlowConversion:
 
         made: dict[tuple[str, str], UUID] = {}
         for (key, kind), name in work.new_categories.items():
-            category = BudgetCategory(user_id=self.ar.uid, name=name, kind=kind)
+            category = BudgetCategory(user_id=self.ar.uid, name=name, kind=kind, icon=DEFAULT_ICON)
             made[(key, kind)] = self.categories.cr.add(category).id
             result.categories_made.append(name)
         for category_id in work.reopen:

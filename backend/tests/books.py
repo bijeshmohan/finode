@@ -4,7 +4,7 @@
 
 def category(client, name, kind="spending", parent=None, **extra):
     """Make a category through the API."""
-    body = {"name": name, "kind": kind, **extra}
+    body = {"name": name, "kind": kind, "icon": "tag", **extra}
     if parent is not None:
         body["parent_id"] = parent["id"] if isinstance(parent, dict) else parent
     response = client.post("/api/categories/", json=body)
@@ -37,7 +37,7 @@ def post_account(client, body):
     kinds = {c["id"]: c["kind"] for c in client.get("/api/categories/", params={"include_closed": True}).json()}
     if roots.get(parent) in ("Expenses", "Income") or parent in kinds:
         kind = ("spending" if roots[parent] == "Expenses" else "earning") if parent in roots else kinds[parent]
-        send = {"name": body["name"], "kind": kind, "details": body.get("details")}
+        send = {"name": body["name"], "kind": kind, "icon": "tag", "details": body.get("details")}
         if parent in kinds:
             send["parent_id"] = parent
         return Made(client.post("/api/categories/", json=send))

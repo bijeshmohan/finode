@@ -102,7 +102,7 @@ def test_a_paused_or_ended_rule_is_not_coming_up(client, accounts, fake_today):
 
 
 def test_money_in_is_marked_and_a_mixed_list_has_no_total(client, accounts, root_accounts, fake_today):
-    salary = client.post("/api/categories/", json={"name": "Pay", "kind": "earning"}).json()
+    salary = client.post("/api/categories/", json={"name": "Pay", "kind": "earning", "icon": "tag"}).json()
     paid = client.post(
         "/api/transactions/",
         json={

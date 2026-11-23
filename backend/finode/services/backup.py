@@ -14,6 +14,8 @@ from uuid import UUID
 
 from pydantic import ValidationError
 
+from ..category_icons import DEFAULT as DEFAULT_ICON
+from ..category_icons import UNCATEGORISED as UNCATEGORISED_ICON
 from ..config import settings
 from ..currencies import find as find_currency
 from ..limits import LimitReached, ensure_room
@@ -818,6 +820,7 @@ class BackupService:
                         kind=c.kind,
                         system_key=c.system_key,
                         closed_on=c.closed_on,
+                        icon=UNCATEGORISED_ICON if c.system_key else DEFAULT_ICON,
                     )
                 )
                 cats[c.id] = made_category.id

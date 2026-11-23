@@ -76,7 +76,7 @@ def test_a_rule_can_name_the_category_of_what_it_pays(client, books):
 
 
 def test_a_rule_with_a_category_that_does_not_fit_is_refused(client, books):
-    salary = client.post("/api/categories/", json={"name": "Salary", "kind": "earning"}).json()
+    salary = client.post("/api/categories/", json={"name": "Salary", "kind": "earning", "icon": "tag"}).json()
     response = client.post(
         "/api/recurring/",
         json={

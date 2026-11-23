@@ -143,6 +143,7 @@ describe("the category form", () => {
     expect(await sent(fetch, "/api/categories/", "POST")).toEqual({
       name: "Groceries",
       kind: "spending",
+      icon: "tag",
       details: null,
     });
     await waitFor(() => {

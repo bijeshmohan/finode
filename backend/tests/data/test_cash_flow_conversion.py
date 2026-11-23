@@ -77,8 +77,8 @@ def _build(session, user=TEST_USER_ID):
         s, date(2026, 9, 1), "Opening balance", _line(opening.id, "debit", "800000"), _line(loan.id, "credit", "800000")
     )
 
-    emi_cat = s.categories.create(CategoryCreate(name="Home loan EMI", kind="spending"))
-    dining = s.categories.create(CategoryCreate(name="Dining", kind="spending"))
+    emi_cat = s.categories.create(CategoryCreate(name="Home loan EMI", kind="spending", icon="tag"))
+    dining = s.categories.create(CategoryCreate(name="Dining", kind="spending", icon="tag"))
 
     _entry(s, date(2026, 9, 2), "Lender", _line(hdfc.id, "debit", "50000"), _line(loan.id, "credit", "50000"))
     _entry(s, date(2026, 9, 5), "EMI", _line(loan.id, "debit", "15000", emi_cat.id), _line(hdfc.id, "credit", "15000"))
@@ -285,9 +285,9 @@ def test_second_run_changes_nothing(books):
 
 
 def test_existing_category_names_are_reused(books):
-    made = books.s.categories.create(CategoryCreate(name="Borrowed", kind="earning"))
+    made = books.s.categories.create(CategoryCreate(name="Borrowed", kind="earning", icon="tag"))
     books.s.categories.delete(made.id)  # unused: gone; make it again and close it with history instead
-    again = books.s.categories.create(CategoryCreate(name="borrowed", kind="earning"))
+    again = books.s.categories.create(CategoryCreate(name="borrowed", kind="earning", icon="tag"))
     books.s.categories.close(again.id)
     books.put_old_sbi_in_budget()
     result = _convert(books)
@@ -297,7 +297,7 @@ def test_existing_category_names_are_reused(books):
 
 
 def test_an_entry_on_both_sides_of_a_root_posts_to_opening_balances(books):
-    refunds = books.s.categories.create(CategoryCreate(name="Refunds", kind="spending"))
+    refunds = books.s.categories.create(CategoryCreate(name="Refunds", kind="spending", icon="tag"))
     _entry(
         books.s,
         date(2026, 11, 3),

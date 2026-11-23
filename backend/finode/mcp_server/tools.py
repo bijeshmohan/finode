@@ -12,6 +12,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field, ValidationError
 
+from ..category_icons import DEFAULT as DEFAULT_ICON
 from ..clock import local_today
 from ..config import settings
 from ..models.api_token import TokenScope
@@ -1579,7 +1580,7 @@ def create_category(
 ) -> dict[str, Any]:
     """Make a category (categories are one flat list). Check list_categories first."""
     with services() as s:
-        made = s.categories.create(CategoryCreate(name=name, kind=kind, details=details))
+        made = s.categories.create(CategoryCreate(name=name, kind=kind, details=details, icon=DEFAULT_ICON))
         return {"created": _category_row(made)}
 
 

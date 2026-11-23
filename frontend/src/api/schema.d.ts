@@ -3176,6 +3176,8 @@ export interface components {
         CategoryCreate: {
             /** Details */
             details?: string | null;
+            /** Icon */
+            icon: string;
             /**
              * Kind
              * @enum {string}
@@ -3235,6 +3237,8 @@ export interface components {
             closed_on?: string | null;
             /** Details */
             details?: string | null;
+            /** Icon */
+            icon: string;
             /**
              * Id
              * Format: uuid
@@ -3271,6 +3275,8 @@ export interface components {
         CategoryUpdate: {
             /** Details */
             details?: string | null;
+            /** Icon */
+            icon?: string | null;
             /** Name */
             name?: string | null;
         };

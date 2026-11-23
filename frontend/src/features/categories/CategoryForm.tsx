@@ -32,7 +32,7 @@ function FormBody({ view, categoryId }: { view: CategoryFormView; categoryId: st
     };
     if (!editing) {
       add.mutate(
-        { name: name.trim(), kind: view.kind, details },
+        { name: name.trim(), kind: view.kind, icon: "tag", details },
         {
           onSuccess: (made) => {
             toast("Category added");

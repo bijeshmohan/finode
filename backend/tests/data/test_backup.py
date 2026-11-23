@@ -152,7 +152,7 @@ def rich(client, root_accounts):
         },
     )
     assert draft.status_code == 201, draft.text
-    rent = client.post("/api/categories/", json={"name": "Rent", "kind": "earning"}).json()
+    rent = client.post("/api/categories/", json={"name": "Rent", "kind": "earning", "icon": "tag"}).json()
     shared_income = client.post(
         "/api/shared-incomes/",
         json={

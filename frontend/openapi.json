@@ -2123,6 +2123,10 @@
             ],
             "title": "Details"
           },
+          "icon": {
+            "title": "Icon",
+            "type": "string"
+          },
           "kind": {
             "enum": [
               "spending",
@@ -2139,7 +2143,8 @@
         },
         "required": [
           "name",
-          "kind"
+          "kind",
+          "icon"
         ],
         "title": "CategoryCreate",
         "type": "object"
@@ -2279,6 +2284,10 @@
             ],
             "title": "Details"
           },
+          "icon": {
+            "title": "Icon",
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -2311,7 +2320,8 @@
         "required": [
           "id",
           "name",
-          "kind"
+          "kind",
+          "icon"
         ],
         "title": "CategoryRead",
         "type": "object"
@@ -2360,6 +2370,17 @@
               }
             ],
             "title": "Details"
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon"
           },
           "name": {
             "anyOf": [

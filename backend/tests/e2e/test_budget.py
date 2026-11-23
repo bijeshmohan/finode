@@ -77,8 +77,8 @@ def test_a_card_the_budget_includes_is_in_the_sum(signed_in_page: Page, api: Api
 
 def test_the_rows_have_no_notch_under_their_bars(signed_in_page: Page, api: Api, books):
     page = signed_in_page
-    api.post("/categories/", name="Dining", kind="spending")
-    api.post("/categories/", name="Delivery", kind="spending")
+    api.post("/categories/", name="Dining", kind="spending", icon="tag")
+    api.post("/categories/", name="Delivery", kind="spending", icon="tag")
     page.goto("/budget")
     expect(category(page, "Rent")).to_be_visible()
     assert page.locator("main").evaluate(
@@ -88,8 +88,8 @@ def test_the_rows_have_no_notch_under_their_bars(signed_in_page: Page, api: Api,
 
 def test_every_bar_runs_the_full_width_of_its_row(signed_in_page: Page, api: Api, books):
     page = signed_in_page
-    api.post("/categories/", name="Dining", kind="spending")
-    api.post("/categories/", name="Delivery", kind="spending")
+    api.post("/categories/", name="Dining", kind="spending", icon="tag")
+    api.post("/categories/", name="Delivery", kind="spending", icon="tag")
     api.put(f"/budget/categories/{books['rent']['id']}", amount="900")
     for width in (390, 1100):
         page.set_viewport_size({"width": width, "height": 800})
@@ -106,7 +106,7 @@ def test_every_bar_runs_the_full_width_of_its_row(signed_in_page: Page, api: Api
 
 def test_names_and_amounts_line_up(signed_in_page: Page, api: Api, books):
     page = signed_in_page
-    delivery = api.post("/categories/", name="Delivery", kind="spending")
+    delivery = api.post("/categories/", name="Delivery", kind="spending", icon="tag")
     api.put(f"/budget/categories/{books['rent']['id']}", amount="900")
     api.put(f"/budget/categories/{delivery['id']}", amount="100")
     page.goto("/budget")

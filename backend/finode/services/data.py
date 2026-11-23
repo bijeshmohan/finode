@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
+from ..category_icons import DEFAULT as DEFAULT_ICON
 from ..clock import local_today
 from ..config import settings
 from ..ledger import AccountDecl, LedgerPosting, LedgerTransaction, parse, write
@@ -495,7 +496,7 @@ class DataService:
             note, line = category_notes.get(key, (None, 0))
             flat = plan.category_flat[key]
             try:
-                CategoryCreate(name=flat[-1], kind=CATEGORY_ROOTS[key[0]], details=note)  # type: ignore[arg-type]
+                CategoryCreate(name=flat[-1], kind=CATEGORY_ROOTS[key[0]], details=note, icon=DEFAULT_ICON)  # type: ignore[arg-type]
             except ValidationError as e:
                 errors.append(f"line {line}: category '{':'.join(key)}': {_message(e)}")
             plan.new_categories.append((flat, note))
@@ -670,7 +671,13 @@ class DataService:
             repository = CategoryRepository(self.ar.db, self.ar.uid)
             for key, note in plan.new_categories:
                 made = repository.add(
-                    BudgetCategory(user_id=self.ar.uid, name=key[-1], details=note, kind=CATEGORY_ROOTS[key[0]])
+                    BudgetCategory(
+                        user_id=self.ar.uid,
+                        name=key[-1],
+                        details=note,
+                        kind=CATEGORY_ROOTS[key[0]],
+                        icon=DEFAULT_ICON,
+                    )
                 )
                 categories[key] = made.id
 

@@ -135,7 +135,7 @@ def test_only_an_assistant_is_named_on_an_entry(client: TestClient, root_account
     from tests.books import post_account
 
     bank = post_account(client, {"name": "Bank", "parent_id": root_accounts["Assets"], "balance": "100"}).json()
-    food = client.post("/api/categories/", json={"name": "Food", "kind": "spending"}).json()
+    food = client.post("/api/categories/", json={"name": "Food", "kind": "spending", "icon": "tag"}).json()
     rows = [
         {"choice": bank["id"], "side": "credit", "amount": "7"},
         {"choice": food["id"], "side": "debit", "amount": "7"},

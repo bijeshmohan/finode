@@ -33,7 +33,7 @@ def test_the_list_has_every_category_with_its_kind(client, books):
 
 
 def test_a_category_is_made_changed_closed_and_removed(client, books):
-    made = client.post("/api/categories/", json={"name": "Dining", "kind": "spending"})
+    made = client.post("/api/categories/", json={"name": "Dining", "kind": "spending", "icon": "tag"})
     assert made.status_code == 201 and made.json()["name"] == "Dining"
     category_id = made.json()["id"]
     assert client.get(f"/api/categories/{category_id}").json()["name"] == "Dining"
@@ -60,9 +60,9 @@ def test_a_category_with_history_is_closed_not_deleted(client, books):
 
 
 def test_the_rules_of_names_apply(client, books):
-    taken = client.post("/api/categories/", json={"name": "food", "kind": "spending"})
+    taken = client.post("/api/categories/", json={"name": "food", "kind": "spending", "icon": "tag"})
     assert taken.status_code == 400 and "you already have a category called 'Food'!" in taken.text
-    assert client.post("/api/categories/", json={"name": "Food", "kind": "earning"}).status_code == 201
+    assert client.post("/api/categories/", json={"name": "Food", "kind": "earning", "icon": "tag"}).status_code == 201
     assert client.get(f"/api/categories/{MISSING}").status_code == 404
     assert client.post(f"/api/categories/{MISSING}/close").status_code == 404
     assert client.post(f"/api/categories/{MISSING}/delete").status_code == 404
@@ -209,11 +209,14 @@ def test_a_recurring_row_may_name_only_its_category(client, books):
 
 
 def test_a_name_is_needed_and_unique_among_its_kind_ignoring_case(client, books):
-    assert client.post("/api/categories/", json={"name": "  ", "kind": "spending"}).status_code in (400, 422)
-    assert client.post("/api/categories/", json={"name": "FOOD", "kind": "spending"}).status_code == 400
-    assert client.post("/api/categories/", json={"name": "Food", "kind": "earning"}).status_code == 201, (
-        "the same name in the other kind is fine"
+    assert client.post("/api/categories/", json={"name": "  ", "kind": "spending", "icon": "tag"}).status_code in (
+        400,
+        422,
     )
+    assert client.post("/api/categories/", json={"name": "FOOD", "kind": "spending", "icon": "tag"}).status_code == 400
+    assert (
+        client.post("/api/categories/", json={"name": "Food", "kind": "earning", "icon": "tag"}).status_code == 201
+    ), "the same name in the other kind is fine"
 
 
 def test_a_category_with_entries_can_still_gain_a_subcategory(client, books):
@@ -223,7 +226,7 @@ def test_a_category_with_entries_can_still_gain_a_subcategory(client, books):
     )
     assert spent.status_code == 201, spent.text
     inside = client.post(
-        "/api/categories/", json={"name": "Snacks", "kind": "spending", "parent_id": books["food"]["id"]}
+        "/api/categories/", json={"name": "Snacks", "kind": "spending", "icon": "tag", "parent_id": books["food"]["id"]}
     )
     assert inside.status_code == 201, inside.text
 

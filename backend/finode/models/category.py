@@ -47,3 +47,5 @@ class BudgetCategory(TimestampMixin, table=True):
     system_key: str | None = Field(default=None, max_length=40)
     # The day it was closed: no longer offered, history kept.
     closed_on: Date | None = Field(default=None)
+    # One of finode's category icons (finode/category_icons.py); the built-in Uncategorised has "circle-dashed".
+    icon: str = Field(max_length=40)
