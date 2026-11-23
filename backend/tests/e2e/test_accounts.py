@@ -30,8 +30,6 @@ def nested(api: Api, books):
     api.post("/accounts/", name="HDFC", type="assets.wallet", balance="100")
     api.post("/accounts/", name="SBI", type="assets.wallet", balance="50")
     api.post("/accounts/", name="Rainy", type="assets.cash")
-    groups = {a["system_key"]: a for a in api.get("/accounts/") if a["system_key"]}
-    return groups["assets.wallet"], groups["assets.cash"]
 
 
 def test_every_kind_is_a_row_of_cards_under_its_heading(signed_in_page: Page, api: Api, books):
@@ -239,32 +237,6 @@ def test_editing_an_entry_from_an_accounts_page_comes_back_to_it(signed_in_page:
     page.get_by_role("button", name="Save changes", exact=True).click()
     page.wait_for_url(re.compile(rf"/accounts/{account}$"))
     expect(page.get_by_role("dialog")).to_have_count(0)
-
-
-def test_a_types_heading_opens_its_page_with_its_accounts_in_a_row_and_their_transactions(
-    signed_in_page: Page, api: Api, books
-):
-    page = signed_in_page
-    wallets, _ = nested(api, books)
-    hdfc = next(a for a in api.get("/accounts/") if a["name"] == "HDFC")
-    api.post(
-        "/transactions/",
-        payee="Gadget Store",
-        postings=[leg(books["cash"], "debit", "10"), leg(hdfc, "credit", "10")],
-    )
-    page.goto("/accounts")
-    kind(page, "Prepaid Wallet").get_by_role("link", name="Prepaid Wallet", exact=True).click()
-    expect(page).to_have_url(re.compile(rf"/accounts/{wallets['id']}$"))
-    # The address changes before the type's page replaces the Accounts page (which has its own "Accounts" heading and
-    # "Add account" links): wait for the type's own title first.
-    expect(page.get_by_role("heading", level=1, name="Prepaid Wallet")).to_be_visible()
-    expect(page.get_by_role("heading", name="Accounts", exact=True)).to_be_visible()
-    expect(page.get_by_role("link", name=re.compile("^(HDFC|SBI)"))).to_have_count(2)
-    expect(page.get_by_role("heading", name="Transactions")).to_be_visible()
-    expect(page.get_by_role("button", name=re.compile("Gadget Store"))).to_contain_text("HDFC")
-    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "only the row scrolls sideways"
-    page.get_by_role("link", name=re.compile("^SBI")).click()
-    expect(page.get_by_role("heading", level=1, name="SBI")).to_be_visible()
 
 
 def test_the_pin_button_lists_the_account_in_a_pinned_row_at_the_top(signed_in_page: Page, api: Api, books):

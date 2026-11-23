@@ -30,11 +30,9 @@ def test_the_tab_bar_has_categories_and_no_transactions(signed_in_page: Page, bo
     expect(bar.get_by_role("link", name="Transactions")).to_have_count(0)
 
 
-def test_categories_are_ranked_and_a_category_opens_its_page_with_what_is_inside(signed_in_page: Page, api: Api, books):
+def test_categories_are_ranked_and_a_category_opens_its_page(signed_in_page: Page, api: Api, books):
     page = signed_in_page
-    food = books["food"]
-    api.post("/accounts/", name="Delivery", parent_id=food["id"])  # Groceries is a group now
-    delivery = next(c for c in api.get("/categories/") if c["name"] == "Delivery")
+    delivery = api.post("/categories/", name="Delivery", kind="spending")
     spend(api, books, delivery, "120")
     spend(api, books, books["rent"], "900")
     page.goto("/categories")
@@ -42,18 +40,16 @@ def test_categories_are_ranked_and_a_category_opens_its_page_with_what_is_inside
     names = page.locator("main a[href^='/categories/']:not([href*='new'])").evaluate_all(
         "els => els.map(e => e.querySelector('span > span').textContent)"
     )
-    assert names[:2] == ["Rent", "Groceries"], names  # biggest first
-    expect(row(page, "Groceries")).to_contain_text("Delivery")
-    expect(row(page, "Groceries")).to_contain_text("12%")
-    amount = row(page, "Groceries").locator("span").last
+    assert names[:2] == ["Rent", "Delivery"], names  # biggest first
+    expect(row(page, "Delivery")).to_contain_text("12%")
+    amount = row(page, "Delivery").locator("span").last
     assert amount.evaluate("e => e.getBoundingClientRect().right") > 340, "amounts at the right edge"
-    row(page, "Groceries").click()
-    page.wait_for_url(re.compile(rf"/categories/{food['id']}"))
-    expect(page.locator("header p").last).to_have_text("₹120.00")
     row(page, "Delivery").click()
     page.wait_for_url(re.compile(rf"/categories/{delivery['id']}"))
     expect(page.get_by_role("heading", level=1, name="Delivery")).to_be_visible()
+    expect(page.locator("header p").last).to_have_text("₹120.00")
     expect(page.get_by_role("heading", name="Transactions")).to_be_visible()
+    expect(page.get_by_role("heading", name="Subcategories")).to_have_count(0)
 
 
 def test_the_month_total_and_the_income_tab(signed_in_page: Page, api: Api, books):
@@ -131,19 +127,3 @@ def test_the_month_in_the_pill_goes_straight_to_that_month(signed_in_page: Page,
     month.fill("2026-02")
     page.wait_for_url(re.compile(r"month=2026-02"))
     expect(page.get_by_text("Spent in February")).to_be_visible()
-
-
-def test_under_on_the_category_form_can_be_none(signed_in_page: Page, api: Api, books):
-    page = signed_in_page
-    group = api.post("/categories/", name="Food", kind="spending")
-    page.goto(f"/categories/new?parent={group['id']}")
-    under = page.get_by_role("button", name=re.compile("^Under"))
-    expect(under).to_have_text("Food")
-    under.click()
-    page.get_by_role("dialog", name="Under").get_by_role("button", name="None (top level)").click()
-    expect(under).to_have_text("None (top level)")
-    page.get_by_label("Name").fill("Pets")
-    page.get_by_role("button", name="Add category").click()
-    page.wait_for_url(re.compile(r"/categories/[0-9a-f-]{36}$"))
-    pets = next(c for c in api.get("/categories/") if c["name"] == "Pets")
-    assert pets["parent_id"] is None

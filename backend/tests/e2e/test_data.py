@@ -13,11 +13,11 @@ from .conftest import Api
 
 JOURNAL = """\
 2026-09-01 Opening
-    Assets:HDFC        10000.00
+    Assets:Bank Account:HDFC        10000.00
     Equity:Opening Balances
 2026-09-03 DMart
     Expenses:Food           1250.50
-    Assets:HDFC
+    Assets:Bank Account:HDFC
 """
 
 
