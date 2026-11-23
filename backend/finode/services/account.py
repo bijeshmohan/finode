@@ -28,9 +28,6 @@ from . import cards
 from .account_types import TYPE_KEYS, TYPE_ROOTS, type_key, type_order
 from .simple import label_simple
 
-# Levels below a top-level account: Expenses › Food is 1 and Expenses › Food › Groceries is 2, the deepest there is.
-MAX_ACCOUNT_DEPTH = 2
-
 # How many entries an account's page shows before "Load more" (a day is never split, so a chunk can run a little over).
 REGISTER_PAGE = 30
 OPENING_BALANCES_ACCOUNT_NAME = "Opening Balances"

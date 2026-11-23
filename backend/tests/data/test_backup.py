@@ -285,7 +285,7 @@ def test_the_backup_has_everything(client, rich):
         and 'attachment; filename="finode-backup-' in response.headers["content-disposition"]
     )
     doc = response.json()
-    assert doc["format"] == "finode-backup" and doc["version"] == 6
+    assert doc["format"] == "finode-backup" and doc["version"] == 7
     assert doc["profile"]["first_name"] == "Ada" and doc["profile"]["default_currency"] == "INR"
     names = {a["name"] for a in doc["accounts"]}
     assert {

@@ -130,3 +130,69 @@ def test_an_old_tracking_account_is_retired_not_put_in_the_budget(client, rich):
         assert "Car loan" in categories
     finally:
         as_user(TEST_USER_ID)
+
+
+def _version_6(doc: dict) -> dict:
+    """The file as version 6 wrote it: each account under its type's own account (with the type's key), and
+    categories two levels deep: Groceries (with lines of its own) holding Dairy, and an unused Travel holding Stay."""
+    old = json.loads(json.dumps(doc))
+    old["version"] = 6
+    roots = {a["name"]: a["id"] for a in old["accounts"] if a["parent_id"] is None}
+    nodes: dict[str, str] = {}
+    for key, name, root in (
+        ("assets.bank", "Bank Account", "Assets"),
+        ("assets.cash", "Cash", "Assets"),
+        ("liabilities.cards", "Credit Card", "Liabilities"),
+        ("assets.wallet", "Prepaid Wallet", "Assets"),
+    ):
+        nodes[key] = str(uuid4())
+        old["accounts"].append({"id": nodes[key], "parent_id": roots[root], "name": name, "system_key": key})
+    for a in old["accounts"]:
+        kind = a.pop("type", None)
+        if kind:
+            a["parent_id"] = nodes[kind]
+    groceries = next(c for c in old["categories"] if c["name"] == "Groceries")
+    travel = str(uuid4())
+    old["categories"] += [
+        {"id": str(uuid4()), "name": "Dairy", "kind": "spending", "parent_id": groceries["id"]},
+        {"id": travel, "name": "Travel", "kind": "spending"},
+        {"id": str(uuid4()), "name": "Stay", "kind": "spending", "parent_id": travel},
+    ]
+    return old
+
+
+def test_a_version_6_file_restores_flat(client, rich):
+    doc = client.get("/api/backup").json()
+    assert doc["version"] == 7
+    types = {a["name"]: a["type"] for a in doc["accounts"] if a.get("type")}
+    closed = {a["name"] for a in doc["accounts"] if a["closed_on"]}
+    ready = client.get("/api/budget/").json()["ready_to_assign"]
+    try:
+        as_user(OTHER)
+        done = client.post("/api/restore", files={"file": ("b.json", json.dumps(_version_6(doc)), "application/json")})
+        assert done.status_code == 200, done.text
+        accounts = client.get("/api/accounts/").json()
+        roots = {a["id"] for a in accounts if a["parent_id"] is None}
+        assert all(a["parent_id"] in roots for a in accounts if a["parent_id"]), "straight under the roots"
+        assert {a["name"]: a["type"] for a in accounts if a["type"]} == types
+        assert {a["name"] for a in accounts if a["closed_on"]} == closed, "a closed account stays closed"
+        assert not {a["name"] for a in accounts} & {"Bank Account", "Cash", "Credit Card", "Prepaid Wallet"}
+        names = {c["name"] for c in client.get("/api/categories/", params={"include_closed": True}).json()}
+        assert {"Groceries", "Dairy", "Stay"} <= names and "Travel" not in names
+        assert client.get("/api/budget/").json()["ready_to_assign"] == ready
+        assert client.get("/api/reports/trial-balance").json()["balanced"]
+    finally:
+        as_user(TEST_USER_ID)
+
+
+def test_a_version_7_file_with_an_untyped_account_is_refused(client, rich):
+    doc = client.get("/api/backup").json()
+    assets = next(a["id"] for a in doc["accounts"] if a["name"] == "Assets" and a["parent_id"] is None)
+    doc["accounts"].append({"id": str(uuid4()), "parent_id": assets, "name": "Loose"})
+    try:
+        as_user(OTHER)
+        done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
+        assert done.status_code == 400 and "These accounts have no type: Assets:Loose." in done.text
+        assert [a for a in client.get("/api/accounts/").json() if a["parent_id"]] == [], "nothing was restored"
+    finally:
+        as_user(TEST_USER_ID)

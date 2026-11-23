@@ -33,6 +33,8 @@ class AccountDecl:
     name: str
     note: str | None = None
     line: int = 0
+    # Which of the four kinds an account under Assets or Liabilities is ("Bank Account"), from a `; kind:` label.
+    kind: str | None = None
 
 
 @dataclass

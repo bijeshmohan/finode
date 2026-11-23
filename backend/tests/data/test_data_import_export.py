@@ -138,7 +138,7 @@ def test_export_formats_and_headers(client: TestClient):
     assert response.headers["content-disposition"].startswith('attachment; filename="finode-')
     assert response.headers["content-disposition"].endswith('.ledger"')
     text = response.text
-    assert "account Assets:Bank Account:HDFC\n    note Salary account" in text
+    assert "account Assets:HDFC  ; kind: Bank Account\n    note Salary account" in text
     assert "2026-09-03 DMart\n    ; weekly groceries\n" in text
     assert "Expenses:Food" in text and "-1250.50" in text
 
@@ -155,10 +155,7 @@ def test_the_csv_keeps_every_decimal_the_currency_has(client: TestClient):
     client.patch("/api/profile/", json={"default_currency": "KWD"})
     _import(client, "2026-01-01 Souk\n    Expenses:Food  1.005\n    Assets:Bank Account:Bank\n")
     lines = client.get("/api/export", params={"format": "csv"}).text.splitlines()
-    assert (
-        "2026-01-01,Souk,,,Expenses:Food,Food,1.005," in lines
-        and "2026-01-01,Souk,,,Assets:Bank Account:Bank,,,1.005" in lines
-    )
+    assert "2026-01-01,Souk,,,Expenses:Food,Food,1.005," in lines and "2026-01-01,Souk,,,Assets:Bank,,,1.005" in lines
 
 
 def test_csv_neutralises_spreadsheet_formulas(client: TestClient):

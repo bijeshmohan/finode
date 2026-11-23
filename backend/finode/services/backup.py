@@ -59,13 +59,16 @@ from ..schemas.backup import (
 )
 from ..schemas.transaction import PostingCreate, TransactionCreate
 from ..tags import clean_names, split_note
-from .account import MAX_ACCOUNT_DEPTH, OPENING_BALANCES_ACCOUNT_NAME, AccountService
+from .account import OPENING_BALANCES_ACCOUNT_NAME, AccountService
 from .account_types import type_order
 from .cash_flow import CashFlowConversion
 from .category import CategoryService
 from .flatten import flat_category_names
 
 ROOTS = ("Assets", "Liabilities", "Equity", "Income", "Expenses")
+
+# How deep an older file's accounts could go (a root, a group or type, an account): a restore flattens them.
+OLDEST_DEPTH = 2
 
 
 class BackupService:
@@ -435,10 +438,10 @@ class BackupService:
         if any(self._depth(a, accounts) is None for a in file.accounts):
             errors.append("the accounts contain a cycle.")
             return
-        too_deep = [a.name for a in file.accounts if (self._depth(a, accounts) or 0) > MAX_ACCOUNT_DEPTH]
+        too_deep = [a.name for a in file.accounts if (self._depth(a, accounts) or 0) > OLDEST_DEPTH]
         if too_deep:
             errors.append(
-                f"accounts can be at most {MAX_ACCOUNT_DEPTH} levels deep (a category and a subcategory), "
+                f"accounts sit straight under their root (an older file's went at most {OLDEST_DEPTH} levels deep), "
                 f"but {', '.join(too_deep[:3])}{' and more' if len(too_deep) > 3 else ''} go deeper: flatten them first."
             )
             return

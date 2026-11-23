@@ -75,6 +75,20 @@ def _parse_amount(text: str, state: _State, line: int) -> tuple[Decimal, str | N
     return (-amount if negative else amount), symbol
 
 
+KIND_LABEL = re.compile(r"(?:^|[\s,])(?:kind|type):\s*([^,;]+)", re.IGNORECASE)
+
+
+def _take_kind(comment: str | None) -> tuple[str | None, str | None]:
+    """An account's `kind: Bank Account` label (`type:` is read too) and what is left of its comment."""
+    if not comment:
+        return None, None
+    found = KIND_LABEL.search(comment)
+    if found is None:
+        return None, comment
+    rest = (comment[: found.start()] + comment[found.end() :]).strip(" ,")
+    return found.group(1).strip(), rest or None
+
+
 def _split_comment(text: str) -> tuple[str, str | None]:
     parts = INLINE_COMMENT.split(text, maxsplit=1)
     if len(parts) == 1:
@@ -201,12 +215,18 @@ def _parse_directive(raw: str, block: list[tuple[int, str]], line: int, state: _
     word = raw.split(None, 1)[0]
     rest = raw[len(word) :].strip()
     if word == "account":
-        name, note = _split_comment(rest)
+        name, comment = _split_comment(rest)
+        kind, note = _take_kind(comment)
         for _, sub in block:
-            keyword, _, value = sub.strip().partition(" ")
+            text = sub.strip()
+            if text.startswith((";", "#")):
+                found, _ = _take_kind(text.lstrip(";# "))
+                kind = kind or found
+                continue
+            keyword, _, value = text.partition(" ")
             if keyword == "note" and value.strip():
                 note = value.strip()
-        state.journal.accounts.append(AccountDecl(name.strip(), note, line))
+        state.journal.accounts.append(AccountDecl(name.strip(), note, line, kind))
     elif word == "commodity":
         return  # how a currency is written: nothing finode needs
     elif word == "P":
