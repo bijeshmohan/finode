@@ -58,4 +58,4 @@ async def test_the_assistants_list_follows_the_order(session, client):
         listed = [
             a["path"] for a in payload(await c.call_tool("list_accounts", {}))["accounts"] if a.get("account_kind")
         ]
-    assert listed == ["Assets:Prepaid Wallet:Paytm", "Assets:Bank Account:HDFC"]
+    assert listed == ["Assets:Paytm", "Assets:HDFC"]

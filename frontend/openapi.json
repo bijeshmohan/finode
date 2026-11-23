@@ -354,17 +354,6 @@
             ],
             "title": "Statement Day"
           },
-          "system_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "System Key"
-          },
           "type": {
             "anyOf": [
               {
@@ -554,17 +543,6 @@
       "AccountView": {
         "description": "An account's (or a group's) own page.",
         "properties": {
-          "add_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Add Url"
-          },
           "badge": {
             "anyOf": [
               {
@@ -756,7 +734,6 @@
           "is_group",
           "has_children",
           "cards",
-          "add_url",
           "can_pin",
           "pinned",
           "can_edit",
@@ -1545,71 +1522,6 @@
         "title": "BudgetCopy",
         "type": "object"
       },
-      "BudgetGroupView": {
-        "properties": {
-          "assigned": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Assigned",
-            "type": "string"
-          },
-          "glance": {
-            "$ref": "#/components/schemas/GlanceBlock"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "is_current": {
-            "title": "Is Current",
-            "type": "boolean"
-          },
-          "kids": {
-            "items": {
-              "$ref": "#/components/schemas/BudgetRowRead"
-            },
-            "title": "Kids",
-            "type": "array"
-          },
-          "minimum": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Minimum",
-            "type": "string"
-          },
-          "month": {
-            "title": "Month",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "pace": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pace"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "month",
-          "is_current",
-          "pace",
-          "glance",
-          "assigned",
-          "minimum",
-          "kids"
-        ],
-        "title": "BudgetGroupView",
-        "type": "object"
-      },
       "BudgetLine": {
         "properties": {
           "activity": {
@@ -1632,15 +1544,6 @@
             "title": "Category Id",
             "type": "string"
           },
-          "depth": {
-            "title": "Depth",
-            "type": "integer"
-          },
-          "group": {
-            "default": false,
-            "title": "Group",
-            "type": "boolean"
-          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -1649,17 +1552,11 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Overspent Last Month",
             "type": "string"
-          },
-          "path": {
-            "title": "Path",
-            "type": "string"
           }
         },
         "required": [
           "category_id",
           "name",
-          "path",
-          "depth",
           "assigned",
           "activity",
           "available",
@@ -1852,7 +1749,7 @@
         "type": "object"
       },
       "BudgetRowRead": {
-        "description": "One row of the Budgets page or a group's page (services/budget_view): a category (or a group) with what is left,\nhow its second line reads and how far its bar runs.",
+        "description": "One row of the Budgets page (services/budget_view): a category with what is left, how its second line reads and\nhow far its bar runs.",
         "properties": {
           "activity": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -1874,24 +1771,9 @@
             "title": "Category Id",
             "type": "string"
           },
-          "group_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Group Name"
-          },
           "hint": {
             "title": "Hint",
             "type": "string"
-          },
-          "is_group": {
-            "title": "Is Group",
-            "type": "boolean"
           },
           "name": {
             "title": "Name",
@@ -1936,16 +1818,11 @@
               }
             ],
             "title": "State"
-          },
-          "unused": {
-            "title": "Unused",
-            "type": "boolean"
           }
         },
         "required": [
           "category_id",
           "name",
-          "is_group",
           "assigned",
           "activity",
           "available",
@@ -1954,9 +1831,7 @@
           "state",
           "hint",
           "percent",
-          "over",
-          "group_name",
-          "unused"
+          "over"
         ],
         "title": "BudgetRowRead",
         "type": "object"
@@ -2047,10 +1922,6 @@
           },
           "sum": {
             "$ref": "#/components/schemas/BudgetSum"
-          },
-          "unused_count": {
-            "title": "Unused Count",
-            "type": "integer"
           }
         },
         "required": [
@@ -2063,8 +1934,7 @@
           "show_intro",
           "has_budget_accounts",
           "overspent",
-          "rows",
-          "unused_count"
+          "rows"
         ],
         "title": "BudgetView",
         "type": "object"
@@ -2265,18 +2135,6 @@
             "maxLength": 40,
             "title": "Name",
             "type": "string"
-          },
-          "parent_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Parent Id"
           }
         },
         "required": [
@@ -2324,13 +2182,6 @@
             "title": "Editing",
             "type": "boolean"
           },
-          "groups": {
-            "items": {
-              "$ref": "#/components/schemas/CategoryRef"
-            },
-            "title": "Groups",
-            "type": "array"
-          },
           "kind": {
             "enum": [
               "spending",
@@ -2342,27 +2193,13 @@
           "name": {
             "title": "Name",
             "type": "string"
-          },
-          "parent_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Parent Id"
           }
         },
         "required": [
           "editing",
           "kind",
           "name",
-          "details",
-          "parent_id",
-          "groups"
+          "details"
         ],
         "title": "CategoryFormView",
         "type": "object"
@@ -2417,35 +2254,6 @@
         "title": "CategoryMergeResult",
         "type": "object"
       },
-      "CategoryParent": {
-        "description": "A top-level category a new one can go under.",
-        "properties": {
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "spending",
-              "earning"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "kind"
-        ],
-        "title": "CategoryParent",
-        "type": "object"
-      },
       "CategoryRead": {
         "properties": {
           "closed_on": {
@@ -2488,22 +2296,6 @@
             "title": "Name",
             "type": "string"
           },
-          "parent_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Parent Id"
-          },
-          "path": {
-            "title": "Path",
-            "type": "string"
-          },
           "system_key": {
             "anyOf": [
               {
@@ -2519,38 +2311,14 @@
         "required": [
           "id",
           "name",
-          "kind",
-          "path"
+          "kind"
         ],
         "title": "CategoryRead",
         "type": "object"
       },
-      "CategoryRef": {
-        "properties": {
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name"
-        ],
-        "title": "CategoryRef",
-        "type": "object"
-      },
       "CategoryRowRead": {
-        "description": "One row of the Categories page: a top-level category, its month, what is inside it and its share.",
+        "description": "One row of the Categories page: a category, its month and its share.",
         "properties": {
-          "hint": {
-            "title": "Hint",
-            "type": "string"
-          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -2574,7 +2342,6 @@
           "id",
           "name",
           "total",
-          "hint",
           "share"
         ],
         "title": "CategoryRowRead",
@@ -2605,18 +2372,6 @@
               }
             ],
             "title": "Name"
-          },
-          "parent_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Parent Id"
           }
         },
         "title": "CategoryUpdate",
@@ -2627,10 +2382,6 @@
         "properties": {
           "built_in": {
             "title": "Built In",
-            "type": "boolean"
-          },
-          "can_add_child": {
-            "title": "Can Add Child",
             "type": "boolean"
           },
           "can_delete": {
@@ -2666,16 +2417,6 @@
             },
             "title": "Entries",
             "type": "array"
-          },
-          "group": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CategoryRef"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "id": {
             "format": "uuid",
@@ -2713,18 +2454,6 @@
             ],
             "title": "New Transaction Url"
           },
-          "own_here": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Own Here",
-            "type": "string"
-          },
-          "subs": {
-            "items": {
-              "$ref": "#/components/schemas/SubcategoryRead"
-            },
-            "title": "Subs",
-            "type": "array"
-          },
           "total": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Total",
@@ -2738,13 +2467,9 @@
           "kind",
           "built_in",
           "closed_on",
-          "group",
           "month",
           "is_current",
           "total",
-          "subs",
-          "own_here",
-          "can_add_child",
           "can_delete",
           "new_transaction_url",
           "entries"
@@ -3836,13 +3561,6 @@
             "title": "Account Types",
             "type": "array"
           },
-          "category_parents": {
-            "items": {
-              "$ref": "#/components/schemas/CategoryParent"
-            },
-            "title": "Category Parents",
-            "type": "array"
-          },
           "comment": {
             "title": "Comment",
             "type": "string"
@@ -3982,8 +3700,7 @@
           "income_share",
           "person_page",
           "groups",
-          "account_types",
-          "category_parents"
+          "account_types"
         ],
         "title": "EntryFormView",
         "type": "object"
@@ -4515,42 +4232,6 @@
         "title": "FrequencyChoice",
         "type": "object"
       },
-      "GlanceBlock": {
-        "properties": {
-          "left": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Left",
-            "type": "string"
-          },
-          "of": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Of",
-            "type": "string"
-          },
-          "percent": {
-            "title": "Percent",
-            "type": "integer"
-          },
-          "planned": {
-            "title": "Planned",
-            "type": "boolean"
-          },
-          "spent": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Spent",
-            "type": "string"
-          }
-        },
-        "required": [
-          "left",
-          "spent",
-          "of",
-          "percent",
-          "planned"
-        ],
-        "title": "GlanceBlock",
-        "type": "object"
-      },
       "GlanceRead": {
         "description": "Home's budget at a glance for the month.",
         "properties": {
@@ -4610,39 +4291,6 @@
           "pace"
         ],
         "title": "GlanceRead",
-        "type": "object"
-      },
-      "GroupAssign": {
-        "properties": {
-          "month": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Month"
-          },
-          "total": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,16}|(?=[\\d.]{1,25}0*$)\\d{0,16}\\.\\d{0,8}0*$)",
-                "type": "string"
-              }
-            ],
-            "title": "Total"
-          }
-        },
-        "required": [
-          "total"
-        ],
-        "title": "GroupAssign",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -5162,11 +4810,6 @@
             "title": "Cards",
             "type": "array"
           },
-          "group_id": {
-            "format": "uuid",
-            "title": "Group Id",
-            "type": "string"
-          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -5198,7 +4841,6 @@
         "required": [
           "name",
           "type",
-          "group_id",
           "total",
           "owed",
           "open_count",
@@ -5280,14 +4922,14 @@
             "title": "Category Id",
             "type": "string"
           },
-          "path": {
-            "title": "Path",
+          "name": {
+            "title": "Name",
             "type": "string"
           }
         },
         "required": [
           "category_id",
-          "path",
+          "name",
           "available"
         ],
         "title": "MoveLine",
@@ -6809,13 +6451,6 @@
             ],
             "title": "Active"
           },
-          "category_parents": {
-            "items": {
-              "$ref": "#/components/schemas/CategoryParent"
-            },
-            "title": "Category Parents",
-            "type": "array"
-          },
           "comment": {
             "title": "Comment",
             "type": "string"
@@ -6997,7 +6632,6 @@
           "to_rows",
           "groups",
           "account_types",
-          "category_parents",
           "frequency",
           "every",
           "start_date",
@@ -8984,31 +8618,6 @@
           "hint"
         ],
         "title": "StepRead",
-        "type": "object"
-      },
-      "SubcategoryRead": {
-        "properties": {
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "total": {
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Total",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "total"
-        ],
-        "title": "SubcategoryRead",
         "type": "object"
       },
       "SummaryRead": {
@@ -11912,65 +11521,6 @@
         ]
       }
     },
-    "/api/budget/groups/{category_id}": {
-      "put": {
-        "description": "Set a group's budget for a month: at least what its subcategories add up to; the rest is the group's own money.",
-        "operationId": "assign_group_api_budget_groups__category_id__put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "category_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Category Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GroupAssign"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BudgetRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Assign Group",
-        "tags": [
-          "budget"
-        ]
-      }
-    },
     "/api/budget/move": {
       "post": {
         "description": "Move assigned money from one category to another (at most what is available); Ready to assign does not change.",
@@ -12091,7 +11641,7 @@
         ]
       },
       "post": {
-        "description": "Make a category, or a group (leave out `parent_id`) to put categories in. Two levels at most; names are unique\ninside a group, capitals aside.",
+        "description": "Make a category. Categories are one flat list; names are unique per kind, capitals aside.",
         "operationId": "create_category_api_categories__post",
         "requestBody": {
           "content": {
@@ -12243,7 +11793,7 @@
     },
     "/api/categories/{category_id}/close": {
       "post": {
-        "description": "Close a category (and what is inside a group): its history stays, nothing more can be labelled with it.",
+        "description": "Close a category: its history stays, nothing more can be labelled with it.",
         "operationId": "close_category_api_categories__category_id__close_post",
         "parameters": [
           {
@@ -12410,7 +11960,7 @@
     },
     "/api/categories/{category_id}/register": {
       "get": {
-        "description": "The entries that have a line labelled with the category (and with the categories in it, unless `own_only`),\noldest first, each with what it changed and the running total.",
+        "description": "The entries that have a line labelled with the category, oldest first, each with what it changed and the running\ntotal.",
         "operationId": "category_register_api_categories__category_id__register_get",
         "parameters": [
           {
@@ -12421,16 +11971,6 @@
               "format": "uuid",
               "title": "Category Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "own_only",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Own Only",
-              "type": "boolean"
             }
           },
           {
@@ -14625,7 +14165,7 @@
     },
     "/api/reports/breakdown": {
       "get": {
-        "description": "Where the money went (or came from) in a period, `depth` levels down: what it was for, as the Budget counts it\n(paying into a loan is spending in its category).",
+        "description": "Where the money went (or came from) in a period by category: what it was for, as the Budget counts it (paying\ninto a loan is spending in its category).",
         "operationId": "get_breakdown_api_reports_breakdown_get",
         "parameters": [
           {
@@ -14674,18 +14214,6 @@
                 }
               ],
               "title": "Date To"
-            }
-          },
-          {
-            "in": "query",
-            "name": "depth",
-            "required": false,
-            "schema": {
-              "default": 1,
-              "maximum": 2,
-              "minimum": 1,
-              "title": "Depth",
-              "type": "integer"
             }
           }
         ],
@@ -16868,7 +16396,7 @@
     },
     "/api/views/budget": {
       "get": {
-        "description": "The Budgets page for a month (`YYYY-MM`; this month for anything else): Ready to assign and the sum behind it,\nwhat copying last month would assign, and the categories biggest budget first, each with how its row reads (`of`,\n`state`, `hint`, the bar's `percent`); whole groups with nothing in them are `unused` once anything is in use.",
+        "description": "The Budgets page for a month (`YYYY-MM`; this month for anything else): Ready to assign and the sum behind it,\nwhat copying last month would assign, and the categories biggest budget first, each with how its row reads (`of`,\n`state`, `hint`, the bar's `percent`).",
         "operationId": "budget_page_view_api_views_budget_get",
         "parameters": [
           {
@@ -16981,68 +16509,9 @@
         ]
       }
     },
-    "/api/views/budget/groups/{category_id}": {
-      "get": {
-        "description": "One group's budget for a month: its glance (what is left, spent out of what there was), its categories, and the\nleast the group itself can be given (`minimum`: what its categories add up to).",
-        "operationId": "budget_group_view_api_views_budget_groups__category_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "category_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Category Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "month",
-            "required": false,
-            "schema": {
-              "default": "",
-              "title": "Month",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BudgetGroupView"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Budget Group View",
-        "tags": [
-          "views"
-        ]
-      }
-    },
     "/api/views/categories": {
       "get": {
-        "description": "The Categories page for a month (`YYYY-MM`; this month by default) and a tab (`expense` or `income`): what each\ntop-level category came to, biggest first, with the biggest inside it (`hint`) and its share of the month.",
+        "description": "The Categories page for a month (`YYYY-MM`; this month by default) and a tab (`expense` or `income`): what each\ncategory came to, biggest first, with its share of the month.",
         "operationId": "categories_view_api_views_categories_get",
         "parameters": [
           {
@@ -17101,7 +16570,7 @@
     },
     "/api/views/categories/{category_id}": {
       "get": {
-        "description": "A category's own page for a month: the whole category's figure, its subcategories with theirs and what was\nlabelled with it itself besides them (`own_here`), and its own entries newest first.",
+        "description": "A category's own page for a month: its figure and its entries newest first.",
         "operationId": "category_view_api_views_categories__category_id__get",
         "parameters": [
           {
@@ -17160,7 +16629,7 @@
     },
     "/api/views/category-form": {
       "get": {
-        "description": "Where the category form starts: editing `category_id`, or a new category (`root` = `expense` or `income`; inside\nthe group `parent`, whose kind it takes). `groups` are where it can go (none for a group that holds categories).",
+        "description": "Where the category form starts: editing `category_id`, or a new category (`root` = `expense` or `income`).",
         "operationId": "category_form_view_api_views_category_form_get",
         "parameters": [
           {
@@ -17178,23 +16647,6 @@
                 }
               ],
               "title": "Category Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "parent",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Parent"
             }
           },
           {

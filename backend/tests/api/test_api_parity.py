@@ -194,18 +194,6 @@ def test_move_and_copy_budget_money(client, books):
     assert float(line(client.get("/api/budget/", params={"month": next_month}).json(), "Food")["assigned"]) == 70
 
 
-def test_a_group_budget(client, books, root_accounts):
-    dining = post_account(client, {"name": "Dining", "parent_id": root_accounts["Expenses"]}).json()
-    cafe = post_account(client, {"name": "Cafe", "parent_id": dining["id"]}).json()
-    client.put(f"/api/budget/categories/{cafe['id']}", json={"amount": "40"})
-    assert client.put(f"/api/budget/groups/{dining['id']}", json={"total": "10"}).status_code == 400, (
-        "below its categories"
-    )
-    ok = client.put(f"/api/budget/groups/{dining['id']}", json={"total": "60"})
-    assert ok.status_code == 200, ok.text
-    assert float(line(ok.json(), "Dining")["assigned"]) == 60
-
-
 def test_summary_and_breakdown(client, books):
     entry(client, books, "30")
     entry(client, books, "70", to="rent")

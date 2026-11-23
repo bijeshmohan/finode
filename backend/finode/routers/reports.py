@@ -3,7 +3,7 @@
 from datetime import date
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth.identity import require_authenticated_user
 from ..dependencies import Reports
@@ -37,11 +37,10 @@ def get_breakdown(
     kind: Literal["expenses", "income"] = "expenses",
     date_from: date | None = None,
     date_to: date | None = None,
-    depth: int = Query(default=1, ge=1, le=2),
 ):
-    """Where the money went (or came from) in a period, `depth` levels down: what it was for, as the Budget counts it
-    (paying into a loan is spending in its category)."""
+    """Where the money went (or came from) in a period by category: what it was for, as the Budget counts it (paying
+    into a loan is spending in its category)."""
     try:
-        return reports.breakdown("Expenses" if kind == "expenses" else "Income", date_from, date_to, depth)
+        return reports.breakdown("Expenses" if kind == "expenses" else "Income", date_from, date_to)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None

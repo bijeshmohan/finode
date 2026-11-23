@@ -200,14 +200,6 @@ class AccountTypeOption(BaseModel):
     root: str
 
 
-class CategoryParent(BaseModel):
-    """A top-level category a new one can go under."""
-
-    id: UUID
-    name: str
-    kind: Literal["spending", "earning"]
-
-
 class EntryFormView(BaseModel):
     """Where the Add screen starts, and what its pickers offer."""
 
@@ -232,7 +224,6 @@ class EntryFormView(BaseModel):
     person_page: UUID | None
     groups: list[PickGroupRead]
     account_types: list[AccountTypeOption]
-    category_parents: list[CategoryParent]
 
 
 class SharePreviewAsk(BaseModel):
@@ -277,12 +268,11 @@ class KindRow(BaseModel):
 
     name: str
     type: AccountType
-    group_id: UUID
     total: Decimal
     # A liability's total reads "owed".
     owed: bool
     open_count: int
-    # Every account in it is closed (or the group itself is): the row shows only with the closed accounts.
+    # Every account in it is closed: the row shows only with the closed accounts.
     all_closed: bool
     add_url: str
     cards: list[AccountCard]
@@ -335,8 +325,6 @@ class AccountView(BaseModel):
     is_group: bool
     has_children: bool
     cards: list[AccountCard]
-    # Where "Add account" goes on a type's own page (that type chosen); none on any other page.
-    add_url: str | None
     can_pin: bool
     pinned: bool
     can_edit: bool
@@ -350,13 +338,11 @@ class AccountView(BaseModel):
 
 
 class CategoryRowRead(BaseModel):
-    """One row of the Categories page: a top-level category, its month, what is inside it and its share."""
+    """One row of the Categories page: a category, its month and its share."""
 
     id: UUID
     name: str
     total: Decimal
-    # The biggest categories inside it ("Fuel · Taxi · +2").
-    hint: str
     # Its part of the month ("34%", "<1%", "0%"; empty when the month adds up to nothing).
     share: str
 
@@ -374,12 +360,6 @@ class CategoryRef(BaseModel):
     name: str
 
 
-class SubcategoryRead(BaseModel):
-    id: UUID
-    name: str
-    total: Decimal
-
-
 class CategoryView(BaseModel):
     """A category's own page for one month."""
 
@@ -389,15 +369,10 @@ class CategoryView(BaseModel):
     kind: Literal["spending", "earning"]
     built_in: bool
     closed_on: Date | None
-    group: CategoryRef | None
     month: str
     is_current: bool
-    # The whole category's month, its subcategories too.
+    # The category's month.
     total: Decimal
-    subs: list[SubcategoryRead]
-    # What was labelled with the category itself besides its subcategories ("Everything else").
-    own_here: Decimal
-    can_add_child: bool
     can_delete: bool
     # Where the bar's "+" starts an entry on this page (for this category, coming back here); none once it is closed.
     new_transaction_url: str | None
@@ -430,17 +405,14 @@ class CategoryFormView(BaseModel):
     kind: Literal["spending", "earning"]
     name: str
     details: str | None
-    parent_id: UUID | None
-    groups: list[CategoryRef]
 
 
 class BudgetRowRead(BaseModel):
-    """One row of the Budgets page or a group's page (services/budget_view): a category (or a group) with what is left,
-    how its second line reads and how far its bar runs."""
+    """One row of the Budgets page (services/budget_view): a category with what is left, how its second line reads and
+    how far its bar runs."""
 
     category_id: UUID
     name: str
-    is_group: bool
     assigned: Decimal
     activity: Decimal
     available: Decimal
@@ -448,15 +420,11 @@ class BudgetRowRead(BaseModel):
     # "of 25,000.00"; none when nothing is assigned, spent or left ("nothing assigned").
     of: Decimal | None
     state: Literal["overspent", "all_spent"] | None
-    # The biggest inside a group ("Fuel · Taxi · +2"), or what needs a look ("500.00 overspent last month").
+    # What needs a look ("500.00 overspent last month"), or nothing.
     hint: str
     # How far the bar runs (100 when over).
     percent: int
     over: bool
-    # The group a subcategory is in (the sheet's second line).
-    group_name: str | None
-    # A whole group with nothing in it, tucked away behind "Show" once anything is in use.
-    unused: bool
 
 
 class BudgetSum(BaseModel):
@@ -483,34 +451,11 @@ class BudgetView(BaseModel):
     # More spent than there was to spend in all the categories together.
     overspent: Decimal
     rows: list[BudgetRowRead]
-    unused_count: int
-
-
-class GlanceBlock(BaseModel):
-    left: Decimal
-    spent: Decimal
-    of: Decimal
-    percent: int
-    planned: bool
-
-
-class BudgetGroupView(BaseModel):
-    id: UUID
-    name: str
-    month: str
-    is_current: bool
-    pace: int | None
-    glance: GlanceBlock
-    assigned: Decimal
-    # The least the group can be given: what its subcategories add up to.
-    minimum: Decimal
-    kids: list[BudgetRowRead]
 
 
 class MoveLine(BaseModel):
     category_id: UUID
-    # "Food › Dining"
-    path: str
+    name: str
     available: Decimal
 
 
@@ -609,7 +554,6 @@ class RecurringFormView(BaseModel):
     to_rows: list[FormRow]
     groups: list[PickGroupRead]
     account_types: list[AccountTypeOption]
-    category_parents: list[CategoryParent]
     frequency: str
     every: int
     start_date: Date

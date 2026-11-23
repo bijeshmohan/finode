@@ -341,10 +341,9 @@ def test_the_form_offers_only_what_can_be_posted_to(client, root_accounts):
     food = post_account(client, {"name": "food", "parent_id": root_accounts["Expenses"]}).json()
     dining = post_account(client, {"name": "dining", "parent_id": food["id"]}).json()
     hdfc = post_account(client, {"name": "hdfc", "type": "assets.bank"}).json()
-    banks = next(a for a in client.get("/api/accounts/").json() if a["system_key"] == "assets.bank")
     options = {o["id"]: o["label"] for g in form_view(client)["groups"] for o in g["options"]}
     assert food["id"] in options and options[dining["id"]].endswith("dining"), "a category group and its subcategory"
-    assert hdfc["id"] in options and banks["id"] not in options, "a type itself is not posted to"
+    assert hdfc["id"] in options
     assert not set(root_accounts.values()) & set(options), "nor a root"
 
 

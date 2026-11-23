@@ -69,10 +69,7 @@ def test_the_books_balance_through_every_kind_of_change(
     assert result["balanced"], result["problems"]
     assert result["currency"] == "INR" and result["debit"] == result["credit"] == "1555.00"
     by_account = {line["account"]: line for line in result["lines"]}
-    assert (
-        by_account["Assets:Bank Account:checking"]["debit"] == "1400.00"
-        and by_account["Assets:Bank Account:checking"]["credit"] == "155.00"
-    )
+    assert by_account["Assets:checking"]["debit"] == "1400.00" and by_account["Assets:checking"]["credit"] == "155.00"
     assert by_account["Equity:Opening Balances"]["credit"] == "500.00"
 
 

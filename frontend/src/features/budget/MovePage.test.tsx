@@ -12,8 +12,8 @@ const MOVE: Answers = {
       month: "2026-11",
       source: ids.rent,
       lines: [
-        { category_id: ids.rent, path: "Rent", available: "500.00" },
-        { category_id: ids.dining, path: "Food › Dining", available: "120.00" },
+        { category_id: ids.rent, name: "Rent", available: "500.00" },
+        { category_id: ids.dining, name: "Dining", available: "120.00" },
       ],
     },
   ],
@@ -34,8 +34,8 @@ describe("Move money", () => {
     await userEvent.type(screen.getByLabelText("Amount"), "120");
     await userEvent.click(screen.getByRole("button", { name: /^To(?! do)/ }));
     const sheet = await screen.findByRole("dialog", { name: "To" });
-    expect(within(sheet).getByRole("button", { name: /Food › Dining/ })).toHaveTextContent("120.00 left");
-    await userEvent.click(within(sheet).getByRole("button", { name: /Food › Dining/ }));
+    expect(within(sheet).getByRole("button", { name: /Dining/ })).toHaveTextContent("120.00 left");
+    await userEvent.click(within(sheet).getByRole("button", { name: /Dining/ }));
     await userEvent.click(screen.getByRole("button", { name: "Move money" }));
     await waitFor(() => {
       expect(router.state.location.pathname).toBe("/budget");

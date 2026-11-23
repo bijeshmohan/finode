@@ -1,6 +1,6 @@
-"""Converting a person's books to cash flow (services/cash_flow.py): investment and loan accounts become categories,
-the built-in groups become the four account types, and a person's own groups go. The kept accounts' balances never
-move."""
+"""Converting older books (a restore of a file from before the four types, services/cash_flow.py): investment and loan
+accounts become categories, every kept account moves straight under its root with the type of the built-in group it
+sat in (or the one chosen for it), the groups go, and no type is ever guessed. The kept accounts' balances never move."""
 
 from datetime import date
 from decimal import Decimal
@@ -45,19 +45,17 @@ def _build(session, user=TEST_USER_ID):
     s.accounts.ensure_roots()
     ar = s.accounts.ar
     roots = ar.root_ids()
-    # The books as they were before the change: the old built-in groups (no Prepaid Wallet, Investments and Loans
-    # outside the budget), a group of the person's own, and an account taken out of the budget.
-    groups = {a.system_key: a for a in ar.list() if a.system_key}
-    ar.delete(groups.pop("assets.wallet").id)
-    ar.place(groups["assets.bank"].id, roots["Assets"], "Bank Accounts")
-    ar.place(groups["liabilities.cards"].id, roots["Liabilities"], "Credit Cards")
+    # The books as a restore writes an old file: the old built-in groups as plain accounts, their keys on the side (no
+    # Prepaid Wallet; Investments and Loans outside the budget), a group of the person's own, and an account taken out
+    # of the budget.
+    groups = {}
     for key, name, root in (
+        ("assets.bank", "Bank Accounts", "Assets"),
+        ("liabilities.cards", "Credit Cards", "Liabilities"),
         ("assets.investments", "Investments", "Assets"),
         ("liabilities.loans", "Loans", "Liabilities"),
     ):
-        group = ar.create(AccountBase(name=name, parent_id=roots[root]))
-        group.system_key = key
-        groups[key] = group
+        groups[key] = ar.create(AccountBase(name=name, parent_id=roots[root]))
     wallets = ar.create(AccountBase(name="Wallets", parent_id=roots["Assets"]))
 
     def made(name, parent_id, **extra):
@@ -121,7 +119,15 @@ def _build(session, user=TEST_USER_ID):
     )
     session.commit()
     ids = SimpleNamespace(
-        hdfc=hdfc.id, old_sbi=old_sbi.id, card=card.id, loan=loan.id, fund=fund.id, paytm=paytm.id, asha=asha
+        hdfc=hdfc.id,
+        old_sbi=old_sbi.id,
+        card=card.id,
+        loan=loan.id,
+        fund=fund.id,
+        paytm=paytm.id,
+        wallets=wallets.id,
+        asha=asha,
+        keys={g.id: key for key, g in groups.items()},
     )
     return s, ids
 
@@ -130,11 +136,14 @@ def _build(session, user=TEST_USER_ID):
 def books(session, monkeypatch):
     s, ids = _build(session)
 
-    # What was outside the budget before the four types (the flag is gone: the books say it as a file would).
-    outside = {ids.old_sbi, ids.loan, ids.fund}
+    # What was outside the budget before the four types: a restore retires it (the loan and the fund are under
+    # Investments and Loans anyway).
+    outside = {ids.old_sbi}
 
-    def off_budget_ids():
-        return set(outside)
+    def plan(**extra):
+        """The plan a restore makes, the person's own Wallets given a type unless said otherwise."""
+        chosen = {"types": {ids.wallets: "assets.wallet"}, "retire_ids": set(outside), **extra}
+        return conversion.plan(ids.keys, **chosen)
 
     def kept():
         return [ids.hdfc, ids.old_sbi, ids.card, ids.paytm, ids.asha.receivable_account_id]
@@ -159,11 +168,12 @@ def books(session, monkeypatch):
             for t in made
         ]
 
+    conversion = _conversion(session)
     return SimpleNamespace(
         s=s,
         ids=ids,
-        conversion=_conversion(session),
-        off_budget_ids=off_budget_ids,
+        conversion=conversion,
+        plan=plan,
         balances_by_day=balances_by_day,
         put_old_sbi_in_budget=put_old_sbi_in_budget,
         lines_of=lines_of,
@@ -171,25 +181,25 @@ def books(session, monkeypatch):
     )
 
 
-def _convert(books):
-    return books.conversion.apply(books.conversion.plan(books.off_budget_ids(), strict=True))
+def _convert(books, **extra):
+    return books.conversion.apply(books.plan(**extra))
 
 
-def test_plan_lists_undecided_excluded_bank(books):
-    plan = books.conversion.plan(books.off_budget_ids(), strict=True)
-    assert plan.undecided_accounts == ["Assets:Bank Accounts:Old SBI"]
+def test_an_account_with_no_type_is_undecided(books):
+    plan = books.plan(types={})
+    assert plan.undecided_accounts == ["Assets:Wallets:Paytm"], "a group of the person's own: no type to give it"
 
 
 def test_plan_changes_nothing(books):
     before = books.balances_by_day()
-    books.conversion.plan(books.off_budget_ids(), strict=True)
+    books.plan(types={})
     assert books.balances_by_day() == before
     assert any(a.name == "Home Loan" for a in books.s.accounts.ar.list())
 
 
-def test_apply_refuses_strict_plan_with_undecided(books):
-    with pytest.raises(ConversionRefused):
-        _convert(books)
+def test_apply_refuses_while_an_account_has_no_type(books):
+    with pytest.raises(ConversionRefused, match="These accounts have no type: Assets:Wallets:Paytm."):
+        _convert(books, types={})
     assert any(a.name == "Home Loan" for a in books.s.accounts.ar.list()), "nothing changed"
 
 
@@ -200,7 +210,6 @@ def test_apply_converts_and_keeps_books_balanced(books):
     assert books.s.reports.trial_balance().balanced
     assert books.balances_by_day() == before
     names = {a.name for a in books.s.accounts.ar.list()}
-    assert {"Bank Account", "Cash", "Credit Card", "Prepaid Wallet"} <= names
     assert not names & {
         "Home Loan",
         "Axis Bluechip",
@@ -209,7 +218,9 @@ def test_apply_converts_and_keeps_books_balanced(books):
         "Wallets",
         "Bank Accounts",
         "Credit Cards",
-    }
+        "Bank Account",
+        "Credit Card",
+    }, "no groups and no type accounts"
     assert sorted(result.categories_made) == ["Axis Bluechip", "Borrowed", "Home Loan", "Redeemed"]
 
 
@@ -231,18 +242,22 @@ def test_lines_land_in_the_right_categories(books):
     ], "the loan's opening balance is gone; the kept accounts' stay"
 
 
-def test_kept_accounts_are_under_their_types_and_in_the_budget(books):
+def test_kept_accounts_sit_under_their_roots_with_their_types(books):
     books.put_old_sbi_in_budget()
     _convert(books)
     by_id = {a.id: a for a in books.s.accounts.ar.list()}
-    parent_key = {i: by_id[by_id[i].parent_id].system_key for i in (books.ids.hdfc, books.ids.card, books.ids.paytm)}
-    assert parent_key == {
+    roots = books.s.accounts.ar.root_ids()
+    kept = (books.ids.hdfc, books.ids.old_sbi, books.ids.card, books.ids.paytm)
+    assert {i: by_id[i].type for i in kept} == {
         books.ids.hdfc: "assets.bank",
+        books.ids.old_sbi: "assets.bank",
         books.ids.card: "liabilities.cards",
-        books.ids.paytm: "assets.bank",
-    }
-    assert all(in_budget(by_id[i], by_id) for i in (books.ids.hdfc, books.ids.card, books.ids.paytm, books.ids.old_sbi))
-    assert by_id[books.ids.asha.receivable_account_id].parent_id == books.s.accounts.ar.root_ids()["Assets"]
+        books.ids.paytm: "assets.wallet",
+    }, "the type of the built-in group each sat in, or the one chosen"
+    assert {by_id[i].parent_id for i in kept} <= {roots["Assets"], roots["Liabilities"]}
+    assert all(in_budget(by_id[i]) for i in kept)
+    asha = by_id[books.ids.asha.receivable_account_id]
+    assert asha.parent_id == roots["Assets"] and asha.type is None, "a person's account stays untyped"
 
 
 def test_recurring_simple_form_is_rewritten(books):
@@ -262,7 +277,7 @@ def test_second_run_changes_nothing(books):
     books.put_old_sbi_in_budget()
     _convert(books)
     before = books.balances_by_day()
-    plan = books.conversion.plan(books.off_budget_ids(), strict=True)
+    plan = books.conversion.plan({})
     assert (plan.retired, plan.moved, plan.rewritten, plan.deleted, plan.new_categories) == ([], [], [], [], [])
     result = books.conversion.apply(plan)
     assert (result.rewritten, result.deleted, result.accounts_deleted, result.categories_made) == (0, 0, 0, [])
@@ -281,7 +296,7 @@ def test_existing_category_names_are_reused(books):
     assert len(borrowed) == 1 and borrowed[0].closed_on is None, "reused and reopened"
 
 
-def test_same_root_both_sides_is_undecided(books):
+def test_an_entry_on_both_sides_of_a_root_posts_to_opening_balances(books):
     refunds = books.s.categories.create(CategoryCreate(name="Refunds", kind="spending"))
     _entry(
         books.s,
@@ -292,26 +307,18 @@ def test_same_root_both_sides_is_undecided(books):
         _line(books.ids.hdfc, "credit", "800"),
     )
     books.put_old_sbi_in_budget()
-    plan = books.conversion.plan(books.off_budget_ids(), strict=True)
-    assert [e.summary.split(":")[0] for e in plan.undecided_entries] == ["2026-11-03 Odd"]
-    with pytest.raises(ConversionRefused):
-        books.conversion.apply(plan)
-
-
-def test_non_strict_plan_decides_by_default(books):
     before = books.balances_by_day()
-    plan = books.conversion.plan(books.off_budget_ids(), strict=False)
-    assert plan.undecided_accounts == [] and plan.undecided_entries == []
-    books.conversion.apply(plan)
-    by_id = {a.id: a for a in books.s.accounts.ar.list()}
-    assert (
-        in_budget(by_id[books.ids.old_sbi], by_id) and by_id[by_id[books.ids.old_sbi].parent_id].name == "Bank Account"
-    )
+    _convert(books)
+    assert sorted(books.lines_of("Odd")[0]) == [
+        ("Expenses", "credit", "Refunds"),
+        ("HDFC", "credit", None),
+        ("Opening Balances", "debit", None),
+    ]
     assert books.balances_by_day() == before
 
 
 def test_overspent_months_listed(books):
-    plan = books.conversion.plan(books.off_budget_ids(), strict=True)
+    plan = books.plan()
     assert plan.overspent_months == ["2026-10"], "the uncategorised EMI and the SIP"
 
 
@@ -324,7 +331,7 @@ def test_other_person_untouched(books, session):
 
 
 def test_a_closed_retired_account_is_retired_too(books):
-    loans = next(a.id for a in books.s.accounts.ar.list() if a.system_key == "liabilities.loans")
+    loans = next(i for i, key in books.ids.keys.items() if key == "liabilities.loans")
     car = books.s.accounts.ar.create(AccountBase(name="Car Loan", parent_id=loans))
     books.session.commit()
     _entry(books.s, date(2026, 8, 1), "Car", _line(books.ids.hdfc, "debit", "1000"), _line(car.id, "credit", "1000"))
@@ -340,30 +347,28 @@ def test_a_closed_retired_account_is_retired_too(books):
 
 
 def test_chosen_accounts_are_retired_and_chosen_types_kept(books):
-    wallets = next(a for a in books.s.accounts.ar.list() if a.name == "Wallets")
-    plan = books.conversion.plan(
-        books.off_budget_ids(), strict=True, retire_ids={books.ids.old_sbi}, types={wallets.id: "assets.wallet"}
-    )
+    plan = books.plan(retire_ids={books.ids.old_sbi})
     assert plan.undecided_accounts == []
-    assert "Assets:Wallets:Paytm → Assets:Prepaid Wallet:Paytm" in [f"{m.path} → {m.becomes}" for m in plan.moved]
+    assert "Assets:Wallets:Paytm → Assets:Paytm" in [f"{m.path} → {m.becomes}" for m in plan.moved]
     books.conversion.apply(plan)
     by_id = {a.id: a for a in books.s.accounts.ar.list()}
     assert books.ids.old_sbi not in by_id
-    assert by_id[by_id[books.ids.paytm].parent_id].system_key == "assets.wallet"
+    assert by_id[books.ids.paytm].type == "assets.wallet"
     assert (
         books.lines_of("Opening balance").count([("Old SBI", "debit", None), ("Opening Balances", "credit", None)]) == 0
     )
 
 
-def test_a_chosen_type_puts_an_account_outside_the_budget_in_it(books):
-    plan = books.conversion.plan(books.off_budget_ids(), strict=True, types={books.ids.old_sbi: "assets.cash"})
-    assert plan.undecided_accounts == []
-    books.conversion.apply(plan)
+def test_a_chosen_type_wins_over_the_group(books):
+    books.put_old_sbi_in_budget()
+    _convert(books, types={books.ids.wallets: "assets.wallet", books.ids.old_sbi: "assets.cash"})
     by_id = {a.id: a for a in books.s.accounts.ar.list()}
-    assert (
-        in_budget(by_id[books.ids.old_sbi], by_id)
-        and by_id[by_id[books.ids.old_sbi].parent_id].system_key == "assets.cash"
-    )
+    assert by_id[books.ids.old_sbi].type == "assets.cash" and in_budget(by_id[books.ids.old_sbi])
+
+
+def test_a_type_that_does_not_fit_the_root_is_refused(books):
+    with pytest.raises(ValueError, match="cannot be a Credit Card"):
+        books.plan(types={books.ids.wallets: "liabilities.cards"})
 
 
 def test_a_shared_bill_paid_from_a_retired_account_points_at_where_the_money_now_comes_from(books, session):

@@ -1,21 +1,21 @@
 """Converting a person's books to cash flow: every account they keep is one of the four types and part of the budget,
 and investment and loan accounts become categories.
 
-`plan` works out everything and changes nothing; `apply` carries a plan out in one go. Two callers use it: the command
-a person's books are converted with once (`finode.commands.cash_flow`, strict: it refuses what it cannot decide) and
-backup restore of a file made before the change (not strict: it decides by the rules below).
+`plan` works out everything and changes nothing; `apply` carries a plan out in one go. Its one caller is the restore of
+a backup made before the four types: the file's accounts are written as they were, with the built-in groups' keys
+(`keys`, from the file) passed in, and the restore saves nothing unless the conversion succeeds.
 
 - Investments and Loans and every account under them are retired.
 - A line on a retired account in an entry that also moves money in a kept account: money **into** the retired account
   posts to Expenses with its own spending category, else a category named after the account; money **out of** it
   posts to Income with its own earning category, else "Borrowed" (a loan) or "Redeemed" (an investment).
 - An entry that touches no kept account and no person (an opening balance of a loan, a fund's value update) is deleted.
-- Strict: an account outside the budget that is not retired, an entry between a retired account and a person with
-  nothing in the budget, and an entry the rewrite would put on both sides of Expenses or Income are left to the person.
-  Not strict: the account is kept and put in the budget, the entry with a person is rewritten as above, and the
-  two-sided one posts its retired lines to Opening Balances instead (cash unchanged, nothing for the budget).
-- Every kept account goes under its type by its root (Assets: Bank Account, Liabilities: Credit Card) unless it is
-  under one already; the built-in groups take the types' names; a person's own groups and the retired ones go.
+- An entry between a retired account and a person with nothing in the budget is rewritten as above; one the rewrite
+  would put on both sides of Expenses or Income posts its retired lines to Opening Balances instead (cash unchanged,
+  nothing for the budget).
+- Every kept account moves straight under its root with its type: the one chosen in `types`, else the type of the
+  built-in group it sits in. **No type is ever guessed**: a kept account with neither is undecided, and `apply` refuses.
+  The built-in groups, a person's own groups and the retired ones go.
 """
 
 import builtins
@@ -29,11 +29,10 @@ from ..models.transaction import Posting, PostingSide
 from ..repositories import TransactionRepository
 from ..repositories.recurring import RecurringRepository
 from ..repositories.shared_expense import SharedExpenseRepository
-from ..schemas.account import AccountBase
 from ..schemas.cash_flow import AccountMove, ConversionPlan, ConversionResult, EntryChange
 from ..schemas.category import CategoryRead
 from .account import AccountService
-from .account_types import RETIRED_KEYS, TYPE_KEYS, TYPE_NAMES, TYPE_ROOTS
+from .account_types import RETIRED_KEYS, TYPE_KEYS, TYPE_NAMES, TYPE_ROOTS, type_key
 from .category import CategoryService
 
 LOAN_INCOME = "Borrowed"
@@ -52,8 +51,6 @@ class ConversionRefused(ValueError): ...
 @dataclass
 class _Work:
     roots: dict[str, UUID]
-    type_groups: dict[str, UUID | None]  # each type's group, None for one to make
-    renames: dict[UUID, str]  # a type's group that still has its old name
     places: list[tuple[UUID, str, str]] = field(default_factory=list)  # account, type key, name
     retargets: list[tuple[UUID, Target, CategoryRef | None]] = field(default_factory=list)
     deletes: list[UUID] = field(default_factory=list)
@@ -77,16 +74,15 @@ class CashFlowConversion:
 
     def plan(
         self,
-        off_budget_ids: set[UUID],
-        strict: bool,
+        keys: dict[UUID, str],
         retire_ids: set[UUID] | None = None,
         types: dict[UUID, str] | None = None,
         group_ids: set[UUID] | None = None,
     ) -> ConversionPlan:
-        """`retire_ids`: accounts or groups the person chose to retire as well (their worth goes, like an investment's;
-        under Liabilities, like a loan's). `types`: an account's or a group's accounts' type, chosen by the person (an
-        account outside the budget given a type goes into the budget). `group_ids`: accounts that were groups (from a
-        backup, which says so even of an empty one); an account with accounts in it is a group anyway."""
+        """`keys`: the built-in groups' keys by account id (assets.bank, liabilities.loans...). `retire_ids`: accounts or
+        groups to retire as well (their worth goes, like an investment's; under Liabilities, like a loan's). `types`: an
+        account's or a group's accounts' type. `group_ids`: accounts that were groups (a backup says so even of an empty
+        one); an account with accounts in it is a group anyway."""
         retire_ids = retire_ids or set()
         group_ids = group_ids or set()
         types = types or {}
@@ -115,7 +111,7 @@ class CashFlowConversion:
                 out.extend(subtree(child))
             return out
 
-        keyed = {a.system_key: a for a in accounts if a.system_key}
+        keyed = {key: by_id[i] for i, key in keys.items() if i in by_id}
         retired: dict[UUID, str] = {}  # account → "loan" or "investment"
         for key in RETIRED_KEYS:
             if key in keyed:
@@ -132,7 +128,7 @@ class CashFlowConversion:
             if a.parent_id in holding_roots
             and a.id not in contacts
             and a.id not in retired
-            and (a.system_key is not None or a.id in group_ids or children[a.id])
+            and (a.id in keys or a.id in group_ids or children[a.id])
         ]
         group_ids = {a.id for a in groups}
         leaves = [
@@ -146,48 +142,37 @@ class CashFlowConversion:
         ]
         kept = {a.id for a in leaves}
 
-        work = _Work(
-            roots=roots,
-            type_groups={key: keyed[key].id if key in keyed else None for key in TYPE_KEYS},
-            renames={keyed[k].id: TYPE_NAMES[k] for k in TYPE_KEYS if k in keyed and keyed[k].name != TYPE_NAMES[k]},
-        )
-        plan = ConversionPlan(strict=strict)
-        for group_id, name in work.renames.items():
-            plan.moved.append(AccountMove(account_id=group_id, path=path(by_id[group_id]), becomes=f"renamed {name}"))
+        work = _Work(roots=roots)
+        plan = ConversionPlan()
 
-        # Where each kept account goes.
+        # Where each kept account goes: straight under its root, with its type; a name already taken under the root
+        # takes its old group's name in brackets.
         taken: dict[str, set[str]] = defaultdict(set)
-        for a in leaves:
-            parent = by_id[a.parent_id] if a.parent_id else None
-            if parent is not None and parent.system_key in TYPE_KEYS:
-                taken[parent.system_key].add(a.name.casefold())
         for a in leaves:
             parent = by_id[a.parent_id] if a.parent_id else None
             chosen = types.get(a.id) or (types.get(a.parent_id) if a.parent_id else None)
             if chosen is not None and (chosen not in TYPE_KEYS or TYPE_ROOTS[chosen] != root_name(a)):
                 raise ValueError(f"'{path(a)}' cannot be a {TYPE_NAMES.get(chosen, chosen)}!")
-            if strict and a.id in off_budget_ids and chosen is None:
+            here = keys.get(a.parent_id) if a.parent_id else None
+            key = chosen or (here if here in TYPE_KEYS else None) or type_key(a)
+            if key is None:
                 plan.undecided_accounts.append(path(a))
-            here = parent.system_key if parent is not None and parent.system_key in TYPE_KEYS else None
-            if here is not None and chosen in (None, here):
-                work.places.append((a.id, here, a.name))
                 continue
-            key = chosen or ("assets.bank" if root_name(a) == "Assets" else "liabilities.cards")
+            if a.parent_id == roots.get(root_name(a)) and a.type == key:
+                taken[root_name(a)].add(a.name.casefold())
+                continue  # already where it belongs
             name = a.name
-            if name.casefold() in taken[key]:
+            if name.casefold() in taken[root_name(a)]:
                 name = f"{a.name} ({parent.name if parent else root_name(a)})"[:NAME_LIMIT]
-            taken[key].add(name.casefold())
+            taken[root_name(a)].add(name.casefold())
             work.places.append((a.id, key, name))
-            plan.moved.append(
-                AccountMove(account_id=a.id, path=path(a), becomes=f"{TYPE_ROOTS[key]}:{TYPE_NAMES[key]}:{name}")
-            )
+            plan.moved.append(AccountMove(account_id=a.id, path=path(a), becomes=f"{root_name(a)}:{name}"))
 
         # Categories: found by name and kind among the top-level ones (open or closed) before one is made.
         categories = {c.id: c for c in self.categories.list(include_closed=True)}
         by_name: dict[tuple[str, str], CategoryRead] = {}
         for c in sorted(categories.values(), key=lambda c: c.closed_on is not None):
-            if c.parent_id is None:
-                by_name.setdefault((c.name.casefold(), c.kind), c)
+            by_name.setdefault((c.name.casefold(), c.kind), c)
 
         def label(line_category: UUID | None, money_in: bool, account: Account) -> tuple[CategoryRef, bool]:
             """The line's category and whether it is one the payment never had."""
@@ -239,10 +224,6 @@ class CashFlowConversion:
                 plan.deleted.append(change)
                 work.deletes.append(transaction_id)
                 continue
-            if not touches_budget and strict:
-                change.summary = f"{head}: a retired account and a person, nothing in the budget"
-                plan.undecided_entries.append(change)
-                continue
             proposed: builtins.list[tuple[Posting, Target, CategoryRef | None]] = []
             fresh: builtins.list[bool] = []
             sides: dict[UUID | str, set[PostingSide]] = defaultdict(set)
@@ -261,10 +242,6 @@ class CashFlowConversion:
                         target_key = "Income"
                     sides[target_key].add(p.side)
             if any(len(s) > 1 for s in sides.values()):
-                if strict:
-                    change.summary = f"{head}: it would put Expenses or Income on both sides"
-                    plan.undecided_entries.append(change)
-                    continue
                 proposed = [(p, "Opening Balances", None) for p, _, _ in proposed]
                 fresh = []
             for (p, target, ref), new in zip(proposed, fresh or [False] * len(proposed), strict=True):
@@ -316,9 +293,8 @@ class CashFlowConversion:
             work.retired_accounts.append(a.id)
             plan.retired.append(AccountMove(account_id=a.id, path=path(a), becomes="deleted"))
         for a in groups:
-            if a.system_key not in TYPE_KEYS:
-                work.accounts_to_delete.append(a.id)
-                plan.retired.append(AccountMove(account_id=a.id, path=path(a), becomes="deleted (a group)"))
+            work.accounts_to_delete.append(a.id)
+            plan.retired.append(AccountMove(account_id=a.id, path=path(a), becomes="deleted (a group)"))
 
         plan.new_categories = sorted(work.new_categories.values())
         plan.overspent_months = sorted(overspent)
@@ -330,8 +306,11 @@ class CashFlowConversion:
         work: _Work = plan._work
         if work is None:
             raise ConversionRefused("work out a plan first!")
-        if plan.strict and (plan.undecided_accounts or plan.undecided_entries):
-            raise ConversionRefused("some accounts or entries need a decision first (see the plan)!")
+        if plan.undecided_accounts:
+            raise ConversionRefused(
+                f"These accounts have no type: {', '.join(plan.undecided_accounts)}. Restore a newer backup, or give "
+                "them a type in the file (move each under Bank Accounts, Cash or Credit Cards) and restore again."
+            )
         result = ConversionResult()
 
         made: dict[tuple[str, str], UUID] = {}
@@ -350,18 +329,8 @@ class CashFlowConversion:
                 return ref
             return made[ref]
 
-        groups: dict[str, UUID] = {}
-        for key, group_id in work.type_groups.items():
-            if group_id is None:
-                created = self.ar.create(AccountBase(name=TYPE_NAMES[key], parent_id=work.roots[TYPE_ROOTS[key]]))
-                created.system_key = key
-                self.ar.db.add(created)
-                group_id = created.id
-            groups[key] = group_id
-        for group_id, name in work.renames.items():
-            self.ar.place(group_id, work.roots[TYPE_ROOTS[_key_of(work, group_id)]], name)
         for account_id, key, name in work.places:
-            self.ar.place(account_id, groups[key], name)
+            self.ar.place(account_id, work.roots[TYPE_ROOTS[key]], name, key)
 
         targets = {"Expenses": work.roots["Expenses"], "Income": work.roots["Income"]}
         if any(target == "Opening Balances" for _, target, _ in work.retargets):
@@ -393,7 +362,3 @@ class CashFlowConversion:
         else:
             self.ar.db.flush()
         return result
-
-
-def _key_of(work: _Work, group_id: UUID) -> str:
-    return next(key for key, gid in work.type_groups.items() if gid == group_id)

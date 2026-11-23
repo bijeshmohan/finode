@@ -18,16 +18,16 @@ flowchart TD
     Eq[Equity] --> OB["Opening Balances (system)"]
 ```
 
-**Assets and Liabilities** hold the accounts, each one of **four types** (Bank Account, Cash and Prepaid Wallet under Assets, Credit Card under Liabilities; every one part of the budget), and **Equity** holds Opening Balances. **Expenses and Income are single accounts that nothing is made under**: an expense debits `Expenses`, an income credits `Income`, and the line says what it was for with a **budget category** (`postings.category_id`, a table of its own, two levels: Food › Groceries). A category is a label, not an account; there are no ghost accounts such as `Expenses:EMI:Loans`. The journal export writes a category as `Expenses:Food:Groceries` so other ledger tools can read it.
+**Assets and Liabilities** hold the accounts, each one of **four types** (Bank Account, Cash and Prepaid Wallet under Assets, Credit Card under Liabilities; every one part of the budget), and **Equity** holds Opening Balances. **Expenses and Income are single accounts that nothing is made under**: an expense debits `Expenses`, an income credits `Income`, and the line says what it was for with a **budget category** (`postings.category_id`, a table of its own, one flat list: Groceries, Rent). A category is a label, not an account; there are no ghost accounts such as `Expenses:EMI:Loans`. The journal export writes a category as `Expenses:Groceries` so other ledger tools can read it.
 
 Rules enforced by `AccountService`:
 
-- **Root › type › account.** An account sits directly under its type (`Assets › Bank Account › HDFC`) and holds no accounts; categories are two levels (Food › Groceries).
-- **Names** are trimmed, visible, on one line, at most 40 characters and cannot contain `:` (it is the path separator, as in `Assets:Bank Account:HDFC`). They are **unique among their siblings, capitals aside** (`_check_name_free`), because the paths name accounts in journal files and for assistants. A journal import is case-sensitive, like the format, and may create `Food` and `food` side by side.
+- **Root › account.** An account sits straight under its root (`Assets › HDFC`), its type a column (`accounts.type`), and holds no accounts; categories are one flat list.
+- **Names** are trimmed, visible, on one line, at most 40 characters and cannot contain `:` (it is the path separator, as in `Assets:HDFC`). They are **unique under their root, capitals aside** (`_check_name_free`), because the paths name accounts in journal files and for assistants. A journal import is case-sensitive, like the format, and may create `Food` and `food` side by side.
 - **Dates** a person can enter lie between 1 Jan 1900 and 31 Dec 2999 (`clock.FIRST_DAY`, `LAST_DAY`, the `Day` type). Past the ends the month arithmetic could fail, so the edges are refused with a message rather than allowed to break pages.
 - **Text** never holds a NUL character (Postgres cannot store it); it is dropped on every write.
 - **No posting to a root** except `Expenses` and `Income`, which take every expense and income.
-- **Types.** A type itself takes no entries. A category that has subcategories can be labelled on a line itself; the budget shows that money as "Everything else".
+- **Types.** The person gives every account its type; finode never picks one (an untyped account in an import, a restore or the migration is refused, named).
 - **No reclassifying.** An account keeps its type, because changing it would silently change what its history means.
 - **Opening Balances** is a system account under Equity. Opening balances and direct balance edits are posted against it. It cannot be renamed, moved, deleted or given a balance directly.
 - **Closing.** A closed account keeps its history but cannot be posted to. Closing is refused while it holds a balance or a running recurring rule uses it. For a category the word is *Delete*: an unused one is removed for good, one with history is closed instead.

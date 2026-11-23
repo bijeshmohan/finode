@@ -1,6 +1,5 @@
-// The Budgets area's server data: the Budgets page and a group's page for a month, the categories money can move
-// between, what is coming up, and the changes (assign, a group's own budget, copy, move). Every change refreshes all
-// views.
+// The Budgets area's server data: the Budgets page for a month, the categories money can move between, what is coming
+// up, and the changes (assign, copy, move). Every change refreshes all views.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { data } from "../../api/client";
@@ -10,7 +9,6 @@ import { VIEWS } from "../../api/views";
 
 export type BudgetView = components["schemas"]["BudgetView"];
 export type BudgetRow = components["schemas"]["BudgetRowRead"];
-export type BudgetGroupView = components["schemas"]["BudgetGroupView"];
 export type BudgetMoveView = components["schemas"]["BudgetMoveView"];
 export type ComingUpView = components["schemas"]["ComingUpView"];
 
@@ -22,19 +20,6 @@ export function useBudget(month: string | null) {
   return useQuery({
     queryKey: [...VIEWS, "budget", month ?? ""],
     queryFn: () => data(api.GET("/api/views/budget", { params: { query: month ? { month } : {} } })),
-  });
-}
-
-export function useBudgetGroup(id: string, month: string | null) {
-  const api = useApi();
-  return useQuery({
-    queryKey: [...VIEWS, "budget-group", id, month ?? ""],
-    queryFn: () =>
-      data(
-        api.GET("/api/views/budget/groups/{category_id}", {
-          params: { path: { category_id: id }, query: month ? { month } : {} },
-        }),
-      ),
   });
 }
 
@@ -86,21 +71,6 @@ export function useAssign() {
         api.PUT("/api/budget/categories/{category_id}", {
           params: { path: { category_id: id } },
           body: { month: firstOf(month), amount },
-        }),
-      ),
-    onSuccess: refresh,
-  });
-}
-
-export function useAssignGroup() {
-  const api = useApi();
-  const refresh = useRefresh();
-  return useMutation({
-    mutationFn: ({ id, month, total }: { id: string; month: string; total: string }) =>
-      data(
-        api.PUT("/api/budget/groups/{category_id}", {
-          params: { path: { category_id: id } },
-          body: { month: firstOf(month), total },
         }),
       ),
     onSuccess: refresh,

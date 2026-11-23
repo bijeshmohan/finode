@@ -89,12 +89,12 @@ class AccountRepository:
         self.db.flush()
         return account
 
-    def place(self, account_id: UUID, parent_id: UUID, name: str) -> None:
-        """Put an account under another parent with a name (the cash-flow conversion: no rules are checked here).
+    def place(self, account_id: UUID, parent_id: UUID, name: str, type: str | None) -> None:
+        """Put an account under a root with a name and a type (converting older books: no rules are checked here).
         Nothing is committed."""
         account = self.read(account_id)
         if account is not None:
-            account.parent_id, account.name = parent_id, name
+            account.parent_id, account.name, account.type = parent_id, name, type
             self.db.add(account)
             self.db.flush()
 

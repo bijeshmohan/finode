@@ -28,7 +28,7 @@ Tap **+ Add account**, the dashed card at the end of a kind's row. The form asks
 
 An account page shows its balance (the **+** at the bottom adds an entry for this account), a small **i** beside the name when you wrote a description for the account (tap it to read the note), a **…** menu (Edit, close it), and its transactions (the newest 30, then **Load more**). Entries dated in the future are in one **upcoming** card at the top of that list.
 
-Tap a kind's name on the Accounts page (Bank Account, Cash, and so on) to open its page. It shows that kind's accounts as a row of cards you swipe, the dashed **+ Add account** card at the end, and below them the transactions of all of them, each row naming its account. A kind cannot be changed and is not posted to itself: open one of its accounts to record an entry for it.
+The kinds are headings, not pages: an account sits straight under Assets or Liabilities (as `Assets:HDFC` in an export) and the Accounts page groups it under its kind.
 
 <img src="img/account-page.png" alt="An account page: balance, Add transaction, upcoming card, transactions" width="300">
 
@@ -55,11 +55,11 @@ An account that holds a balance cannot be closed. A closed account keeps its his
 
 ## Categories page
 
-**Categories** shows one month at a time (never a future one; the month pill sits at the right of the title, as on Budgets: the arrows go back or forward, and tapping the month lets you pick any past month and year). Pick **Spending** or **Earning** (**Add category** is the dashed row at the end of the list; a deleted category that had history stays listed in the months it has amounts). The big figure is the month's total up to today (the whole month for a past one); it has no label, the Spending and Earning chips say which it is. Below it is a ranked list, biggest first, each row with its three biggest subcategories and its share of the month (0% for one with nothing in it; every row is the same height). Tap a row to see the category's page: its subcategories and the month's transactions that were posted to that category itself (a subcategory's transactions are on its own page; the big figure still counts everything inside). On a category's page the month pill sits beside the back link; the round **+** on the *Subcategories* heading adds a subcategory and the one on *Transactions* adds a transaction in this category (a category with no subcategories has no such heading: use **…** › *Add subcategory*). Use the arrows on the month pill to move between months.
+**Categories** shows one month at a time (never a future one; the month pill sits at the right of the title, as on Budgets: the arrows go back or forward, and tapping the month lets you pick any past month and year). Pick **Spending** or **Earning** (**Add category** is the dashed row at the end of the list; a deleted category that had history stays listed in the months it has amounts). The big figure is the month's total up to today (the whole month for a past one); it has no label, the Spending and Earning chips say which it is. Below it is a ranked list, biggest first, each row with its share of the month (0% for one with nothing in it; every row is the same height). Tap a row to see the category's page: the month's figure and its transactions. On a category's page the month pill sits beside the back link, and the round **+** on *Transactions* adds a transaction in this category. Use the arrows on the month pill to move between months.
 
 <img src="img/categories.png" alt="The Categories page: the month, Spending and Earning, ranked categories" width="300">
 
-Every category is listed, biggest first, including the ones with nothing in the month. To add one, tap **+ Add category** at the end of the list. A category can have subcategories one level down (Food › Groceries), no further.
+Every category is listed, biggest first, including the ones with nothing in the month. To add one, tap **+ Add category** at the end of the list. Categories are one flat list: a category holds no other categories.
 
 **Deleting a category:** if it has never been used it is removed. If it has history it is *closed* instead: it leaves your lists and pickers but stays in the months where it has amounts. **Restore category** brings it back. Both are under the **…** menu.
 

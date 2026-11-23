@@ -1,5 +1,5 @@
-"""Accounts: the tree and its rules (two levels, no posting to roots or groups), balances derived from postings,
-closing, reopening, deleting, merging, pinning and the account register."""
+"""Accounts: each straight under its root with one of the four types, the rules (no posting to roots but Expenses and
+Income), balances derived from postings, closing, reopening, deleting, merging, pinning and the account register."""
 
 import builtins
 from collections.abc import Sequence
@@ -25,11 +25,8 @@ from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
 from ..schemas.account import AccountBase, AccountFields, AccountType, BalanceCheck, BillRounding, CardBill, MergeResult
 from ..schemas.transaction import PostingBase, PostingCreate, TransactionCreate
 from . import cards
-from .account_types import TYPE_KEYS, TYPE_NAMES, TYPE_ROOTS, type_key, type_order
+from .account_types import TYPE_KEYS, TYPE_ROOTS, type_key, type_order
 from .simple import label_simple
-
-# Levels below a top-level account: Expenses › Food is 1 and Expenses › Food › Groceries is 2, the deepest there is.
-MAX_ACCOUNT_DEPTH = 2
 
 # How many entries an account's page shows before "Load more" (a day is never split, so a chunk can run a little over).
 REGISTER_PAGE = 30
@@ -40,12 +37,8 @@ DEBIT_ROOT_NAMES = frozenset({"Assets", "Expenses"})
 # Assets and liabilities are real holdings and stay leaf-only.
 GROUP_POSTING_ROOT_NAMES = frozenset({"Income", "Expenses"})
 
-# The four account types (services/account_types.py), the built-in groups every person has under Assets and
-# Liabilities: (root, name, key); every account under one is in the budget. Every account a person
-# adds goes under one of them; they cannot be renamed, moved, closed or deleted. Rules read the key, never the name.
-FIXED_PARENTS = tuple((TYPE_ROOTS[key], TYPE_NAMES[key], key) for key in TYPE_KEYS)
-FIXED_ORDER = {key: place for place, (_, _, key) in enumerate(FIXED_PARENTS)}
-NOT_UNDER_A_TYPE = "an account goes under Cash, Bank Account, Credit Card or Prepaid Wallet!"
+# The roots a person's accounts sit under: each one of the four types, or a person's "Due from"/"Due to".
+UNTYPED_ROOTS = ("Assets", "Liabilities")
 
 
 @dataclass
@@ -63,16 +56,10 @@ class RegisterPage:
 class AccountInUseError(ValueError): ...
 
 
-class AccountDepthError(ValueError): ...
-
-
 class SystemAccountError(ValueError): ...
 
 
 class RootAccountError(SystemAccountError): ...
-
-
-class FixedParentError(SystemAccountError): ...
 
 
 class AccountService:
@@ -121,23 +108,12 @@ class AccountService:
         parent = next((a for a in all_accounts if a.id == account.parent_id), None)
         return parent is not None and parent.name == "Equity" and parent.parent_id is None
 
-    @staticmethod
-    def _depth(account: Account, accounts_by_id: dict[UUID, Account]) -> int:
-        """Levels below the top-level account (a top-level account is 0)."""
-        depth = 0
-        seen = {account.id}
-        while account.parent_id is not None and account.parent_id in accounts_by_id:
-            account = accounts_by_id[account.parent_id]
-            if account.id in seen:
-                break
-            seen.add(account.id)
-            depth += 1
-        return depth
-
-    @staticmethod
-    def _refuse_fixed(account: Account, what: str) -> None:
-        if account.system_key is not None:
-            raise FixedParentError(f"'{account.name}' is built in and can't be {what}!")
+    def untyped(self, all_accounts: Sequence[Account]) -> builtins.list[Account]:
+        """Accounts under Assets or Liabilities with none of the four types that are not a person's "Due from"/"Due
+        to": what has to be given a type by hand (finode never picks one)."""
+        roots = {a.id for a in all_accounts if a.parent_id is None and a.name in UNTYPED_ROOTS}
+        people = self.ar.contact_account_ids()
+        return [a for a in all_accounts if a.parent_id in roots and type_key(a) is None and a.id not in people]
 
     def _refuse_contact(self, account: Account, what: str) -> None:
         """ "Due from X" and "Due to X" belong to a contact: they follow the contact, never the accounts screens."""
@@ -174,9 +150,7 @@ class AccountService:
         all_accounts = self.ar.list()
         roots = {a.name: a for a in all_accounts if a.parent_id is None}
         missing = [name for name in ROOT_ACCOUNT_NAMES if name not in roots]
-        keys = {a.system_key for a in all_accounts if a.system_key}
-        missing_types = [entry for entry in FIXED_PARENTS if entry[2] not in keys]
-        if not missing and not missing_types:
+        if not missing:
             return all_accounts
 
         for name in missing:
@@ -187,9 +161,6 @@ class AccountService:
                 user_id=self.ar.uid,
             )
             self.ar.db.add(roots[name])
-        # The four types come with the roots, and anyone missing one gets it (same transaction: a lost race makes none twice).
-        for root, name, key in missing_types:
-            self.ar.db.add(Account(name=name, parent_id=roots[root].id, user_id=self.ar.uid, system_key=key))
         try:
             self.ar.db.commit()
         except IntegrityError:
@@ -308,12 +279,11 @@ class AccountService:
             details=account.details,
             parent_id=account.parent_id,
             balance=balance,
-            type=cast(AccountType | None, type_key(account, {a.id: a for a in all_accounts or self.ar.list()})),
+            type=cast(AccountType | None, type_key(account)),
             closed_on=account.closed_on,
             statement_day=account.statement_day,
             due_day=account.due_day,
             bill_rounding=cast(BillRounding, account.bill_rounding),
-            system_key=account.system_key,
             pinned=account.pinned,
             contact_account=account.id in self.ar.contact_account_ids(),
             created=account.created,
@@ -399,7 +369,6 @@ class AccountService:
             raise RootAccountError("cannot close system root accounts!")
         if self.is_opening_balances(account, all_accounts):
             raise SystemAccountError(f"cannot close system account '{account.name}'!")
-        self._refuse_fixed(account, "closed")
         self._refuse_contact(account, "closed")
         subtree = self._subtree(account_id, all_accounts)
         for when in (today, date(2999, 12, 31)):
@@ -420,9 +389,10 @@ class AccountService:
         return self._to_read(self._read(account_id), self._ensure_roots())
 
     @staticmethod
-    def order_key(account: Account | AccountRead) -> tuple:
-        """How siblings are listed: the built-in groups first, in their fixed order, then the rest by name."""
-        return (FIXED_ORDER.get(account.system_key or "", len(FIXED_ORDER)), account.name.lower())
+    def order_key(account: Account | AccountRead, order: Sequence[str] = TYPE_KEYS) -> tuple:
+        """How accounts under a root are listed: by type, in the person's order, then by name; untyped ones last."""
+        kind = account.type or ""
+        return (order.index(kind) if kind in order else len(order), account.name.lower())
 
     def reopen(self, account_id: UUID) -> AccountRead:
         """Reopen an account with everything inside it, and the groups above it (an open account sits in open groups)."""
@@ -447,15 +417,13 @@ class AccountService:
         if not pinned:
             return
         by_id = {a.id: a for a in all_accounts}
-        is_group = account.system_key is not None or self.ar.has_children(account.id)
         if (
             account.parent_id is None
-            or is_group
             or self.is_opening_balances(account, all_accounts)
             or account.id in self.ar.contact_account_ids()
             or self._get_root_name(account, by_id) not in ("Assets", "Liabilities")
         ):
-            raise ValueError("only an account can be pinned, not a group!")
+            raise ValueError("only an account can be pinned, not a root!")
         if account.closed_on is not None:
             raise ValueError(f"'{account.name}' is closed: reopen it to pin it!")
 
@@ -463,33 +431,29 @@ class AccountService:
     def _check_name_free(
         name: str, parent_id: UUID | None, all_accounts: list[Account], exclude: UUID | None = None
     ) -> None:
-        """Two accounts in the same place may not read the same (capitals aside): paths such as Expenses:Food name an
-        account in the journal files and for the assistants, so they must tell accounts apart."""
+        """Two accounts under one root may not read the same (capitals aside), whatever their types: paths such as
+        Assets:HDFC name an account in the journal files and for the assistants, so they must tell accounts apart."""
         wanted = name.casefold()
         for other in all_accounts:
             if other.parent_id == parent_id and other.id != exclude and other.name.casefold() == wanted:
                 parent = next((a.name for a in all_accounts if a.id == parent_id), None)
-                raise ValueError(
-                    f"{'there' if parent is None else repr(parent)} already has an account called '{other.name}'!"
-                )
+                raise ValueError(f"{parent or 'there'} already has an account called '{other.name}'!")
 
-    def _check_bill_days(self, root: str, has_children: bool, statement_day: int | None, due_day: int | None) -> None:
-        """A statement day and a due day belong to a liability account that can be posted to (a card, a loan)."""
+    def _check_bill_days(self, root: str, statement_day: int | None, due_day: int | None) -> None:
+        """A statement day and a due day belong to a liability account (a Credit Card)."""
         if statement_day is None and due_day is None:
             return
-        if root != "Liabilities" or has_children:
-            raise ValueError(
-                "statement and due days belong to a card or loan account (a liability with no sub-accounts)!"
-            )
+        if root != "Liabilities":
+            raise ValueError("statement and due days belong to a Credit Card!")
 
     def create(self, account: AccountCreate, *, commit: bool = True) -> AccountRead:
         """Add an account of one of the four types (`account.type`); every account is part of the budget."""
         all_accounts = self._ensure_roots()
-        group = next((a for a in all_accounts if a.system_key == account.type), None)
-        if group is None:
-            raise FixedParentError(NOT_UNDER_A_TYPE)
+        root = next(a for a in all_accounts if a.parent_id is None and a.name == TYPE_ROOTS[account.type])
         fields = account.model_dump(include=set(AccountFields.model_fields))
-        return self._create(AccountBase(**fields, parent_id=group.id), account.balance, all_accounts, commit)
+        return self._create(
+            AccountBase(**fields, parent_id=root.id, type=account.type), account.balance, all_accounts, commit
+        )
 
     def create_contact_account(self, name: str, root: str, *, commit: bool = True) -> AccountRead:
         """A person's "Due from" (under Assets) or "Due to" (under Liabilities) account, outside the budget."""
@@ -510,9 +474,7 @@ class AccountService:
             raise ValueError(f"'{parent.name}' is closed: reopen it to add accounts to it!")
         self._check_name_free(account.name, account.parent_id, all_accounts)
         accounts_by_id = {a.id: a for a in all_accounts}
-        self._check_bill_days(
-            self._get_root_name(parent, accounts_by_id), False, account.statement_day, account.due_day
-        )
+        self._check_bill_days(self._get_root_name(parent, accounts_by_id), account.statement_day, account.due_day)
         created = self.ar.create(account)
         all_accounts_with_created = [*all_accounts, created]
 
@@ -632,16 +594,12 @@ class AccountService:
                 raise RootAccountError("cannot merge a top-level account!")
             if self.is_opening_balances(account, all_accounts):
                 raise SystemAccountError(f"cannot merge system account '{account.name}'!")
-        self._refuse_fixed(source, "merged")
-        self._refuse_fixed(target, "merged")
         self._refuse_contact(source, "merged")
         self._refuse_contact(target, "merged")
         if self._get_root_name(source, by_id) != self._get_root_name(target, by_id):
             raise ValueError("cannot merge accounts of different kinds (an asset into a liability, say)!")
-        if self.ar.has_children(source_id):
-            raise ValueError(f"'{source.name}' has sub-accounts: merge or move them first!")
-        if self.ar.has_children(target_id):
-            raise ValueError(f"'{target.name}' has sub-accounts, so nothing can be merged into it: pick one of them!")
+        if source.type != target.type:
+            raise ValueError("only two accounts of the same type can be merged!")
         if target.closed_on is not None:
             raise ValueError(f"'{target.name}' is closed: reopen it first!")
         both = self.tr.opposite_sides(source_id, target_id)
@@ -867,7 +825,6 @@ class AccountService:
         is_system_root = self._is_root(account)
         is_opening = self.is_opening_balances(account, all_accounts)
         if data.model_fields_set:
-            self._refuse_fixed(account, "changed")
             self._refuse_contact(account, "changed")
 
         if is_opening and "name" in data.model_fields_set and data.name != account.name:
@@ -880,23 +837,15 @@ class AccountService:
         if not is_opening and "name" in data.model_fields_set and data.name:
             self._check_name_free(data.name, account.parent_id, all_accounts, exclude=account_id)
 
-        if "balance" in data.model_fields_set and data.balance is not None:
-            if is_system_root:
-                raise RootAccountError("cannot set balance of a root account!")
-            if self.ar.has_children(account_id):
-                raise ValueError("cannot set balance of an account with sub-accounts!")
+        if "balance" in data.model_fields_set and data.balance is not None and is_system_root:
+            raise RootAccountError("cannot set balance of a root account!")
 
         if "statement_day" in data.model_fields_set or "due_day" in data.model_fields_set:
             statement_day = data.statement_day if "statement_day" in data.model_fields_set else account.statement_day
             due_day = data.due_day if "due_day" in data.model_fields_set else account.due_day
             if (statement_day is None) != (due_day is None):
                 raise ValueError("give both the statement day and the due day, or neither!")
-            self._check_bill_days(
-                self._get_root_name(account, {a.id: a for a in all_accounts}),
-                self.ar.has_children(account_id),
-                statement_day,
-                due_day,
-            )
+            self._check_bill_days(self._get_root_name(account, {a.id: a for a in all_accounts}), statement_day, due_day)
 
         if "pinned" in data.model_fields_set:
             self._check_pin(account, data.pinned, all_accounts)
@@ -978,7 +927,6 @@ class AccountService:
 
         if self.is_opening_balances(account, all_accounts):
             raise SystemAccountError(f"cannot delete system account '{account.name}'!")
-        self._refuse_fixed(account, "deleted")
         self._refuse_contact(account, "deleted")
 
         if self.ar.has_children(account_id):

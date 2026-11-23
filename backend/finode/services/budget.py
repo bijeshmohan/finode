@@ -69,17 +69,6 @@ class BudgetService:
         """The spending categories (earning ones are not budgeted), closed ones too."""
         return {c.id: c for c in self.cr.list() if c.kind == "spending"}
 
-    @staticmethod
-    def _category_path(category: BudgetCategory, by_id: dict[UUID, BudgetCategory]) -> list[str]:
-        names: list[str] = []
-        seen: set[UUID] = set()
-        current: BudgetCategory | None = category
-        while current is not None and current.id not in seen:
-            seen.add(current.id)
-            names.append(current.name)
-            current = by_id.get(current.parent_id) if current.parent_id else None
-        return list(reversed(names))
-
     def _path(self, account: Account, by_id: dict[UUID, Account]) -> list[str]:
         names: list[str] = []
         seen: set[UUID] = set()
@@ -91,13 +80,9 @@ class BudgetService:
         return list(reversed(names))
 
     def spending_categories(self, include_closed: bool = False) -> list[BudgetCategory]:
-        """The categories a payment can be given, A to Z by path."""
-        every = self._categories()
-        found = [c for c in every.values() if include_closed or c.closed_on is None]
-        return sorted(found, key=lambda c: [part.casefold() for part in self._category_path(c, every)])
-
-    def category_path(self, category: BudgetCategory) -> list[str]:
-        return self._category_path(category, self._categories())
+        """The categories a payment can be given, A to Z."""
+        found = [c for c in self._categories().values() if include_closed or c.closed_on is None]
+        return sorted(found, key=lambda c: c.name.casefold())
 
     def view(self, month: date | None = None) -> BudgetRead:
         return self._compute(month)[0]
@@ -115,13 +100,12 @@ class BudgetService:
         currency = self.accounts.currency()
         accounts = self.accounts.ar.list()
         by_id = {a.id: a for a in accounts}
-        parents = {a.parent_id for a in accounts if a.parent_id is not None}
         categories = self._categories()
 
         in_budget: set[UUID] = set()
         budget_accounts: list[str] = []
         for a in accounts:
-            if budgeted(a, by_id) and a.id not in parents:
+            if budgeted(a):
                 in_budget.add(a.id)
                 budget_accounts.append(":".join(self._path_with_root(a, by_id)))
         budget_accounts.sort()
@@ -266,68 +250,24 @@ class BudgetService:
     def _lines(
         self, categories: dict[UUID, BudgetCategory], own: dict[UUID, tuple[Decimal, Decimal, Decimal, Decimal]]
     ) -> list[BudgetLine]:
-        """The categories as a tree in display order: a group row (sums) before its subcategories;
-        a group that was itself posted to or assigned money also gets an '(other)' row of its own."""
-        children: dict[UUID | None, list[BudgetCategory]] = {}
-        for c in categories.values():
-            children.setdefault(c.parent_id if c.parent_id in categories else None, []).append(c)
-        for kids in children.values():
-            kids.sort(key=lambda c: c.name.lower())
+        """One line per category, A to Z; a closed one only while something is left in it for the month."""
         zero = (ZERO, ZERO, ZERO, ZERO)
-
-        def total(category: BudgetCategory) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-            parts = [own.get(category.id, zero)] + [total(c) for c in children.get(category.id, [])]
-            return (
-                sum((p[0] for p in parts), ZERO),
-                sum((p[1] for p in parts), ZERO),
-                sum((p[2] for p in parts), ZERO),
-                sum((p[3] for p in parts), ZERO),
-            )
-
-        def visible(category: BudgetCategory) -> bool:
-            """A closed category disappears from the budget once nothing is left in it for the month."""
-            return (
-                category.closed_on is None
-                or any(own.get(category.id, zero))
-                or any(visible(c) for c in children.get(category.id, []))
-            )
-
-        def line(
-            category: BudgetCategory,
-            name: str,
-            depth: int,
-            figures: tuple[Decimal, Decimal, Decimal, Decimal],
-            group: bool = False,
-        ) -> BudgetLine:
-            a, s, v, o = figures
-            return BudgetLine(
-                category_id=category.id,
-                name=name,
-                path=":".join(self._category_path(category, categories)),
-                depth=depth,
-                group=group,
-                assigned=a,
-                activity=s,
-                available=v,
-                overspent_last_month=o,
-            )
-
         lines: list[BudgetLine] = []
-
-        def walk(category: BudgetCategory, depth: int) -> None:
-            kids = [k for k in children.get(category.id, []) if visible(k)]
-            if not kids:
-                lines.append(line(category, category.name, depth, own[category.id]))
-                return
-            lines.append(line(category, category.name, depth, total(category), group=True))
-            if any(own[category.id]):
-                lines.append(line(category, f"{category.name} (other)", depth + 1, own[category.id]))
-            for kid in kids:
-                walk(kid, depth + 1)
-
-        for top in children.get(None, []):
-            if visible(top):
-                walk(top, 1)
+        for category in sorted(categories.values(), key=lambda c: c.name.lower()):
+            figures = own.get(category.id, zero)
+            if category.closed_on is not None and not any(figures):
+                continue
+            a, s, v, o = figures
+            lines.append(
+                BudgetLine(
+                    category_id=category.id,
+                    name=category.name,
+                    assigned=a,
+                    activity=s,
+                    available=v,
+                    overspent_last_month=o,
+                )
+            )
         return lines
 
     # ---- changing the plan -----------------------------------------------------------------------
@@ -370,31 +310,6 @@ class BudgetService:
         self.br.set(month, category_id, amount)
         self.br.db.commit()
         return self.view(month)
-
-    def group_minimum(self, month: date | None, category_id: UUID, data: BudgetRead | None = None) -> Decimal:
-        """The least a group can be given in a month: what its subcategories were given add up to."""
-        data = data or self.view(month)
-        group = next((ln for ln in data.lines if ln.category_id == category_id and ln.group), None)
-        if group is None:
-            raise BudgetError("only a category with subcategories has a budget of its own!")
-        prefix = f"{group.path}:"
-        return sum(
-            (
-                ln.assigned
-                for ln in data.lines
-                if ln.path.startswith(prefix) and not ln.group and not ln.name.endswith("(other)")
-            ),
-            ZERO,
-        )
-
-    def assign_group(self, month: date | None, category_id: UUID, total: Decimal) -> BudgetRead:
-        """Set a group's budget for a month. It starts at what its subcategories add up to and may be more (the rest is
-        the group's own money, which the budget keeps on the group's own account); never less."""
-        month = month_start(month)
-        minimum = self.group_minimum(month, category_id)
-        if total < minimum:
-            raise BudgetError(f"minimum {minimum:f}")
-        return self.assign(month, category_id, total - minimum)
 
     def copy_previous(self, month: date | None) -> BudgetRead:
         """Assign this month what each category got last month, for the categories with nothing assigned yet."""

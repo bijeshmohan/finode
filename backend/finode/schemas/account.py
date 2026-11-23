@@ -55,9 +55,12 @@ class AccountFields(BaseModel):
 
 
 class AccountBase(AccountFields):
-    """An account with its place in the tree (what the repository writes and a read returns)."""
+    """An account with its place: the root it sits under and its type (what the repository writes and a read returns)."""
 
     parent_id: UUID | None = None
+    # Which of the four types it is (Bank Account, Cash, Credit Card, Prepaid Wallet), or null for anything else: a
+    # root, a person's "Due from" or "Due to", Opening Balances. Every account with a type is in the budget.
+    type: AccountType | None = None
 
 
 class AccountCreate(AccountFields):
@@ -73,14 +76,8 @@ class AccountCreate(AccountFields):
 class AccountRead(AccountBase):
     id: UUID
     balance: Decimal  # a sum: no digit limits, see schemas/budget.py
-    # Which of the four types it is (Bank Account, Cash, Credit Card, Prepaid Wallet), or null for anything else: a
-    # root, a type itself, a person's "Due from" or "Due to", Opening Balances. Every account with a type is in the budget.
-    type: AccountType | None = None
     # The day it was closed (no more postings; its history stays), or null while it is open.
     closed_on: Date | None = None
-    # Set on the four types' own groups (assets.bank, assets.cash, liabilities.cards, assets.wallet); they cannot be
-    # changed or removed.
-    system_key: str | None = None
     # True when the person pinned the account: it is also listed in the Pinned row at the top of the Accounts page.
     pinned: bool = False
     # True for a contact's "Due from" and "Due to" accounts: they follow the contact and only its page uses them.

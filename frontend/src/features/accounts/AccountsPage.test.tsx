@@ -32,7 +32,8 @@ describe("the Accounts page", () => {
       "Credit Card",
     ]);
     expect(within(banks).getByText("5,000.00 · 1 account")).toBeInTheDocument();
-    expect(within(banks).getByRole("link", { name: "Bank Account" })).toHaveAttribute("href", `/accounts/${ids.banks}`);
+    expect(within(banks).getByRole("heading", { name: "Bank Account" })).toBeInTheDocument();
+    expect(within(banks).queryByRole("link", { name: "Bank Account" })).not.toBeInTheDocument(); // no type pages
     expect(within(banks).getByRole("link", { name: /HDFC/ })).toHaveAttribute("href", `/accounts/${ids.hdfc}`);
     expect(within(banks).getByRole("link", { name: "Add account" })).toHaveAttribute(
       "href",

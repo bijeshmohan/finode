@@ -5,7 +5,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from tests.books import leg, post_account
+from tests.books import leg
 from tests.budget.test_budget import account
 from tests.guards.test_isolation import B_USER, signed_in_as
 
@@ -18,8 +18,8 @@ def books(client, root_accounts):
     bank = account(client, root_accounts, "Bank", "Assets", balance="10000")
     salary = account(client, root_accounts, "Salary", "Income")
     food = account(client, root_accounts, "Food", "Expenses")
-    groceries = post_account(client, {"name": "Groceries", "parent_id": food["id"]}).json()
-    dining = post_account(client, {"name": "Dining", "parent_id": food["id"]}).json()
+    groceries = account(client, root_accounts, "Groceries", "Expenses")
+    dining = account(client, root_accounts, "Dining", "Expenses")
     rent = account(client, root_accounts, "Rent", "Expenses")
     travel = account(client, root_accounts, "Travel", "Expenses")
     return {
@@ -47,7 +47,7 @@ def view(client, path="/api/views/categories", **params):
     return response.json()
 
 
-def test_categories_are_ranked_with_what_is_inside_and_their_share(client, books):
+def test_categories_are_ranked_with_their_share(client, books):
     entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
     entry(client, books["dining"], books["bank"], "100", THIS_MONTH)
     entry(client, books["rent"], books["bank"], "600", THIS_MONTH)
@@ -58,15 +58,19 @@ def test_categories_are_ranked_with_what_is_inside_and_their_share(client, books
         True,
         "1000.00",
     )
-    assert [(r["name"], r["total"], r["share"], r["hint"]) for r in seen["rows"]] == [
-        ("Rent", "600.00", "60%", ""),
-        ("Food", "400.00", "40%", "Groceries · Dining"),
-        ("Travel", "0.00", "0%", ""),
+    assert [(r["name"], r["total"], r["share"]) for r in seen["rows"]] == [
+        ("Rent", "600.00", "60%"),
+        ("Groceries", "300.00", "30%"),
+        ("Dining", "100.00", "10%"),
+        ("Food", "0.00", "0%"),
+        ("Travel", "0.00", "0%"),
     ]
+    page = view(client, f"/api/views/categories/{books['groceries']['id']}")
+    assert page["total"] == "300.00" and not {"subs", "group", "own_here", "can_add_child"} & set(page)
 
 
 def test_every_category_is_listed_even_with_nothing_in_the_month(client, books):
-    assert {r["name"] for r in view(client)["rows"]} == {"Food", "Rent", "Travel"}
+    assert {r["name"] for r in view(client)["rows"]} == {"Food", "Groceries", "Dining", "Rent", "Travel"}
 
 
 def test_the_earning_tab_and_a_past_month(client, books):
@@ -74,28 +78,6 @@ def test_the_earning_tab_and_a_past_month(client, books):
     seen = view(client, tab="income", month=LAST_MONTH.strftime("%Y-%m"))
     assert seen["tab"] == "income" and seen["is_current"] is False
     assert [(r["name"], r["total"]) for r in seen["rows"]] == [("Salary", "5000.00")]
-
-
-def test_a_groups_page(client, books):
-    entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
-    entry(client, books["food"], books["bank"], "50", THIS_MONTH)
-    seen = view(client, f"/api/views/categories/{books['food']['id']}")
-    assert (seen["name"], seen["kind"], seen["total"], seen["own_here"]) == ("Food", "spending", "350.00", "50.00")
-    assert [(s["name"], s["total"]) for s in seen["subs"]] == [("Groceries", "300.00"), ("Dining", "0.00")]
-    assert [r["amount"] for r in seen["entries"]] == ["50.00"], "only what was labelled with the group itself"
-    assert seen["can_add_child"] is True and seen["can_delete"] is True and seen["group"] is None
-    food = books["food"]["id"]
-    assert seen["new_transaction_url"] == f"/transactions/new?category={food}&back=/categories/{food}"
-    plain = view(client, f"/api/views/categories/{books['dining']['id']}")
-    assert (
-        plain["subs"] == []
-        and plain["own_here"] == "0.00"
-        and plain["group"]
-        == {
-            "id": books["food"]["id"],
-            "name": "Food",
-        }
-    )
 
 
 def test_a_closed_category_starts_no_entry(client, books):
@@ -128,66 +110,32 @@ def form(client, **params):
 
 def test_a_category_form(client, books):
     blank = form(client)
-    assert (blank["editing"], blank["kind"], blank["parent_id"]) == (False, "spending", None)
-    assert [g["name"] for g in blank["groups"]] == ["Food", "Rent", "Travel"]
+    assert (blank["editing"], blank["kind"]) == (False, "spending") and "groups" not in blank
     assert form(client, root="income")["kind"] == "earning"
-    inside = form(client, parent=books["food"]["id"])
-    assert (inside["kind"], inside["parent_id"]) == ("spending", books["food"]["id"])
-    group = form(client, category_id=books["food"]["id"])
-    assert group["editing"] is True and group["name"] == "Food" and group["groups"] == [], "a group stays a group"
-    dining = form(client, category_id=books["dining"]["id"])
-    assert dining["parent_id"] == books["food"]["id"] and "Dining" not in [g["name"] for g in dining["groups"]]
+    food = form(client, category_id=books["food"]["id"])
+    assert food["editing"] is True and food["name"] == "Food" and "parent_id" not in food
 
 
 def test_a_strangers_category_form_is_not_found(client, books):
     with signed_in_as(B_USER):
-        assert client.get("/api/views/category-form", params={"parent": books["food"]["id"]}).status_code == 404
         assert client.get("/api/views/category-form", params={"category_id": books["food"]["id"]}).status_code == 404
 
 
 # Ported from test_categories.py (the old Categories pages), step 10.
 
 
-def test_the_hint_names_the_three_biggest_and_counts_the_rest(client, books):
-    for name, amount in (("A1", "50"), ("A2", "40"), ("A3", "30"), ("A4", "20")):
-        made = post_account(client, {"name": name, "parent_id": books["travel"]["id"]}).json()
-        entry(client, made, books["bank"], amount, THIS_MONTH)
-    first = view(client)["rows"][0]
-    assert (first["name"], first["hint"], first["share"], first["total"]) == (
-        "Travel",
-        "A1 · A2 · A3 · +1",
-        "100%",
-        "140.00",
-    )
-
-
-def test_a_closed_subcategory_leaves_its_group(client, books):
-    entry(client, books["groceries"], books["bank"], "300", THIS_MONTH)
-    assert client.post(f"/api/categories/{books['dining']['id']}/close").status_code == 200
-    assert [s["name"] for s in view(client, f"/api/views/categories/{books['food']['id']}")["subs"]] == ["Groceries"]
-    assert view(client)["rows"][0]["hint"] == "Groceries"
-
-
 def test_a_used_category_deleted_stays_in_its_month_leaves_the_pickers_and_comes_back(client, books):
     entry(client, books["groceries"], books["bank"], "300", LAST_MONTH.replace(day=3))
     assert client.post(f"/api/categories/{books['groceries']['id']}/delete").status_code == 200
-    this = view(client, f"/api/views/categories/{books['food']['id']}")
-    assert "Groceries" not in [s["name"] for s in this["subs"]], "not listed where it has nothing"
-    last = view(client, f"/api/views/categories/{books['food']['id']}", month=LAST_MONTH.strftime("%Y-%m"))
-    assert "Groceries" in [s["name"] for s in last["subs"]], "still in the month it was used"
+    assert "Groceries" not in [r["name"] for r in view(client)["rows"]], "not listed where it has nothing"
+    last = view(client, month=LAST_MONTH.strftime("%Y-%m"))
+    assert "Groceries" in [r["name"] for r in last["rows"]], "still in the month it was used"
     offered = {o["id"] for g in view(client, "/api/views/entry-form")["groups"] for o in g["options"]}
     assert books["groceries"]["id"] not in offered, "the Add screen does not offer it"
     assert client.post(f"/api/categories/{books['groceries']['id']}/reopen").status_code == 200
     assert books["groceries"]["id"] in {
         o["id"] for g in view(client, "/api/views/entry-form")["groups"] for o in g["options"]
     }
-
-
-def test_deleting_a_group_takes_its_subcategories_along(client, books):
-    assert client.post(f"/api/categories/{books['food']['id']}/delete").status_code == 200
-    closed = {c["name"]: c["closed_on"] for c in client.get("/api/categories/", params={"include_closed": True}).json()}
-    assert closed["Food"] and closed["Groceries"] and closed["Dining"]
-    assert "Food" not in [r["name"] for r in view(client)["rows"]]
 
 
 def test_a_category_has_no_account_page_and_an_account_no_category_page(client, books):

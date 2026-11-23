@@ -11,6 +11,8 @@ from alembic.config import Config
 from finode.config import settings
 
 BEFORE = "f4b6d8a0c2e5"
+# The last revision before categories became flat (it refuses a category with a parent).
+BEFORE_FLAT = "f9b1d3e5a7c0"
 NOW = datetime.now(UTC)
 USER = uuid4()
 
@@ -57,7 +59,7 @@ def test_the_limits_go_and_the_accounts_stay(alembic):
                 sa.bindparam("n", NOW, type_=sa.DateTime(timezone=True)), sa.bindparam("u", USER, type_=sa.Uuid())
             )
         )
-    command.upgrade(config, "head")
+    command.upgrade(config, BEFORE_FLAT)
     inspector = sa.inspect(engine)
     assert not [c["name"] for c in inspector.get_columns("profiles") if c["name"].startswith("max_depth")]
     with engine.connect() as c:

@@ -9,19 +9,18 @@ import { Icon } from "../../components/Icon";
 import { Sheet } from "../../components/Sheet";
 import { tidyAmount } from "../../lib/amount";
 import styles from "./QuickAdd.module.css";
-import { type AccountTypeOption, type CategoryParent, useAddAccount, useAddCategory } from "./queries";
+import { type AccountTypeOption, useAddAccount, useAddCategory } from "./queries";
 
 export type QuickKind = { what: "account"; root: string } | { what: "category"; kind: "spending" | "earning" };
 
 interface QuickAddProps {
   making: QuickKind;
   accountTypes: AccountTypeOption[];
-  categoryParents: CategoryParent[];
   onMade: (id: string) => void;
   onClose: () => void;
 }
 
-export function QuickAdd({ making, accountTypes, categoryParents, onMade, onClose }: QuickAddProps) {
+export function QuickAdd({ making, accountTypes, onMade, onClose }: QuickAddProps) {
   const places = usePlaces();
   const addAccount = useAddAccount();
   const addCategory = useAddCategory();
@@ -30,7 +29,6 @@ export function QuickAdd({ making, accountTypes, categoryParents, onMade, onClos
   const [name, setName] = useState("");
   // All four types, starting on the one the side was opened for (its first heading: "Bank Account" for Paid from).
   const offered = accountTypes;
-  const [parent, setParent] = useState<string>("");
   const [type, setType] = useState<AccountTypeOption["key"] | "">(
     account ? (offered.find((t) => t.name === making.root)?.key ?? offered[0]?.key ?? "") : "",
   );
@@ -48,7 +46,7 @@ export function QuickAdd({ making, accountTypes, categoryParents, onMade, onClos
       const opening = balance.trim() ? tidyAmount(balance, places).replace(/,/g, "") : "0";
       addAccount.mutate({ name: name.trim(), type, balance: opening, bill_rounding: "none" }, { onSuccess: made });
     } else {
-      addCategory.mutate({ name: name.trim(), kind: making.kind, parent_id: parent || null }, { onSuccess: made });
+      addCategory.mutate({ name: name.trim(), kind: making.kind }, { onSuccess: made });
     }
   };
 
@@ -83,7 +81,7 @@ export function QuickAdd({ making, accountTypes, categoryParents, onMade, onClos
             }}
           />
         </label>
-        {account ? (
+        {account && (
           <label>
             Kind
             <select
@@ -98,25 +96,6 @@ export function QuickAdd({ making, accountTypes, categoryParents, onMade, onClos
                   {t.name}
                 </option>
               ))}
-            </select>
-          </label>
-        ) : (
-          <label>
-            Under
-            <select
-              value={parent}
-              onChange={(event) => {
-                setParent(event.target.value);
-              }}
-            >
-              <option value="">None (top level)</option>
-              {categoryParents
-                .filter((c) => c.kind === making.kind)
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
             </select>
           </label>
         )}

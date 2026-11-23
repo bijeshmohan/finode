@@ -79,8 +79,8 @@ def test_list_accounts(client: TestClient, account: dict, other_account: dict):
     response = client.get("/api/accounts/")
     assert response.status_code == 200
     data = response.json()
-    # 5 root accounts + the 4 types + 2 created by fixtures
-    assert len(data) == 11
+    # 5 root accounts + 2 created by fixtures
+    assert len(data) == 7
     aids = {item["id"] for item in data}
     assert account["id"] in aids
     assert other_account["id"] in aids
@@ -104,15 +104,12 @@ def test_filter_accounts_by_invalid_type(client: TestClient):
 
 
 def test_list_accounts_empty(client: TestClient):
-    # Empty books list the 5 system root accounts and the 4 types
+    # Empty books list the 5 system root accounts
     response = client.get("/api/accounts/")
     assert response.status_code == 200
     data = response.json()
     names = {item["name"] for item in data}
-    assert names == {
-        *("Assets", "Expenses", "Equity", "Income", "Liabilities"),
-        *("Bank Account", "Cash", "Credit Card", "Prepaid Wallet"),
-    }
+    assert names == {"Assets", "Expenses", "Equity", "Income", "Liabilities"}
 
 
 def test_update_account_metadata(client: TestClient, account: dict):
@@ -194,7 +191,7 @@ def test_system_root_modifications_fail(client: TestClient, root_accounts: dict[
 def test_root_accounts_are_provisioned_once(client: TestClient):
     first = client.get("/api/accounts/").json()
     second = client.get("/api/accounts/").json()
-    assert len(first) == len(second) == 9
+    assert len(first) == len(second) == 5
     assert {a["id"] for a in first} == {a["id"] for a in second}
 
 
@@ -274,20 +271,6 @@ def test_account_register_has_running_balance(
     assert [e["balance"] for e in entries] == ["100.00", "70.00", "60.00"]
     assert entries[1]["counter_accounts"] == ["groceries"]
     assert entries[-1]["balance"] == client.get(f"/api/accounts/{bank['id']}").json()["balance"]
-
-
-def test_account_register_uses_normal_side_and_sub_accounts(
-    client: TestClient, root_accounts: dict[str, str], account: dict, session
-):
-    parent = post_account(client, {"name": "food", "parent_id": root_accounts["Expenses"]}).json()
-    child = post_account(client, {"name": "dining", "parent_id": parent["id"]}).json()
-    _transfer(client, child, account, "12.50", "2026-02-02", "lunch")
-
-    entries = plain(services(session).categories.register(UUID(parent["id"])))
-    assert len(entries) == 1
-    assert entries[0]["change"] == "12.50"
-    assert entries[0]["balance"] == "12.50"
-    assert entries[0]["counter_accounts"] == ["checking"]
 
 
 def test_account_register_not_found(session):

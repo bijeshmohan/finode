@@ -109,10 +109,8 @@ def test_unsafe_category_merges_are_refused(client, books):
         "itself": merge_category(client, books["swiggy"], books["swiggy"]),
         "other kind": merge_category(client, books["swiggy"], books["salary"]),
     }
-    kid = account(client, "Kid", books["zomato"]["id"])
-    refused["source with subcategories"] = merge_category(client, books["zomato"], books["swiggy"])
     assert all(r.status_code == 400 for r in refused.values()), {k: r.text for k, r in refused.items()}
-    assert merge_category(client, books["swiggy"], kid).status_code == 200, "a subcategory can take it"
+    assert merge_category(client, books["swiggy"], books["zomato"]).status_code == 200
 
 
 def test_closed_targets_are_refused(client, books):

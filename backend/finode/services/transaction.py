@@ -171,7 +171,7 @@ class TransactionService:
                     )
             elif root == "Equity":
                 raise InvalidPostingError("a category cannot go on a line to an equity account!")
-            elif in_budget(account, accounts_by_id):
+            elif in_budget(account):
                 raise InvalidPostingError(
                     f"'{account.name}' is part of the budget: a category goes on the other side of the entry, "
                     "the account the money was spent on!"
@@ -222,7 +222,7 @@ class TransactionService:
                 )
             if account.closed_on is not None and account.id not in keep_closed:
                 raise InvalidPostingAccountError(f"account '{account.name}' is closed: reopen it to use it!")
-            if account.id in has_children or account.system_key is not None:
+            if account.id in has_children:
                 raise InvalidPostingAccountError(
                     f"cannot post to account '{account.name}' because it is a group of accounts!"
                 )
@@ -304,17 +304,11 @@ class TransactionService:
         return [self._to_read(t, postings.get(t.id, []), tags.get(t.id, [])) for t in transactions]
 
     def _category_paths(self) -> dict[UUID, str]:
-        """Each category as the journal account it stands for: Expenses:Food:Groceries, Income:Salary."""
+        """Each category as the journal account it stands for: Expenses:Groceries, Income:Salary."""
         found = {c.id: c for c in self.cr.list()}
         paths: dict[UUID, str] = {}
         for category_id, category in found.items():
-            chain, current = [], category
-            while current is not None:
-                chain.append(current.name)
-                current = found.get(current.parent_id) if current.parent_id else None
-            paths[category_id] = (
-                ("Expenses" if category.kind == "spending" else "Income") + ":" + ":".join(reversed(chain))
-            )
+            paths[category_id] = ("Expenses" if category.kind == "spending" else "Income") + ":" + category.name
         return paths
 
     def _account_paths(self) -> dict[UUID, str]:
@@ -602,11 +596,10 @@ class TransactionService:
         return subtree
 
     def _category_subtree(self, category_id: UUID) -> builtins.list[UUID]:
-        """A category and the categories inside it."""
-        categories = self.cr.list()
-        if not any(c.id == category_id for c in categories):
+        """The category, which must be the person's."""
+        if self.cr.read(category_id) is None:
             raise ValueError(f"category '{category_id}' not found!")
-        return [c.id for c in categories if c.id == category_id or c.parent_id == category_id]
+        return [category_id]
 
     def _args(
         self, account: UUID | None, kind: str | None, also: UUID | None
@@ -802,7 +795,7 @@ class TransactionService:
         """`payee_routes` with account paths and the kind of entry, for the API and the assistants."""
         paths = self._account_paths()
         categories = {c.id: c for c in self.cr.list()}
-        paths.update(self._category_paths())  # a category reads like the journal's account: Expenses:Food:Groceries
+        paths.update(self._category_paths())  # a category reads like the journal's account: Expenses:Groceries
 
         def side(account_id: UUID) -> RouteAccount:
             return RouteAccount(id=account_id, path=paths.get(account_id, "?"))

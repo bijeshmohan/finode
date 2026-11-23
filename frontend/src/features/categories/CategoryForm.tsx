@@ -1,5 +1,4 @@
-// Adding or editing a category: its name, the group it sits under (our own picker, "None (top
-// level)" first), a note. An edit sends only what changed.
+// Adding or editing a category: its name and a note. An edit sends only what changed.
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
@@ -9,11 +8,8 @@ import { Icon } from "../../components/Icon";
 import { LoadError } from "../../components/LoadError";
 import look from "../../components/Page.module.css";
 import form from "../../components/Forms.module.css";
-import { Picker } from "../../components/lines/Picker";
 import { useAddCategory } from "../../components/lines/queries";
 import { type CategoryFormView, type CategoryUpdate, useCategoryChange, useCategoryForm } from "./queries";
-
-const NONE = "None (top level)";
 
 function FormBody({ view, categoryId }: { view: CategoryFormView; categoryId: string | undefined }) {
   const toast = useToast();
@@ -23,13 +19,10 @@ function FormBody({ view, categoryId }: { view: CategoryFormView; categoryId: st
   const remove = useCategoryChange();
   const editing = view.editing;
   const [name, setName] = useState(view.name);
-  const [parent, setParent] = useState<string | null>(view.parent_id);
   const [note, setNote] = useState(view.details ?? "");
-  const [picking, setPicking] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const tab = view.kind === "earning" ? "income" : "expense";
   const back = editing && categoryId ? `/categories/${categoryId}` : `/categories?tab=${tab}`;
-  const under = view.groups.find((g) => g.id === parent)?.name ?? NONE;
 
   const submit = () => {
     setProblem(null);
@@ -39,7 +32,7 @@ function FormBody({ view, categoryId }: { view: CategoryFormView; categoryId: st
     };
     if (!editing) {
       add.mutate(
-        { name: name.trim(), kind: view.kind, parent_id: parent, details },
+        { name: name.trim(), kind: view.kind, details },
         {
           onSuccess: (made) => {
             toast("Category added");
@@ -53,7 +46,6 @@ function FormBody({ view, categoryId }: { view: CategoryFormView; categoryId: st
     const changes: CategoryUpdate = {};
     if (name.trim() !== view.name) changes.name = name.trim();
     if (details !== view.details) changes.details = details;
-    if (parent !== view.parent_id) changes.parent_id = parent;
     if (!categoryId || Object.keys(changes).length === 0) {
       void navigate(back);
       return;
@@ -98,22 +90,6 @@ function FormBody({ view, categoryId }: { view: CategoryFormView; categoryId: st
             }}
           />
         </label>
-        {(view.groups.length > 0 || view.parent_id) && (
-          <div className={form.field}>
-            <span aria-hidden="true">Under</span>
-            <button
-              type="button"
-              className={form.pick}
-              aria-haspopup="dialog"
-              aria-label={`Under: ${under}`}
-              onClick={() => {
-                setPicking(true);
-              }}
-            >
-              <span>{under}</span>
-            </button>
-          </div>
-        )}
         <details className={form.note} open={view.details ? true : undefined}>
           <summary>{view.details ? "Note" : "+ Add a note"}</summary>
           <label>
@@ -144,25 +120,6 @@ function FormBody({ view, categoryId }: { view: CategoryFormView; categoryId: st
           </button>
         </div>
       </form>
-      {picking && (
-        <Picker
-          open
-          title="Under"
-          groups={[
-            {
-              title: view.kind === "earning" ? "Earning" : "Spending",
-              options: view.groups.map((g) => ({ id: g.id, label: g.name, budget: false, balance: null })),
-            },
-          ]}
-          value={parent}
-          clearable={NONE}
-          onChange={setParent}
-          onClose={() => {
-            setPicking(false);
-          }}
-        />
-      )}
-
       {editing && categoryId && (
         <section className={form.danger}>
           {remove.isError && (
@@ -200,17 +157,13 @@ function FormBody({ view, categoryId }: { view: CategoryFormView; categoryId: st
   );
 }
 
-/** /categories/new (?root=, ?parent=) and /categories/:categoryId/edit. */
+/** /categories/new (?root=) and /categories/:categoryId/edit. */
 export function CategoryForm() {
   const { categoryId } = useParams();
   const [params] = useSearchParams();
-  const query: { category_id?: string; parent?: string; root?: string } = categoryId ? { category_id: categoryId } : {};
-  if (!categoryId) {
-    const parent = params.get("parent");
-    const root = params.get("root");
-    if (parent) query.parent = parent;
-    if (root) query.root = root;
-  }
+  const query: { category_id?: string; root?: string } = categoryId ? { category_id: categoryId } : {};
+  const root = params.get("root");
+  if (!categoryId && root) query.root = root;
   const view = useCategoryForm(query);
   if (view.isError) return <LoadError error={view.error} onRetry={() => void view.refetch()} />;
   if (!view.data) return <h1 className="sr-only">{categoryId ? "Edit category" : "Add category"}</h1>;

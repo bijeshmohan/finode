@@ -14,9 +14,9 @@ export function categories(over: Partial<CategoriesView> = {}): CategoriesView {
     tab: "expense",
     grand: "1000.00",
     rows: [
-      { id: ids.rent, name: "Rent", total: "600.00", hint: "", share: "60%" },
-      { id: ids.food, name: "Food", total: "400.00", hint: "Groceries · Dining", share: "40%" },
-      { id: ids.groceries, name: "Travel", total: "0.00", hint: "", share: "0%" },
+      { id: ids.rent, name: "Rent", total: "600.00", share: "60%" },
+      { id: ids.food, name: "Food", total: "400.00", share: "40%" },
+      { id: ids.groceries, name: "Travel", total: "0.00", share: "0%" },
     ],
     ...over,
   };
@@ -30,13 +30,9 @@ export function category(over: Partial<CategoryView> = {}): CategoryView {
     kind: "spending",
     built_in: false,
     closed_on: null,
-    group: null,
     month: "2026-11",
     is_current: true,
     total: "350.00",
-    subs: [{ id: ids.groceries, name: "Groceries", total: "300.00" }],
-    own_here: "50.00",
-    can_add_child: true,
     can_delete: true,
     new_transaction_url: `/transactions/new?category=${ids.food}&back=/categories/${ids.food}`,
     entries: [],
@@ -50,11 +46,6 @@ export function categoryForm(over: Partial<CategoryFormView> = {}): CategoryForm
     kind: "spending",
     name: "",
     details: null,
-    parent_id: null,
-    groups: [
-      { id: ids.food, name: "Food" },
-      { id: ids.rent, name: "Rent" },
-    ],
     ...over,
   };
 }

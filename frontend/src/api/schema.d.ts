@@ -553,26 +553,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/budget/groups/{category_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Assign Group
-         * @description Set a group's budget for a month: at least what its subcategories add up to; the rest is the group's own money.
-         */
-        put: operations["assign_group_api_budget_groups__category_id__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/budget/move": {
         parameters: {
             query?: never;
@@ -609,8 +589,7 @@ export interface paths {
         put?: never;
         /**
          * Create Category
-         * @description Make a category, or a group (leave out `parent_id`) to put categories in. Two levels at most; names are unique
-         *     inside a group, capitals aside.
+         * @description Make a category. Categories are one flat list; names are unique per kind, capitals aside.
          */
         post: operations["create_category_api_categories__post"];
         delete?: never;
@@ -651,7 +630,7 @@ export interface paths {
         put?: never;
         /**
          * Close Category
-         * @description Close a category (and what is inside a group): its history stays, nothing more can be labelled with it.
+         * @description Close a category: its history stays, nothing more can be labelled with it.
          */
         post: operations["close_category_api_categories__category_id__close_post"];
         delete?: never;
@@ -712,8 +691,8 @@ export interface paths {
         };
         /**
          * Category Register
-         * @description The entries that have a line labelled with the category (and with the categories in it, unless `own_only`),
-         *     oldest first, each with what it changed and the running total.
+         * @description The entries that have a line labelled with the category, oldest first, each with what it changed and the running
+         *     total.
          */
         get: operations["category_register_api_categories__category_id__register_get"];
         put?: never;
@@ -1376,8 +1355,8 @@ export interface paths {
         };
         /**
          * Get Breakdown
-         * @description Where the money went (or came from) in a period, `depth` levels down: what it was for, as the Budget counts it
-         *     (paying into a loan is spending in its category).
+         * @description Where the money went (or came from) in a period by category: what it was for, as the Budget counts it (paying
+         *     into a loan is spending in its category).
          */
         get: operations["get_breakdown_api_reports_breakdown_get"];
         put?: never;
@@ -2001,7 +1980,7 @@ export interface paths {
          * Budget Page View
          * @description The Budgets page for a month (`YYYY-MM`; this month for anything else): Ready to assign and the sum behind it,
          *     what copying last month would assign, and the categories biggest budget first, each with how its row reads (`of`,
-         *     `state`, `hint`, the bar's `percent`); whole groups with nothing in them are `unused` once anything is in use.
+         *     `state`, `hint`, the bar's `percent`).
          */
         get: operations["budget_page_view_api_views_budget_get"];
         put?: never;
@@ -2033,27 +2012,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/views/budget/groups/{category_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Budget Group View
-         * @description One group's budget for a month: its glance (what is left, spent out of what there was), its categories, and the
-         *     least the group itself can be given (`minimum`: what its categories add up to).
-         */
-        get: operations["budget_group_view_api_views_budget_groups__category_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/views/categories": {
         parameters: {
             query?: never;
@@ -2064,7 +2022,7 @@ export interface paths {
         /**
          * Categories View
          * @description The Categories page for a month (`YYYY-MM`; this month by default) and a tab (`expense` or `income`): what each
-         *     top-level category came to, biggest first, with the biggest inside it (`hint`) and its share of the month.
+         *     category came to, biggest first, with its share of the month.
          */
         get: operations["categories_view_api_views_categories_get"];
         put?: never;
@@ -2084,8 +2042,7 @@ export interface paths {
         };
         /**
          * Category View
-         * @description A category's own page for a month: the whole category's figure, its subcategories with theirs and what was
-         *     labelled with it itself besides them (`own_here`), and its own entries newest first.
+         * @description A category's own page for a month: its figure and its entries newest first.
          */
         get: operations["category_view_api_views_categories__category_id__get"];
         put?: never;
@@ -2105,8 +2062,7 @@ export interface paths {
         };
         /**
          * Category Form View
-         * @description Where the category form starts: editing `category_id`, or a new category (`root` = `expense` or `income`; inside
-         *     the group `parent`, whose kind it takes). `groups` are where it can go (none for a group that holds categories).
+         * @description Where the category form starts: editing `category_id`, or a new category (`root` = `expense` or `income`).
          */
         get: operations["category_form_view_api_views_category_form_get"];
         put?: never;
@@ -2562,8 +2518,6 @@ export interface components {
             pinned: boolean;
             /** Statement Day */
             statement_day?: number | null;
-            /** System Key */
-            system_key?: string | null;
             /** Type */
             type?: ("assets.bank" | "assets.cash" | "liabilities.cards" | "assets.wallet") | null;
             /**
@@ -2622,8 +2576,6 @@ export interface components {
          * @description An account's (or a group's) own page.
          */
         AccountView: {
-            /** Add Url */
-            add_url: string | null;
             /** Badge */
             badge: ("system" | "closed") | null;
             /** Balance */
@@ -2985,29 +2937,6 @@ export interface components {
             /** Month */
             month?: string | null;
         };
-        /** BudgetGroupView */
-        BudgetGroupView: {
-            /** Assigned */
-            assigned: string;
-            glance: components["schemas"]["GlanceBlock"];
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Is Current */
-            is_current: boolean;
-            /** Kids */
-            kids: components["schemas"]["BudgetRowRead"][];
-            /** Minimum */
-            minimum: string;
-            /** Month */
-            month: string;
-            /** Name */
-            name: string;
-            /** Pace */
-            pace: number | null;
-        };
         /** BudgetLine */
         BudgetLine: {
             /** Activity */
@@ -3021,19 +2950,10 @@ export interface components {
              * Format: uuid
              */
             category_id: string;
-            /** Depth */
-            depth: number;
-            /**
-             * Group
-             * @default false
-             */
-            group: boolean;
             /** Name */
             name: string;
             /** Overspent Last Month */
             overspent_last_month: string;
-            /** Path */
-            path: string;
         };
         /**
          * BudgetMove
@@ -3105,8 +3025,8 @@ export interface components {
         };
         /**
          * BudgetRowRead
-         * @description One row of the Budgets page or a group's page (services/budget_view): a category (or a group) with what is left,
-         *     how its second line reads and how far its bar runs.
+         * @description One row of the Budgets page (services/budget_view): a category with what is left, how its second line reads and
+         *     how far its bar runs.
          */
         BudgetRowRead: {
             /** Activity */
@@ -3120,12 +3040,8 @@ export interface components {
              * Format: uuid
              */
             category_id: string;
-            /** Group Name */
-            group_name: string | null;
             /** Hint */
             hint: string;
-            /** Is Group */
-            is_group: boolean;
             /** Name */
             name: string;
             /** Of */
@@ -3138,8 +3054,6 @@ export interface components {
             percent: number;
             /** State */
             state: ("overspent" | "all_spent") | null;
-            /** Unused */
-            unused: boolean;
         };
         /**
          * BudgetSum
@@ -3176,8 +3090,6 @@ export interface components {
             /** Show Intro */
             show_intro: boolean;
             sum: components["schemas"]["BudgetSum"];
-            /** Unused Count */
-            unused_count: number;
         };
         /**
          * CardBill
@@ -3271,8 +3183,6 @@ export interface components {
             kind: "spending" | "earning";
             /** Name */
             name: string;
-            /** Parent Id */
-            parent_id?: string | null;
         };
         /** CategoryDeleteResult */
         CategoryDeleteResult: {
@@ -3289,8 +3199,6 @@ export interface components {
             details: string | null;
             /** Editing */
             editing: boolean;
-            /** Groups */
-            groups: components["schemas"]["CategoryRef"][];
             /**
              * Kind
              * @enum {string}
@@ -3298,8 +3206,6 @@ export interface components {
             kind: "spending" | "earning";
             /** Name */
             name: string;
-            /** Parent Id */
-            parent_id: string | null;
         };
         /**
          * CategoryMergeResult
@@ -3323,24 +3229,6 @@ export interface components {
             /** Source */
             source: string;
         };
-        /**
-         * CategoryParent
-         * @description A top-level category a new one can go under.
-         */
-        CategoryParent: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "spending" | "earning";
-            /** Name */
-            name: string;
-        };
         /** CategoryRead */
         CategoryRead: {
             /** Closed On */
@@ -3359,30 +3247,14 @@ export interface components {
             kind: "spending" | "earning";
             /** Name */
             name: string;
-            /** Parent Id */
-            parent_id?: string | null;
-            /** Path */
-            path: string;
             /** System Key */
             system_key?: string | null;
         };
-        /** CategoryRef */
-        CategoryRef: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Name */
-            name: string;
-        };
         /**
          * CategoryRowRead
-         * @description One row of the Categories page: a top-level category, its month, what is inside it and its share.
+         * @description One row of the Categories page: a category, its month and its share.
          */
         CategoryRowRead: {
-            /** Hint */
-            hint: string;
             /**
              * Id
              * Format: uuid
@@ -3401,8 +3273,6 @@ export interface components {
             details?: string | null;
             /** Name */
             name?: string | null;
-            /** Parent Id */
-            parent_id?: string | null;
         };
         /**
          * CategoryView
@@ -3411,8 +3281,6 @@ export interface components {
         CategoryView: {
             /** Built In */
             built_in: boolean;
-            /** Can Add Child */
-            can_add_child: boolean;
             /** Can Delete */
             can_delete: boolean;
             /** Closed On */
@@ -3421,7 +3289,6 @@ export interface components {
             details: string | null;
             /** Entries */
             entries: components["schemas"]["RegisterRowRead"][];
-            group: components["schemas"]["CategoryRef"] | null;
             /**
              * Id
              * Format: uuid
@@ -3440,10 +3307,6 @@ export interface components {
             name: string;
             /** New Transaction Url */
             new_transaction_url: string | null;
-            /** Own Here */
-            own_here: string;
-            /** Subs */
-            subs: components["schemas"]["SubcategoryRead"][];
             /** Total */
             total: string;
         };
@@ -3832,8 +3695,6 @@ export interface components {
         EntryFormView: {
             /** Account Types */
             account_types: components["schemas"]["AccountTypeOption"][];
-            /** Category Parents */
-            category_parents: components["schemas"]["CategoryParent"][];
             /** Comment */
             comment: string;
             /**
@@ -4055,19 +3916,6 @@ export interface components {
             /** Value */
             value: string;
         };
-        /** GlanceBlock */
-        GlanceBlock: {
-            /** Left */
-            left: string;
-            /** Of */
-            of: string;
-            /** Percent */
-            percent: number;
-            /** Planned */
-            planned: boolean;
-            /** Spent */
-            spent: string;
-        };
         /**
          * GlanceRead
          * @description Home's budget at a glance for the month.
@@ -4089,13 +3937,6 @@ export interface components {
             percent: number;
             /** Spent */
             spent: string;
-        };
-        /** GroupAssign */
-        GroupAssign: {
-            /** Month */
-            month?: string | null;
-            /** Total */
-            total: number | string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -4312,11 +4153,6 @@ export interface components {
             all_closed: boolean;
             /** Cards */
             cards: components["schemas"]["AccountCard"][];
-            /**
-             * Group Id
-             * Format: uuid
-             */
-            group_id: string;
             /** Name */
             name: string;
             /** Open Count */
@@ -4368,8 +4204,8 @@ export interface components {
              * Format: uuid
              */
             category_id: string;
-            /** Path */
-            path: string;
+            /** Name */
+            name: string;
         };
         /** ObligationRead */
         ObligationRead: {
@@ -4942,8 +4778,6 @@ export interface components {
             account_types: components["schemas"]["AccountTypeOption"][];
             /** Active */
             active?: boolean | null;
-            /** Category Parents */
-            category_parents: components["schemas"]["CategoryParent"][];
             /** Comment */
             comment: string;
             /** Editing */
@@ -5722,18 +5556,6 @@ export interface components {
             key: "account" | "spend" | "budget";
             /** Title */
             title: string;
-        };
-        /** SubcategoryRead */
-        SubcategoryRead: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Name */
-            name: string;
-            /** Total */
-            total: string;
         };
         /** SummaryRead */
         SummaryRead: {
@@ -7129,41 +6951,6 @@ export interface operations {
             };
         };
     };
-    assign_group_api_budget_groups__category_id__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                category_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GroupAssign"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BudgetRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     move_money_api_budget_move_post: {
         parameters: {
             query?: never;
@@ -7430,7 +7217,6 @@ export interface operations {
     category_register_api_categories__category_id__register_get: {
         parameters: {
             query?: {
-                own_only?: boolean;
                 limit?: number | null;
                 offset?: number;
             };
@@ -8730,7 +8516,6 @@ export interface operations {
                 kind?: "expenses" | "income";
                 date_from?: string | null;
                 date_to?: string | null;
-                depth?: number;
             };
             header?: never;
             path?: never;
@@ -9984,39 +9769,6 @@ export interface operations {
             };
         };
     };
-    budget_group_view_api_views_budget_groups__category_id__get: {
-        parameters: {
-            query?: {
-                month?: string;
-            };
-            header?: never;
-            path: {
-                category_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BudgetGroupView"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     categories_view_api_views_categories_get: {
         parameters: {
             query?: {
@@ -10086,7 +9838,6 @@ export interface operations {
         parameters: {
             query?: {
                 category_id?: string | null;
-                parent?: string | null;
                 root?: string;
             };
             header?: never;

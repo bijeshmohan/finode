@@ -190,7 +190,7 @@ def canonical(doc: dict) -> dict:
     paths = {account_id: path(account_id) for account_id in by_id}
     cats = {c["id"]: c for c in doc["categories"]}
     for category_id, c in cats.items():
-        group = cats.get(c["parent_id"])
+        group = cats.get(c.get("parent_id"))
         paths[category_id] = (
             ("Expenses" if c["kind"] == "spending" else "Income")
             + ":"
@@ -285,7 +285,7 @@ def test_the_backup_has_everything(client, rich):
         and 'attachment; filename="finode-backup-' in response.headers["content-disposition"]
     )
     doc = response.json()
-    assert doc["format"] == "finode-backup" and doc["version"] == 6
+    assert doc["format"] == "finode-backup" and doc["version"] == 7
     assert doc["profile"]["first_name"] == "Ada" and doc["profile"]["default_currency"] == "INR"
     names = {a["name"] for a in doc["accounts"]}
     assert {
@@ -476,7 +476,7 @@ def test_a_broken_file_is_refused_and_saves_nothing(client, rich):
         cycle = json.loads(json.dumps(doc))
         banks = next(a for a in cycle["accounts"] if a["name"] == "Banks")
         hdfc = next(a for a in cycle["accounts"] if a["name"] == "HDFC")
-        banks["parent_id"] = hdfc["id"]
+        banks["parent_id"], hdfc["parent_id"] = hdfc["id"], banks["id"]
         assert post(cycle).status_code == 400
         after = client.get("/api/backup").json()
         assert after["transactions"] == [] and not [
@@ -650,10 +650,18 @@ def test_a_backup_before_contacts_restores_without_them(client, rich):
     doc["version"] = 5
     for key in ("contacts", "party_transactions", "obligations", "settlements", "shared_expenses"):
         del doc[key]
+    # A file from before contacts has no "Due from" or "Due to" accounts, nor entries with them.
+    people = {a["id"] for a in doc["accounts"] if a["name"].startswith(("Due from ", "Due to "))}
+    doc["accounts"] = [a for a in doc["accounts"] if a["id"] not in people]
+    doc["transactions"] = [t for t in doc["transactions"] if not {p["account"] for p in t["postings"]} & people]
+    kept = {t["id"] for t in doc["transactions"]}
+    for t in doc["transactions"]:
+        if t.get("related_id") not in kept:
+            t["related_id"] = None
     try:
         as_user(OTHER)
         done = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
-        assert done.status_code == 200 and done.json()["contacts"] == 0
+        assert done.status_code == 200 and done.json()["contacts"] == 0, done.text
     finally:
         as_user(TEST_USER_ID)
 

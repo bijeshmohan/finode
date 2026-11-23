@@ -1,4 +1,4 @@
-"""The accounts table: a tree of the places money is kept or owed, under five roots per person."""
+"""The accounts table: the places money is kept or owed, each straight under one of five roots per person."""
 
 from datetime import date as Date
 from uuid import UUID, uuid4
@@ -21,14 +21,11 @@ class Account(TimestampMixin, table=True):
             sqlite_where=text("parent_id IS NULL"),
             postgresql_where=text("parent_id IS NULL"),
         ),
-        # One built-in group of each kind per person (see services/account.py FIXED_PARENTS).
-        Index(
-            "uq_accounts_user_system_key",
-            "user_id",
-            "system_key",
-            unique=True,
-            sqlite_where=text("system_key IS NOT NULL"),
-            postgresql_where=text("system_key IS NOT NULL"),
+        # Which of the four types an account is (services/account_types.py TYPE_KEYS); NULL for a root, Opening
+        # Balances and a person's "Due from"/"Due to".
+        CheckConstraint(
+            "type IS NULL OR type IN ('assets.bank', 'assets.cash', 'liabilities.cards', 'assets.wallet')",
+            name="ck_accounts_type",
         ),
         # A card's bill days (see services/cards.py): 1 to 31, both or neither.
         CheckConstraint("statement_day IS NULL OR statement_day BETWEEN 1 AND 31", name="ck_accounts_statement_day"),
@@ -49,10 +46,9 @@ class Account(TimestampMixin, table=True):
     due_day: int | None = Field(default=None)
     # How the bank rounds the bill: "none" (to the paisa), "nearest" or "up" (to a whole unit of the currency).
     bill_rounding: str = Field(default="none", max_length=8, sa_column_kwargs={"server_default": "none"})
-    # Set on the four account types' own groups (services/account_types.py: assets.bank, assets.cash,
-    # liabilities.cards, assets.wallet): they cannot be renamed, moved, closed or deleted, and every account under one is
-    # part of the budget.
-    system_key: str | None = Field(default=None, max_length=40)
+    # The account's type: assets.bank (Bank Account), assets.cash (Cash), liabilities.cards (Credit Card) or
+    # assets.wallet (Prepaid Wallet). Every account with a type sits straight under its root and is part of the budget.
+    type: str | None = Field(default=None, max_length=20)
     # Whether the person pinned this account: the Accounts page lists pinned ones again in a row at its top.
     pinned: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
 

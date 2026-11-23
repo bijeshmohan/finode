@@ -7,13 +7,15 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date as Date
 from decimal import Decimal
-from uuid import UUID
+from typing import cast
+from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
 from ..clock import local_today
 from ..config import settings
 from ..ledger import AccountDecl, LedgerPosting, LedgerTransaction, parse, write
+from ..ledger.model import Journal
 from ..ledger.parse import _plain
 from ..limits import LimitReached, ensure_room
 from ..models import Account
@@ -21,13 +23,14 @@ from ..models.category import BudgetCategory
 from ..models.transaction import Posting, PostingSide
 from ..models.utils import normalize_amount
 from ..repositories import AccountRepository, CategoryRepository, ProfileRepository, TransactionRepository
-from ..schemas.account import AccountBase
+from ..schemas.account import AccountBase, AccountType
 from ..schemas.category import CategoryCreate
 from ..schemas.data import ImportSummary
 from ..schemas.transaction import PostingCreate, TransactionCreate
 from ..tags import clean_names
-from .account import GROUP_POSTING_ROOT_NAMES, MAX_ACCOUNT_DEPTH, OPENING_BALANCES_ACCOUNT_NAME, AccountService
+from .account import GROUP_POSTING_ROOT_NAMES, OPENING_BALANCES_ACCOUNT_NAME, AccountService
 from .account_types import TYPE_NAMES, TYPE_ROOTS
+from .flatten import flat_category_names
 
 MAX_REPORTED_ERRORS = 20
 ROOT_ALIASES = {
@@ -50,6 +53,7 @@ TYPE_ALIASES = {
     "credit cards": "Credit Card",
 }
 TYPE_ROOT_OF = {name: TYPE_ROOTS[key] for key, name in TYPE_NAMES.items()}
+TYPE_KEY_OF = {name: key for key, name in TYPE_NAMES.items()}
 NOT_A_TYPE = (
     "accounts go under Cash, Bank Account, Credit Card or Prepaid Wallet; record investments and loans as categories"
 )
@@ -99,7 +103,9 @@ class _Planned:
 class _Plan:
     summary: ImportSummary = field(default_factory=ImportSummary)
     new_accounts: list[tuple[Key, str | None]] = field(default_factory=list)  # key, note
-    new_categories: list[tuple[Key, str | None]] = field(default_factory=list)  # key (Expenses:Food:Groceries), note
+    new_categories: list[tuple[Key, str | None]] = field(default_factory=list)  # key (Expenses:Groceries), note
+    # Each category path of the file (Expenses:Food:Groceries) as the flat category it becomes (Expenses:Groceries).
+    category_flat: dict[Key, Key] = field(default_factory=dict)
     transactions: list[_Planned] = field(default_factory=list)
 
 
@@ -127,9 +133,31 @@ def _resolve(path: str) -> Key:
     parts[0] = root
     if root == "Equity" and len(parts) == 2 and parts[1].casefold() in OPENING_BALANCE_NAMES:
         parts[1] = OPENING_BALANCES_ACCOUNT_NAME
-    if root in ("Assets", "Liabilities") and len(parts) >= 2 and parts[1].casefold() in TYPE_ALIASES:
+    if root in ("Assets", "Liabilities") and len(parts) >= 3 and parts[1].casefold() in TYPE_ALIASES:
         parts[1] = TYPE_ALIASES[parts[1].casefold()]
     return tuple(parts)
+
+
+def _journal_key(account: Account, by_id: dict[UUID, Account]) -> Key:
+    """An account as the journal names it: its root and its name (`Assets:HDFC`)."""
+    names = [_segment(account.name)]
+    current = account
+    while current.parent_id is not None and current.parent_id in by_id:
+        current = by_id[current.parent_id]
+        names.append(_segment(current.name))
+    return tuple(reversed(names))
+
+
+def _typed_key(account: Account, by_id: dict[UUID, Account]) -> Key:
+    """How the import knows an account: one of the four types with its type between the root and its name
+    (`Assets:Bank Account:HDFC`, the form older exports wrote), anything else as the journal names it."""
+    key = _journal_key(account, by_id)
+    return (key[0], TYPE_NAMES[account.type], *key[1:]) if account.type in TYPE_NAMES else key
+
+
+def _kind_name(label: str) -> str | None:
+    """The type a `; kind:` label names (its name, a plural of it or its key), or None."""
+    return TYPE_ALIASES.get(label.strip().casefold()) or TYPE_NAMES.get(label.strip())
 
 
 def _account_place_error(key: Key) -> str | None:
@@ -152,6 +180,23 @@ def _is_category(key: Key) -> bool:
     return len(key) >= 2 and key[0] in CATEGORY_ROOTS
 
 
+def used_categories(journal: Journal, known: set[Key]) -> set[Key]:
+    """The category paths a journal's lines post to or label (`; category: Food:Groceries`)."""
+    found: set[Key] = set()
+    for transaction in journal.transactions:
+        for posting in transaction.postings:
+            for path in (posting.account, f"Expenses:{posting.category}" if posting.category else None):
+                if path is None:
+                    continue
+                try:
+                    key = _resolve(path)
+                except ValueError:
+                    continue
+                if key in known:
+                    found.add(key)
+    return found
+
+
 def _formula_safe(text: str | None) -> str:
     text = text or ""
     return "'" + text if text[:1] in ("=", "+", "-", "@") else text
@@ -172,17 +217,7 @@ class DataService:
         accounts = self.accounts.ensure_roots()
         by_id = {a.id: a for a in accounts}
 
-        def path(account_id: UUID) -> str:
-            names = []
-            current = by_id[account_id]
-            while True:
-                names.append(_segment(current.name))
-                if current.parent_id is None:
-                    break
-                current = by_id[current.parent_id]
-            return ":".join(reversed(names))
-
-        paths = {account_id: path(account_id) for account_id in by_id}
+        paths = {account_id: ":".join(_journal_key(by_id[account_id], by_id)) for account_id in by_id}
         postings: dict[UUID, list] = {}
         for posting in sorted(self.tr.all_postings(), key=lambda p: (p.side != PostingSide.DEBIT, p.created)):
             postings.setdefault(posting.transaction_id, []).append(posting)
@@ -190,25 +225,15 @@ class DataService:
         return accounts, paths, postings, transactions, self.tr.all_tag_map()
 
     def _category_paths(self) -> dict[UUID, str]:
-        """Each category as the path a ledger line names it by: its group and its name ("Food:Groceries")."""
+        """Each category's name, as a ledger line names it below Expenses or Income ("Groceries")."""
         by_id = {c.id: c for c in CategoryRepository(self.ar.db, self.ar.uid).list()}
-        found: dict[UUID, str] = {}
-        for category_id, category in by_id.items():
-            names, seen, current = [], set(), category
-            while current.id not in seen:
-                seen.add(current.id)
-                names.append(current.name)
-                if current.parent_id is None or current.parent_id not in by_id:
-                    break
-                current = by_id[current.parent_id]
-            found[category_id] = ":".join(reversed(names))
-        return found
+        return {category_id: category.name for category_id, category in by_id.items()}
 
     def _line_paths(
         self, accounts: Sequence[Account], paths: dict[UUID, str]
     ) -> tuple[Callable[[Posting], str], set[UUID]]:
         """How a line is named in a journal: a line on Expenses or Income is written as the account of its category
-        (`Expenses:Food:Groceries`, which is what other ledger tools expect); any other line by its account."""
+        (`Expenses:Groceries`, which is what other ledger tools expect); any other line by its account."""
         roots = {a.id for a in accounts if a.parent_id is None and a.name in CATEGORY_ROOTS}
         names = self._category_paths()
 
@@ -226,7 +251,7 @@ class DataService:
         categories = CategoryRepository(self.ar.db, self.ar.uid).list()
         names = self._category_paths()
         decls = [
-            AccountDecl(paths[a.id], a.details)
+            AccountDecl(paths[a.id], a.details, kind=TYPE_NAMES.get(a.type or ""))
             for a in sorted(accounts, key=lambda a: paths[a.id])
             if a.parent_id is not None
         ] + [
@@ -286,7 +311,7 @@ class DataService:
     # --- import -----------------------------------------------------------
 
     def _category_keys(self) -> dict[Key, UUID]:
-        """The categories as the journal paths that name them (`Expenses:Food:Groceries`)."""
+        """The categories as the journal paths that name them (`Expenses:Groceries`)."""
         found: dict[Key, UUID] = {}
         for category_id, path in self._category_paths().items():
             category = next(c for c in CategoryRepository(self.ar.db, self.ar.uid).list() if c.id == category_id)
@@ -299,16 +324,10 @@ class DataService:
     def _existing_keys(self) -> dict[Key, UUID]:
         accounts = self.accounts.ensure_roots()
         by_id = {a.id: a for a in accounts}
-        keys: dict[Key, UUID] = {}
-        for account in accounts:
-            names = []
-            current = account
-            while True:
-                names.append(current.name)
-                if current.parent_id is None:
-                    break
-                current = by_id[current.parent_id]
-            keys[tuple(reversed(names))] = account.id
+        keys: dict[Key, UUID] = {_typed_key(a, by_id): a.id for a in accounts}
+        for a in accounts:  # a type's segment (Assets:Bank Account) stands for its root
+            if a.parent_id is None and a.name in ("Assets", "Liabilities"):
+                keys |= {(a.name, TYPE_NAMES[k]): a.id for k, root in TYPE_ROOTS.items() if root == a.name}
         return keys
 
     def _plan(self, text: str) -> _Plan:
@@ -330,12 +349,61 @@ class DataService:
             """Amounts may be written bare, or with the code or sign of the person's own currency."""
             return label is None or label.casefold() in {currency.code.casefold(), (currency.symbol or "").casefold()}
 
+        # An account straight under Assets or Liabilities is known by its type (Assets:Bank Account:HDFC): the type an
+        # account here already has, or the one its `; kind:` label names. finode never picks one.
+        labels: dict[Key, str] = {}
+        for decl in journal.accounts:
+            if decl.kind is None:
+                continue
+            try:
+                labelled = _resolve(decl.name)
+            except ValueError:
+                continue  # reported below
+            kind = _kind_name(decl.kind)
+            if kind is None:
+                errors.append(
+                    f"line {decl.line}: '{decl.kind}' is not a kind of account: use Bank Account, Cash, Credit Card or "
+                    "Prepaid Wallet"
+                )
+            elif TYPE_ROOT_OF[kind] != labelled[0]:
+                errors.append(f"line {decl.line}: '{':'.join(labelled)}' cannot be a {kind}")
+            else:
+                labels[labelled] = kind
+        flat_existing = {(k[0], k[2]): k for k in existing if len(k) == 3 and k[1] in TYPE_ROOT_OF}
+        untyped: set[Key] = set()
+        kinds_posted: set[Key] = set()
+
+        def canon(key: Key, line: int, posted: bool = True) -> Key:
+            """`posted`: the key is a line's (a type's own segment is never posted to; an older export declares it)."""
+            if key[0] not in ("Assets", "Liabilities") or len(key) != 2:
+                return key
+            if key in flat_existing:  # an account here already (one named like its type, "Cash", included)
+                return flat_existing[key]
+            if key in labels:
+                return (key[0], labels[key], key[1])
+            if key[1] in TYPE_ROOT_OF:
+                if posted and key not in kinds_posted:
+                    kinds_posted.add(key)
+                    errors.append(
+                        f"line {line}: '{':'.join(key)}' is a kind, not an account: post to one of its accounts"
+                    )
+                return key
+            if key in existing:  # a person's "Due from"/"Due to"
+                return key
+            if key not in untyped:
+                untyped.add(key)
+                errors.append(
+                    f"line {line}: '{':'.join(key)}' has no type: add `; kind: Bank Account` (or Cash, Credit Card, "
+                    "Prepaid Wallet) to its `account` line"
+                )
+            return key
+
         # Accounts: everything declared or posted to, plus their parents.
         declared: dict[Key, tuple[str | None, int]] = {}
         used: dict[Key, int] = {}
         for decl in journal.accounts:
             try:
-                declared.setdefault(_resolve(decl.name), (decl.note, decl.line))
+                declared.setdefault(canon(_resolve(decl.name), decl.line, posted=False), (decl.note, decl.line))
             except ValueError as e:
                 errors.append(f"line {decl.line}: {e}")
         for transaction in journal.transactions:
@@ -343,7 +411,7 @@ class DataService:
                 if posting.amount == 0:
                     continue
                 try:
-                    key = _resolve(posting.account)
+                    key = canon(_resolve(posting.account), posting.line)
                 except ValueError as e:
                     errors.append(f"line {posting.line}: {e}")
                     continue
@@ -366,8 +434,8 @@ class DataService:
                 category_notes.setdefault(key, meta)
                 if len(key) > 3:
                     errors.append(
-                        f"line {meta[1]}: '{':'.join(key)}' is {len(key) - 1} levels deep, but categories can be "
-                        "at most 2 levels deep (a category and a subcategory): flatten it."
+                        f"line {meta[1]}: '{':'.join(key)}' is {len(key) - 1} levels deep: categories are one flat list "
+                        "(an older file may have a category and a subcategory, no more)."
                     )
         declared = {k: v for k, v in declared.items() if not _is_category(k)}
         used = {k: v for k, v in used.items() if not _is_category(k)}
@@ -376,6 +444,15 @@ class DataService:
         for key in list(known_categories):
             if len(key) == 3:
                 known_categories.add(key[:2])  # the group a category is in
+        # An older file's subcategories become categories of their own (services/flatten.py): a group with no line of
+        # its own goes, a clashing name takes its group's name.
+        own_lines = used_categories(journal, known_categories)
+        refs = {k: uuid4() for k in known_categories}
+        flat_names, dropped = flat_category_names(
+            [(refs[k], k[-1], CATEGORY_ROOTS[k[0]], refs[k[:2]] if len(k) == 3 else None) for k in known_categories],
+            {refs[k] for k in own_lines},
+        )
+        plan.category_flat = {k: (k[0], flat_names[refs[k]]) for k in known_categories if refs[k] not in dropped}
 
         for key, (_, line) in declared.items():
             if (why := _account_place_error(key)) is not None:
@@ -404,15 +481,8 @@ class DataService:
 
         new = sorted((key for key in known if key not in existing), key=lambda k: (len(k), k))
         for key in new:
-            depth = len(key) - 1
-            if depth > MAX_ACCOUNT_DEPTH:
-                line = declared.get(key, (None, used.get(key, 0)))[1] or next(
-                    (n for k, n in used.items() if k[: len(key)] == key), 0
-                )
-                errors.append(
-                    f"line {line}: '{':'.join(key)}' is {depth} levels deep, but accounts can be at most "
-                    f"{MAX_ACCOUNT_DEPTH} levels deep (a category and a subcategory): flatten the account."
-                )
+            if key in untyped or (len(key) == 2 and key[1] in TYPE_ROOT_OF):
+                continue  # refused above; a type's own segment (Assets:Bank Account) is not an account
             note = declared.get(key, (None, 0))[0]
             try:
                 AccountBase(name=key[-1], details=note, parent_id=PLACEHOLDER)
@@ -421,13 +491,14 @@ class DataService:
                 errors.append(f"line {line}: account '{':'.join(key)}': {_message(e)}")
             plan.new_accounts.append((key, note))
 
-        for key in sorted((k for k in known_categories if k not in existing_categories), key=lambda k: (len(k), k)):
+        for key in sorted((k for k in plan.category_flat if k not in existing_categories), key=lambda k: (len(k), k)):
             note, line = category_notes.get(key, (None, 0))
+            flat = plan.category_flat[key]
             try:
-                CategoryCreate(name=key[-1], kind=CATEGORY_ROOTS[key[0]], details=note)  # type: ignore[arg-type]
+                CategoryCreate(name=flat[-1], kind=CATEGORY_ROOTS[key[0]], details=note)  # type: ignore[arg-type]
             except ValidationError as e:
                 errors.append(f"line {line}: category '{':'.join(key)}': {_message(e)}")
-            plan.new_categories.append((key, note))
+            plan.new_categories.append((flat, note))
 
         totals = {"Assets": Decimal("0.00"), "Liabilities": Decimal("0.00")}
         for transaction in journal.transactions:
@@ -451,6 +522,7 @@ class DataService:
                 errors,
                 tags,
                 known | set(existing) | known_categories,
+                lambda key: canon(key, 0, posted=False),
             )
             if planned is None:
                 continue
@@ -505,10 +577,11 @@ class DataService:
         errors: list[str],
         tags: list[str] | None = None,
         known: set[Key] | None = None,
+        canon: Callable[[Key], Key] | None = None,
     ) -> _Planned | None:
         """One transaction: its postings, checked the way entering it by hand would be."""
         try:
-            keys = [_resolve(p.account) for p in lines]
+            keys = [(canon or (lambda k: k))(_resolve(p.account)) for p in lines]
         except ValueError:
             return None  # already reported while collecting accounts
 
@@ -585,19 +658,19 @@ class DataService:
         ids = self._existing_keys()
         try:
             for key, note in plan.new_accounts:
-                created = self.ar.create(AccountBase(name=key[-1], details=note, parent_id=ids[key[:-1]]))
+                kind = TYPE_KEY_OF.get(key[1]) if len(key) == 3 else None
+                created = self.ar.create(
+                    AccountBase(
+                        name=key[-1], details=note, parent_id=ids[key[:-1]], type=cast(AccountType | None, kind)
+                    )
+                )
                 ids[key] = created.id
+            flat = plan.category_flat
             categories = self._category_keys()
             repository = CategoryRepository(self.ar.db, self.ar.uid)
             for key, note in plan.new_categories:
                 made = repository.add(
-                    BudgetCategory(
-                        user_id=self.ar.uid,
-                        name=key[-1],
-                        details=note,
-                        kind=CATEGORY_ROOTS[key[0]],
-                        parent_id=categories[key[:2]] if len(key) == 3 else None,
-                    )
+                    BudgetCategory(user_id=self.ar.uid, name=key[-1], details=note, kind=CATEGORY_ROOTS[key[0]])
                 )
                 categories[key] = made.id
 
@@ -606,13 +679,17 @@ class DataService:
             ) -> PostingCreate:
                 if _is_category(key):  # an expense or an income: the root account, labelled with the category
                     return PostingCreate(
-                        account_id=ids[key[:1]], side=side, amount=amount, category_id=categories[key], posted_on=posted
+                        account_id=ids[key[:1]],
+                        side=side,
+                        amount=amount,
+                        category_id=categories[flat.get(key, key)],
+                        posted_on=posted,
                     )
                 return PostingCreate(
                     account_id=ids[key],
                     side=side,
                     amount=amount,
-                    category_id=categories[label] if label else None,
+                    category_id=categories[flat.get(label, label)] if label else None,
                     posted_on=posted,
                 )
 

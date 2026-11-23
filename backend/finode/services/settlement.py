@@ -183,7 +183,7 @@ class SettlementService:
         """For a payment to a contact: the part of what is cleared that is spending reaching the budget now, by
         category (see the module note). Nothing when the payment does not leave the budget."""
         every = {a.id: a for a in self.contacts.accounts.ar.list()}
-        if not in_budget(every[account_id], every):
+        if not in_budget(every[account_id]):
             return {}
         shares = [a for a in plan.allocations if a.obligation.source_type == "shared_expense"]
         sources = [a.obligation.source_transaction_id for a in shares]
@@ -192,7 +192,7 @@ class SettlementService:
         counted: dict[UUID | None, Decimal] = {}
         for a in shares:
             source = a.obligation.source_transaction_id
-            if any(in_budget(every[p.account_id], every) for p in postings.get(source, []) if p.account_id in every):
+            if any(in_budget(every[p.account_id]) for p in postings.get(source, []) if p.account_id in every):
                 continue  # it was counted when it was recorded
             expense = expenses.get(source)
             category = expense.category_id if expense else None

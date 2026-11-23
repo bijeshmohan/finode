@@ -22,14 +22,14 @@ def make(client, name, parent, **extra):
 
 @pytest.fixture
 def books(client, root_accounts):
-    """A small set of books: a bank with money, a card, food under two parents, salary."""
+    """A small set of books: a bank with money, a card, three spending categories, salary."""
     bank_group = make(client, "Bank", root_accounts["Assets"])
     hdfc = make(client, "HDFC", bank_group["id"], balance="10000")
     card = make(client, "Card", root_accounts["Liabilities"])
     food = make(client, "Food", root_accounts["Expenses"])
     groceries = make(client, "Groceries", food["id"])
-    travel = make(client, "Travel", root_accounts["Expenses"])
-    travel_food = make(client, "Food", travel["id"])
+    make(client, "Travel", root_accounts["Expenses"])
+    travel_food = make(client, "Travel food", root_accounts["Expenses"])
     salary = make(client, "Salary", root_accounts["Income"])
     return {
         "hdfc": hdfc,
@@ -61,11 +61,11 @@ async def test_overview_and_accounts(session, books, secret):
         assert "net_worth" not in overview
         accounts = await call(c, "list_accounts")
         paths = {a["path"]: a for a in accounts["accounts"]}
-        assert paths["Assets:Bank Account:HDFC"]["balance"] == "10000.00"
-        assert paths["Assets:Bank Account"]["can_post"] is False, "a type takes no postings"
-        assert paths["Assets:Bank Account:HDFC"]["account_kind"] == "Bank Account"
+        assert paths["Assets:HDFC"]["balance"] == "10000.00"
+        assert "Assets:Bank Account" not in paths, "the type is the account's kind, not an account"
+        assert paths["Assets:HDFC"]["account_kind"] == "Bank Account"
         assert "Expenses:Food" not in paths, "categories are listed by list_categories, not here"
-        assert "holds" not in paths["Assets:Bank Account:HDFC"] and accounts["currency"] == "INR"
+        assert "holds" not in paths["Assets:HDFC"] and accounts["currency"] == "INR"
         only = await call(c, "list_accounts", type="Income")
         assert [a["path"] for a in only["accounts"]] == ["Income"]
 
@@ -79,11 +79,11 @@ async def test_record_by_short_names_and_read_it_back(session, client, books, se
         )["recorded"]
         assert recorded["total"] == "450.00" and recorded["payee"] == "DMart"
         assert {(p["account"], p["side"]) for p in recorded["postings"]} == {
-            ("Expenses:Food:Groceries", "debit"),
-            ("Assets:Bank Account:HDFC", "credit"),
+            ("Expenses:Groceries", "debit"),
+            ("Assets:HDFC", "credit"),
         }
         assert recorded["created_via"] == "assistant (Claude)"
-        account = await call(c, "get_account", account="Assets:Bank Account:HDFC")
+        account = await call(c, "get_account", account="Assets:HDFC")
         assert account["balance"] == "9550.00" and account["recent"][0]["payee"] == "DMart"
 
     stored = client.get(f"/api/transactions/{recorded['id']}").json()
@@ -92,19 +92,17 @@ async def test_record_by_short_names_and_read_it_back(session, client, books, se
 
 async def test_ambiguous_and_unknown_accounts_are_explained(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
-        with pytest.raises(ToolFailed, match="matches 2 places: Expenses:Food, Expenses:Travel:Food"):
-            await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Food")
         with pytest.raises(ToolFailed, match="Did you mean .*Groceries"):
             await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Grocries")
         # the full path, the end of one and other separators all work
-        for name in ("Expenses:Travel:Food", "Travel:Food", "expenses › travel › food", "Expense:Food"):
+        for name in ("Expenses:Travel food", "Travel food", "expenses › travel food", "Expense:Food"):
             await call(c, "record_transaction", amount="1", from_account="HDFC", to_account=name)
 
 
 async def test_ledger_rules_still_apply(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
-        with pytest.raises(ToolFailed, match="sub-accounts"):
-            await call(c, "record_transaction", amount="10", from_account="Assets:Bank Account", to_account="Groceries")
+        with pytest.raises(ToolFailed, match="top-level"):
+            await call(c, "record_transaction", amount="10", from_account="Assets", to_account="Groceries")
         with pytest.raises(ToolFailed, match="top-level"):
             await call(c, "record_transaction", amount="10", from_account="HDFC", to_account="Expenses")
         with pytest.raises(ToolFailed, match="must differ"):
@@ -153,7 +151,7 @@ async def test_split_update_and_delete(session, client, books, secret):
                 date=(TODAY - timedelta(days=1)).isoformat(),
                 postings=[
                     {"account": "Groceries", "side": "debit", "amount": "300"},
-                    {"account": "Expenses:Travel:Food", "side": "debit", "amount": "200"},
+                    {"account": "Expenses:Travel food", "side": "debit", "amount": "200"},
                     {"account": "Card", "side": "credit", "amount": "500"},
                 ],
             )
@@ -215,7 +213,7 @@ async def test_search_filters(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
         for amount, payee, to in (
             ("100", "DMart", "Groceries"),
-            ("2500", "Airline", "Travel:Food"),
+            ("2500", "Airline", "Travel food"),
             ("40", "Tea stall", "Groceries"),
         ):
             await call(c, "record_transaction", amount=amount, from_account="HDFC", to_account=to, payee=payee)
@@ -235,20 +233,15 @@ async def test_spending_breakdown(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
         await call(c, "record_transaction", amount="100", from_account="HDFC", to_account="Groceries")
         await call(c, "record_transaction", amount="30", from_account="HDFC", to_account="Expenses:Food")
-        await call(c, "record_transaction", amount="500", from_account="HDFC", to_account="Travel:Food")
+        await call(c, "record_transaction", amount="500", from_account="HDFC", to_account="Travel food")
         await call(c, "record_transaction", amount="5000", from_account="Salary", to_account="HDFC")
         top = await call(c, "spending_breakdown")
         assert top["total"] == "630.00"
         assert top["by_category"] == [
-            {"category": "Travel", "amount": "500.00"},
-            {"category": "Food", "amount": "130.00"},
+            {"category": "Travel food", "amount": "500.00"},
+            {"category": "Groceries", "amount": "100.00"},
+            {"category": "Food", "amount": "30.00"},
         ]
-        deep = await call(c, "spending_breakdown", depth=2)
-        assert {line["category"]: line["amount"] for line in deep["by_category"]} == {
-            "Travel:Food": "500.00",
-            "Food:Groceries": "100.00",
-            "Food": "30.00",
-        }
         income = await call(c, "spending_breakdown", kind="income")
         assert income["by_category"] == [{"category": "Salary", "amount": "5000.00"}]
         last_year = await call(c, "spending_breakdown", date_from="2020-01-01", date_to="2020-12-31")
@@ -261,13 +254,13 @@ async def test_create_account(session, client, books, secret):
             "created"
         ]
         assert {k: v for k, v in created.items() if k != "id"} == {
-            "path": "Assets:Bank Account:Savings",
+            "path": "Assets:Savings",
             "balance": "10.00",
         }
         with pytest.raises(ToolFailed, match="already has an account named 'Savings'"):
             await call(c, "create_account", name="savings", kind="Bank Account")
         wallet = (await call(c, "create_account", name="Pluxee", kind="Prepaid Wallet"))["created"]
-        assert wallet["path"] == "Assets:Prepaid Wallet:Pluxee"
+        assert wallet["path"] == "Assets:Pluxee"
         with pytest.raises(ToolFailed):
             await call(c, "create_account", name="Fund", kind="Investments")
 
@@ -309,11 +302,7 @@ async def test_assistants_can_list_create_and_stop_recurring_transactions(sessio
                 },
             )
         )["created"]
-        assert (
-            made["from"] == "Assets:Bank Account:Bank"
-            and made["to"] == "Expenses:Rent"
-            and made["next_due"] == "2999-01-01"
-        )
+        assert made["from"] == "Assets:Bank" and made["to"] == "Expenses:Rent" and made["next_due"] == "2999-01-01"
         assert made["tags"] == ["rent", "home"]
         listed = payload(await c.call_tool("list_recurring", {}))["recurring"]
         assert listed[0]["id"] == made["id"] and listed[0]["every"] == "monthly" and listed[0]["status"] == "active"
@@ -348,7 +337,7 @@ async def test_assistants_can_check_the_books(session, root_accounts, client):
         result = payload(await c.call_tool("check_books", {}))
         assert result["balanced"] and result["problems"] == []
         assert (result["currency"], result["total_debit"], result["total_credit"]) == ("INR", "250.00", "250.00")
-        assert {a["account"] for a in result["accounts"]} == {"Assets:Bank Account:Bank", "Equity:Opening Balances"}
+        assert {a["account"] for a in result["accounts"]} == {"Assets:Bank", "Equity:Opening Balances"}
         with pytest.raises(ToolFailed, match="YYYY-MM-DD"):
             payload(await c.call_tool("check_books", {"as_of": "yesterday"}))
 
@@ -360,7 +349,7 @@ async def test_assistants_can_read_and_plan_the_budget(session, root_accounts, c
     post_account(client, {"name": "Rent", "parent_id": root_accounts["Expenses"]})
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         start = payload(await c.call_tool("get_budget", {}))
-        assert start["ready_to_assign"] == "1000.00" and start["budget_accounts"] == ["Assets:Bank Account:Bank"]
+        assert start["ready_to_assign"] == "1000.00" and start["budget_accounts"] == ["Assets:Bank"]
         assert [x["category"] for x in start["categories"]] == ["Food", "Rent"]
 
         after = payload(await c.call_tool("assign_to_category", {"category": "Food", "amount": "300"}))
@@ -425,7 +414,7 @@ async def test_the_budget_lists_a_credit_card_with_its_id(session, root_accounts
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="read")) as c:
         data = payload(await c.call_tool("get_budget", {}))
         [listed] = data["credit_cards"]
-        assert listed["card_id"] == card["id"] and listed["card"] == "Liabilities:Credit Card:Visa"
+        assert listed["card_id"] == card["id"] and listed["card"] == "Liabilities:Visa"
         assert (listed["to_pay"], listed["charged_this_month"]) == ("40.00", "40.00")
 
 
@@ -470,7 +459,7 @@ async def test_assistants_can_create_split_recurring_transactions_and_skip_one(s
         assert {p["account"] for p in listed["postings"]} == {
             "Expenses:Rent",
             "Expenses:Water",
-            "Assets:Bank Account:Bank",
+            "Assets:Bank",
         }
         with pytest.raises(ToolFailed, match="not both"):
             payload(
@@ -616,11 +605,11 @@ async def test_a_read_only_connection_refuses_the_new_tools(session, books):
 async def test_ids_and_account_facts_are_listed(session, books, secret):
     async with running_app(session), mcp_client(secret) as c:
         accounts = {a["path"]: a for a in (await call(c, "list_accounts"))["accounts"]}
-        hdfc = accounts["Assets:Bank Account:HDFC"]
+        hdfc = accounts["Assets:HDFC"]
         assert hdfc["id"] == books["hdfc"]["id"] and hdfc["type"] == "Assets" and hdfc["account_kind"] == "Bank Account"
         assert "details" in hdfc and "Expenses:Food" not in accounts
         by_id = await call(c, "get_account", account=hdfc["id"])
-        assert by_id["id"] == hdfc["id"] and by_id["path"] == "Assets:Bank Account:HDFC"
+        assert by_id["id"] == hdfc["id"] and by_id["path"] == "Assets:HDFC"
         made = await call(c, "record_transaction", amount="10", from_account=hdfc["id"], to_account="Groceries")
         assert made["recorded"]["postings"][0]["account_id"] in {hdfc["id"], books["groceries"]["id"]}
         created = await call(c, "create_account", name="Amex", kind="Credit Card")

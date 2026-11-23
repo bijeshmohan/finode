@@ -61,6 +61,13 @@ describe("the tab's title", () => {
     const untitled = leaves(routes)
       .filter((route) => !(route.handle as RouteHandle | undefined)?.title)
       .map((route) => route.path);
-    expect(untitled).toEqual(["/login", "/signup", "/", "/recurring/:recurringId", "/budget/group/:categoryId"]);
+    expect(untitled).toEqual([
+      "/login",
+      "/signup",
+      "/",
+      "/recurring/:recurringId",
+      "/budget/groups/:categoryId",
+      "/budget/group/:categoryId",
+    ]);
   });
 });

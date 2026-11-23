@@ -33,9 +33,6 @@ class CategoryRepository:
     def by_system_key(self, key: str) -> BudgetCategory | None:
         return next((c for c in self.list() if c.system_key == key), None)
 
-    def has_children(self, category_id: UUID) -> bool:
-        return any(c.parent_id == category_id for c in self.list())
-
     def used_by_lines(self, category_id: UUID) -> bool:
         from ..models.transaction import Posting
 
@@ -76,6 +73,6 @@ class CategoryRepository:
                 found.closed_on = None
                 self.save(found)
             return found
-        taken = {c.name.casefold() for c in self.list() if c.parent_id is None and c.kind == kind}
+        taken = {c.name.casefold() for c in self.list() if c.kind == kind}
         name = UNCATEGORISED if UNCATEGORISED.casefold() not in taken else f"{UNCATEGORISED} (built-in)"
         return self.add(BudgetCategory(user_id=self.uid, name=name, kind=kind, system_key=key))

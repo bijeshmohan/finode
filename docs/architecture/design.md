@@ -44,7 +44,7 @@ Home is the exception by design: one number ("Left to spend"), a thin bar and th
 | Part | What it is |
 |---|---|
 | **Tile** (`Tile`) | A soft rounded white slip (a hairline border in dark only) with a hairline between rows. One tile per day in transaction lists, per group on Budgets, per section in Settings. |
-| **Row** (`Row`) | A name, one quiet second line, the figure at the right. Budgets rows add a bar under it; Categories show the biggest subcategories and the share; Accounts rows have no initials. Rows open a screen or a sheet; destructive actions live there, not on rows. |
+| **Row** (`Row`) | A name, one quiet second line, the figure at the right. Budgets rows add a bar under it; Categories show the share; Accounts rows have no initials. Rows open a screen or a sheet; destructive actions live there, not on rows. |
 | **Month pill** (`MonthPill`) | `‹ Oct 2026 ›` as plain text: two arrows around a native month picker laid invisibly over the month name. Screens that never look ahead stop at this month. |
 | **Bottom sheet** (`Sheet`) | A `<dialog>` that slides up (a transaction's details, a category's budget, the Filter, the pickers), above the soft keyboard while a field in it has focus. A press that starts inside never closes it. On a wide screen with a mouse a transaction's details are a panel beside the list. |
 | **Toast** | A short message after saving or deleting. |

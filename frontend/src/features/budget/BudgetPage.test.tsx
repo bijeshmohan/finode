@@ -63,21 +63,18 @@ describe("the Budgets head", () => {
 });
 
 describe("the Budgets list", () => {
-  it("a row reads as the server says, and a group opens its page", async () => {
+  it("a row reads as the server says, and every row opens its sheet", async () => {
     open(
       budget({
         rows: [
           row({ state: "overspent", available: "-20.00", over: true, percent: 100, of: "100.00" }),
-          row({ category_id: ids.food, name: "Food", is_group: true, of: null, hint: "Dining · Groceries" }),
+          row({ category_id: ids.food, name: "Food", of: null }),
         ],
       }),
     );
     expect(await screen.findByRole("button", { name: /Rent/ })).toHaveTextContent("of 100.00 · overspent");
-    expect(screen.getByRole("link", { name: /Food/ })).toHaveAttribute(
-      "href",
-      `/budget/groups/${ids.food}?month=2026-11`,
-    );
-    expect(screen.getByRole("link", { name: /Food/ })).toHaveTextContent("nothing assigned · Dining · Groceries");
+    expect(screen.getByRole("button", { name: /Food/ })).toHaveTextContent("nothing assigned");
+    expect(screen.queryByRole("link", { name: /Food/ })).not.toBeInTheDocument();
   });
 
   it("a budget below zero (money moved out) opens as it is, and Save keeps it", async () => {
@@ -129,21 +126,6 @@ describe("the Budgets list", () => {
     const { fetch } = open(budget({ copyable: "1200.00" }), { "/api/budget/copy": [200, {}] });
     await userEvent.click(await screen.findByRole("button", { name: "Copy last month's amounts · 1,200.00" }));
     expect(await sent(fetch, "/api/budget/copy", "POST")).toEqual({ month: "2026-11-01" });
-  });
-
-  it("unused groups are tucked away until Show", async () => {
-    open(
-      budget({
-        rows: [row(), row({ category_id: ids.travel, name: "Travel", is_group: true, unused: true, of: null })],
-        unused_count: 1,
-      }),
-    );
-    await screen.findByRole("button", { name: /Rent/ });
-    expect(screen.queryByRole("link", { name: /Travel/ })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "1 unused group hidden · Show" }));
-    expect(screen.getByRole("link", { name: /Travel/ })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Hide the 1 unused" }));
-    expect(screen.queryByRole("link", { name: /Travel/ })).not.toBeInTheDocument();
   });
 
   it("the empty states, the intro and the overspent warning", async () => {

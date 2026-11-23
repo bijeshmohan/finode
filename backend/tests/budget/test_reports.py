@@ -70,4 +70,4 @@ def test_the_spending_breakdown_adds_up_what_was_recorded(client, root_accounts,
     assert report["root"] == "Expenses" and report["total"] == "70.00"
     assert report["lines"] == [{"account": "Food", "amount": "70.00"}]
     with pytest.raises(ValueError):
-        svc.reports.breakdown("Expenses", depth=0)
+        svc.reports.breakdown("Assets")

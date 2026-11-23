@@ -7,6 +7,7 @@ from uuid import UUID
 
 from ..schemas import AccountRead
 from .account import AccountService
+from .account_types import TYPE_KEYS
 
 ROOT_ORDER = ("Assets", "Liabilities", "Equity", "Income", "Expenses")
 
@@ -28,8 +29,8 @@ class Node:
 
     @property
     def is_group(self) -> bool:
-        """A shelf for accounts: one of the four types (even empty), or anything with accounts in it."""
-        return self.account.system_key is not None or bool(self.children)
+        """A root holding accounts (an account holds none)."""
+        return bool(self.children)
 
     def walk(self):
         yield self
@@ -37,8 +38,8 @@ class Node:
             yield from child.walk()
 
 
-def build_tree(accounts: list[AccountRead]) -> list[Node]:
-    """The accounts as a tree."""
+def build_tree(accounts: list[AccountRead], order: list[str] | None = None) -> list[Node]:
+    """The accounts under their roots, each root's accounts by type in the person's `order`, then by name."""
     nodes = {a.id: Node(a) for a in accounts}
     roots: list[Node] = []
     for node in nodes.values():
@@ -50,14 +51,12 @@ def build_tree(accounts: list[AccountRead]) -> list[Node]:
             parent.children.append(node)
             if AccountService.is_opening_balances(node.account, accounts):
                 node.kind = "system"
-            elif node.account.system_key:
-                node.kind = "fixed"  # one of the four types (Bank Account, Cash, Credit Card, Prepaid Wallet)
 
     def finish(node: Node, depth: int, parent_path: str = "") -> None:
         node.depth = depth
-        node.postable = node.kind not in ("root", "fixed") and node.is_leaf
+        node.postable = node.kind != "root" and node.is_leaf
         node.path = f"{parent_path} › {node.account.name}" if parent_path else node.account.name
-        node.children.sort(key=lambda n: AccountService.order_key(n.account))
+        node.children.sort(key=lambda n: AccountService.order_key(n.account, order or TYPE_KEYS))
         for child in node.children:
             finish(child, depth + 1, node.path)
 

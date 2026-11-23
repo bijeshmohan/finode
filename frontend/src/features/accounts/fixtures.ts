@@ -30,7 +30,6 @@ export function accounts(over: Partial<AccountsView> = {}): AccountsView {
       {
         name: "Bank Account",
         type: "assets.bank",
-        group_id: ids.banks,
         total: "5000.00",
         owed: false,
         open_count: 1,
@@ -41,7 +40,6 @@ export function accounts(over: Partial<AccountsView> = {}): AccountsView {
       {
         name: "Credit Card",
         type: "liabilities.cards",
-        group_id: ids.cards,
         total: "300.00",
         owed: true,
         open_count: 1,
@@ -79,7 +77,6 @@ export function account(over: Partial<AccountView> = {}): AccountView {
     is_group: false,
     has_children: false,
     cards: [],
-    add_url: null,
     can_pin: true,
     pinned: false,
     can_edit: true,

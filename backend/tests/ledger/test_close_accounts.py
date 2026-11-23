@@ -206,9 +206,9 @@ async def test_assistants_do_not_see_or_post_to_closed_accounts(session, client,
     close(client, books["old"])
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID)) as c:
         paths = {a["path"] for a in payload(await c.call_tool("list_accounts", {}))["accounts"]}
-        assert "Assets:Bank Account:Old Savings" not in paths
+        assert "Assets:Old Savings" not in paths
         listed = payload(await c.call_tool("list_accounts", {"include_closed": True}))["accounts"]
-        entry = next(a for a in listed if a["path"] == "Assets:Bank Account:Old Savings")
+        entry = next(a for a in listed if a["path"] == "Assets:Old Savings")
         assert entry["can_post"] is False and entry["closed"]
         with pytest.raises(ToolFailed, match="is closed"):
             payload(

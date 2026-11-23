@@ -239,14 +239,7 @@ function RuleScreen({ view, recurringId }: { view: RecurringFormView; recurringI
           send();
         }}
       >
-        <Lines
-          state={state}
-          update={update}
-          groups={view.groups}
-          accountTypes={view.account_types}
-          categoryParents={view.category_parents}
-          dated={false}
-        >
+        <Lines state={state} update={update} groups={view.groups} accountTypes={view.account_types} dated={false}>
           <PayeeField
             value={state.payee}
             onChange={(payee) => {

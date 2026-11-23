@@ -197,8 +197,7 @@ class Api:
             # Before the four types an account went under a root or inside another account: it is now one of the
             # types (straight under Assets: a Bank Account; Liabilities: a Credit Card; inside one: that one's type).
             every = self.get("/accounts/")
-            types = {x["id"]: x["system_key"] for x in every if x.get("system_key")}
-            types |= {x["id"]: x["type"] for x in every if x.get("type")}
+            types = {x["id"]: x["type"] for x in every if x.get("type")}
             if roots.get(parent) in ("Assets", "Liabilities") or parent in types:
                 key = types.get(parent) or ("assets.bank" if roots[parent] == "Assets" else "liabilities.cards")
                 body = {k: v for k, v in body.items() if k not in ("parent_id", "on_budget")} | {"type": key}

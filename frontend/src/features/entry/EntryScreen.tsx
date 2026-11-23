@@ -208,7 +208,6 @@ export function EntryScreen({ form, transactionId, back = null }: ScreenProps) {
           update={update}
           groups={groups}
           accountTypes={form.account_types}
-          categoryParents={form.category_parents}
           dated
           autoFocus={!editing && onComputer()}
           onKind={kindChanged}

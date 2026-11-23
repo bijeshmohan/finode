@@ -34,7 +34,7 @@ from ..repositories.obligation import ObligationRepository
 from ..repositories.recurring import RecurringRepository
 from ..repositories.shared_expense import SharedExpenseRepository
 from ..repositories.transaction import NewEntry
-from ..schemas.account import AccountBase, BillRounding
+from ..schemas.account import AccountBase, AccountType, BillRounding
 from ..schemas.backup import (
     FORMAT,
     READS,
@@ -59,12 +59,16 @@ from ..schemas.backup import (
 )
 from ..schemas.transaction import PostingCreate, TransactionCreate
 from ..tags import clean_names, split_note
-from .account import MAX_ACCOUNT_DEPTH, OPENING_BALANCES_ACCOUNT_NAME, AccountService
-from .account_types import RETIRED_KEYS, type_order
+from .account import OPENING_BALANCES_ACCOUNT_NAME, AccountService
+from .account_types import TYPE_NAMES, TYPE_ROOTS, type_order
 from .cash_flow import CashFlowConversion
 from .category import CategoryService
+from .flatten import flat_category_names
 
 ROOTS = ("Assets", "Liabilities", "Equity", "Income", "Expenses")
+
+# How deep an older file's accounts could go (a root, a group or type, an account): a restore flattens them.
+OLDEST_DEPTH = 2
 
 
 class BackupService:
@@ -118,7 +122,7 @@ class BackupService:
                     statement_day=a.statement_day,
                     due_day=a.due_day,
                     bill_rounding=cast(BillRounding, a.bill_rounding),
-                    system_key=a.system_key,
+                    type=cast(AccountType | None, a.type),
                     pinned=a.pinned,
                 )
                 for a in accounts
@@ -128,12 +132,11 @@ class BackupService:
                     id=c.id,
                     name=c.name,
                     kind=c.kind,
-                    parent_id=c.parent_id,
                     details=c.details,
                     closed_on=c.closed_on,
                     system_key=c.system_key,
                 )
-                for c in sorted(self.cr.list(), key=lambda c: (c.parent_id is not None, c.kind, c.name.lower()))
+                for c in sorted(self.cr.list(), key=lambda c: (c.kind, c.name.lower()))
             ],
             contacts=self._export_contacts(),
             **self._export_party(),
@@ -280,11 +283,7 @@ class BackupService:
     def can_restore(self) -> bool:
         """Only an empty ledger can be restored into: nothing recorded, no accounts of the user's own."""
         accounts = self.accounts.ensure_roots()
-        own = [
-            a
-            for a in accounts
-            if a.parent_id is not None and a.system_key is None and not self.accounts.is_opening_balances(a, accounts)
-        ]
+        own = [a for a in accounts if a.parent_id is not None and not self.accounts.is_opening_balances(a, accounts)]
         return (
             not own
             and not self.cr.list()
@@ -439,10 +438,21 @@ class BackupService:
         if any(self._depth(a, accounts) is None for a in file.accounts):
             errors.append("the accounts contain a cycle.")
             return
-        too_deep = [a.name for a in file.accounts if (self._depth(a, accounts) or 0) > MAX_ACCOUNT_DEPTH]
+        misplaced = []
+        for a in file.accounts:
+            parent = accounts.get(a.parent_id) if a.parent_id is not None else None
+            if a.type is not None and (
+                parent is None or parent.parent_id is not None or parent.name != TYPE_ROOTS[a.type]
+            ):
+                where = f"{parent.name}:{a.name}" if parent is not None else a.name
+                misplaced.append(f"'{where}' cannot be a {TYPE_NAMES[a.type]}")
+        if misplaced:
+            errors.append(f"an account's type must fit the root it sits under: {'; '.join(misplaced)}.")
+            return
+        too_deep = [a.name for a in file.accounts if (self._depth(a, accounts) or 0) > OLDEST_DEPTH]
         if too_deep:
             errors.append(
-                f"accounts can be at most {MAX_ACCOUNT_DEPTH} levels deep (a category and a subcategory), "
+                f"accounts sit straight under their root (an older file's went at most {OLDEST_DEPTH} levels deep), "
                 f"but {', '.join(too_deep[:3])}{' and more' if len(too_deep) > 3 else ''} go deeper: flatten them first."
             )
             return
@@ -584,7 +594,8 @@ class BackupService:
 
     @staticmethod
     def _check_categories(file: BackupFile, accounts: dict[UUID, BackupAccount], errors: list[str]) -> None:
-        """The categories are sound (two levels, one kind in a group, names unique in a place) and a category on a line
+        """The categories are sound (an older file's at most two levels, one kind in a group, names unique in a place;
+        a restore flattens them) and a category on a line
         (or a rule) is one of the file's and fits the line: spending on Expenses or a payment out of the budget, earning
         on Income, nothing on Equity."""
         cats = {c.id: c for c in file.categories}
@@ -638,6 +649,16 @@ class BackupService:
                 errors.append(f"{label} puts an earning category on a line to a balance-sheet account.")
             if len(errors) > 20:
                 return
+
+    @staticmethod
+    def _categories_in_use(file: BackupFile) -> set[UUID]:
+        """Every category the file's lines, rules, budget rows and shared expenses name."""
+        used = {p.category for t in file.transactions for p in t.postings if p.category}
+        used |= {r.category for r in file.recurring if r.category}
+        used |= {p.category for r in file.recurring for p in r.postings if p.category}
+        used |= {a.category_id for a in file.allocations}
+        used |= {e.category for e in file.shared_expenses if e.category}
+        return used
 
     @staticmethod
     def _spending_plan(file: BackupFile) -> list:
@@ -733,17 +754,10 @@ class BackupService:
             for a in file.accounts:
                 if a.parent_id is None:
                     ids[a.id] = roots[a.name].id
-            # The four types: the ones a file carries (by key) map onto the person's own.
-            fixed = {a.system_key: a for a in self.accounts.ensure_roots() if a.system_key is not None}
-            kept: set[UUID] = set()
-            for a in file.accounts:
-                if a.system_key in fixed:
-                    ids[a.id] = fixed[a.system_key].id
-                    kept.add(a.id)
             opening = None
             closed: list[tuple[Account, date]] = []
             for a in sorted(file.accounts, key=lambda a: self._depth(a, by_old) or 0):
-                if a.parent_id is None or a.id in kept:
+                if a.parent_id is None:
                     continue
                 if (
                     a.name == OPENING_BALANCES_ACCOUNT_NAME
@@ -761,11 +775,10 @@ class BackupService:
                         statement_day=a.statement_day,
                         due_day=a.due_day,
                         bill_rounding=a.bill_rounding,
+                        type=a.type,
                     ),
                     pinned=a.pinned,
                 )
-                if a.system_key in RETIRED_KEYS:  # Investments or Loans, from a file made before the four types
-                    created.system_key = a.system_key
                 ids[a.id] = created.id
                 if a.closed_on is not None:
                     closed.append((created, a.closed_on))
@@ -788,16 +801,21 @@ class BackupService:
                 contact_ids[c.id] = contact.id
                 self.contacts.link(contact.id, ids[c.receivable_account], "receivable")
                 self.contacts.link(contact.id, ids[c.payable_account], "payable")
-            # Categories: a group first, then the categories in it.
+            # Categories, one flat list: an older file's subcategories become categories and its empty groups go
+            # (services/flatten.py).
+            names, dropped = flat_category_names(
+                [(c.id, c.name, c.kind, c.parent_id) for c in file.categories], self._categories_in_use(file)
+            )
             cats: dict[UUID, UUID] = {}
-            for c in sorted(file.categories, key=lambda c: c.parent_id is not None):
+            for c in file.categories:
+                if c.id in dropped:
+                    continue
                 made_category = self.cr.add(
                     BudgetCategory(
                         user_id=self.cr.uid,
-                        name=c.name,
+                        name=names[c.id],
                         details=c.details,
                         kind=c.kind,
-                        parent_id=cats.get(c.parent_id) if c.parent_id else None,
                         system_key=c.system_key,
                         closed_on=c.closed_on,
                     )
@@ -905,16 +923,11 @@ class BackupService:
                 and ids[a.id] not in groups
                 and a.name != OPENING_BALANCES_ACCOUNT_NAME
             }
+            # The old files' built-in groups (the four types, Investments, Loans), by key: their accounts move straight
+            # under the roots with that type, or are retired.
+            keys = {ids[a.id]: a.system_key for a in file.accounts if a.system_key and a.id in ids}
             conversion = CashFlowConversion(self.accounts, self.tr, self.rr, CategoryService(self.accounts))
-            conversion.apply(
-                conversion.plan(
-                    outside,
-                    strict=False,
-                    retire_ids=outside,
-                    group_ids=groups,
-                ),
-                commit=False,
-            )
+            conversion.apply(conversion.plan(keys, retire_ids=outside, group_ids=groups), commit=False)
             db.commit()
         except Exception:
             db.rollback()

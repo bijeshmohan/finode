@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { type Answers, renderInApp, SIGNED_IN } from "../../test/render";
 import { EntryScreen } from "./EntryScreen";
-import { ids, view } from "./fixtures";
+import { view } from "./fixtures";
 import type { EntryFormView } from "./queries";
 
 const NEW = "00000000-0000-4000-8000-0000000000n1";
@@ -15,10 +15,6 @@ const PARENTS: Partial<EntryFormView> = {
     { key: "assets.cash", name: "Cash", root: "Assets" },
     { key: "liabilities.cards", name: "Credit Card", root: "Liabilities" },
     { key: "assets.wallet", name: "Prepaid Wallet", root: "Assets" },
-  ],
-  category_parents: [
-    { id: ids.food, name: "Food", kind: "spending" },
-    { id: ids.salary, name: "Salary", kind: "earning" },
   ],
 };
 
@@ -54,9 +50,9 @@ describe("adding from the picker", () => {
     const sheet = await openNew("Spent on", "category");
     expect(within(sheet).getByPlaceholderText("e.g. Pharmacy")).toBeInTheDocument();
     await userEvent.type(within(sheet).getByLabelText("Name"), "Coffee");
-    await userEvent.selectOptions(within(sheet).getByLabelText("Under"), "Food");
+    expect(within(sheet).queryByLabelText("Under")).not.toBeInTheDocument();
     await userEvent.click(within(sheet).getByRole("button", { name: "Add category" }));
-    expect(await sent(fetch, "/api/categories/")).toEqual({ name: "Coffee", kind: "spending", parent_id: ids.food });
+    expect(await sent(fetch, "/api/categories/")).toEqual({ name: "Coffee", kind: "spending" });
     await waitFor(() => {
       expect(screen.queryByRole("dialog", { name: "New category" })).not.toBeInTheDocument();
     });
@@ -74,10 +70,9 @@ describe("adding from the picker", () => {
     });
     const sheet = await openNew("Earned from", "category");
     expect(within(sheet).getByPlaceholderText("e.g. Freelance")).toBeInTheDocument();
-    expect(within(within(sheet).getByLabelText("Under")).queryByRole("option", { name: "Food" })).toBeNull();
     await userEvent.type(within(sheet).getByLabelText("Name"), "Freelance");
     await userEvent.click(within(sheet).getByRole("button", { name: "Add category" }));
-    expect(await sent(fetch, "/api/categories/")).toEqual({ name: "Freelance", kind: "earning", parent_id: null });
+    expect(await sent(fetch, "/api/categories/")).toEqual({ name: "Freelance", kind: "earning" });
   });
 
   it("an account of the type chosen, with a balance", async () => {

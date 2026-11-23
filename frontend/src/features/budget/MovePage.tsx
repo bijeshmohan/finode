@@ -30,10 +30,10 @@ function Body({ view }: { view: BudgetMoveView }) {
   const groups = [
     {
       title: "Categories",
-      options: view.lines.map((l) => ({ id: l.category_id, label: l.path, budget: false, balance: l.available })),
+      options: view.lines.map((l) => ({ id: l.category_id, label: l.name, budget: false, balance: l.available })),
     },
   ];
-  const nameOf = (id: string | null) => view.lines.find((l) => l.category_id === id)?.path ?? "Choose…";
+  const nameOf = (id: string | null) => view.lines.find((l) => l.category_id === id)?.name ?? "Choose…";
   const field = (label: "From" | "To", value: string | null) => (
     <div className={form.field}>
       <span aria-hidden="true">{label}</span>

@@ -119,15 +119,12 @@ def test_days_come_as_a_pair_inside_one_to_thirty_one(client, root_accounts):
         assert post_account(client, {"name": "X", "parent_id": parent, **extra}).status_code == 422, extra
 
 
-def test_only_a_liability_without_sub_accounts_takes_days(client, root_accounts):
+def test_only_a_credit_card_takes_days(client, root_accounts):
     response = post_account(
         client,
         {"name": "Bank", "parent_id": root_accounts["Assets"], "statement_day": 1, "due_day": 5},
     )
-    assert response.status_code == 400 and "card or loan" in response.text
-    cards = next(a for a in client.get("/api/accounts/").json() if a["system_key"] == "liabilities.cards")
-    changed = client.patch(f"/api/accounts/{cards['id']}", json={"statement_day": 1, "due_day": 5})
-    assert changed.status_code == 400, "the Credit Card type itself takes no days"
+    assert response.status_code == 400 and "belong to a Credit Card" in response.text
 
 
 def test_days_are_changed_and_cleared(client, card):
@@ -151,7 +148,7 @@ async def test_assistants_read_a_bill_and_set_the_days(session, client, root_acc
         updated = payload(await c.call_tool("update_account", {"account": "Visa", "statement_day": 22, "due_day": 15}))
         assert updated["updated"]["statement_day"] == 22 and updated["updated"]["due_day"] == 15
         bill = payload(await c.call_tool("get_card_bill", {"account": "Visa"}))
-        assert bill["bill"] == "400.00" and bill["account"] == "Liabilities:Credit Card:Visa"
+        assert bill["bill"] == "400.00" and bill["account"] == "Liabilities:Visa"
     assert visa["id"]
 
 

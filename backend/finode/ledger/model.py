@@ -7,12 +7,12 @@ from decimal import Decimal
 
 @dataclass
 class LedgerPosting:
-    account: str  # colon-separated path, e.g. "Expenses:Food:Groceries"
+    account: str  # colon-separated path, e.g. "Expenses:Groceries"
     amount: Decimal  # debit positive, credit negative
     line: int = 0
     # What the amount is of, as written in the file ("INR", "$"); None when written without one.
     commodity: str | None = None
-    # What the line was for, as the path of an expense category ("EMI", "Food:Groceries"), written as a comment on the
+    # What the line was for, as the path of an expense category ("EMI", "Groceries"), written as a comment on the
     # posting (`; category: EMI`); None when it says nothing (the account's own category applies).
     category: str | None = None
     # The day the account posts the line when it is not the entry's date (`; posted: 2026-10-18`).
@@ -33,6 +33,8 @@ class AccountDecl:
     name: str
     note: str | None = None
     line: int = 0
+    # Which of the four kinds an account under Assets or Liabilities is ("Bank Account"), from a `; kind:` label.
+    kind: str | None = None
 
 
 @dataclass

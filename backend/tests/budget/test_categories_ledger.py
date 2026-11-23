@@ -71,18 +71,17 @@ def test_a_category_has_no_account_behind_it(client, session, books):
     got = categories(session)
     assert set(got) == {"Food", "Groceries", "EMI", "Salary"}
     assert got["Groceries"].id == UUID(books["groceries"]["id"])
-    assert got["Groceries"].parent_id == got["Food"].id and got["Food"].parent_id is None
+    assert "parent_id" not in type(got["Food"]).model_fields, "categories are one flat list"
     assert (got["Food"].kind, got["Salary"].kind) == ("spending", "earning")
     accounts = {a["name"] for a in client.get("/api/accounts/").json()}
     assert "Bank" in accounts and not accounts & {"Food", "Groceries", "EMI", "Salary"}
 
 
-def test_renaming_moving_and_closing_a_category(client, session, books):
+def test_renaming_and_closing_a_category(client, session, books):
     groceries = books["groceries"]["id"]
     client.patch(f"/api/categories/{groceries}", json={"name": "Supermarket", "details": "weekly"})
-    client.patch(f"/api/categories/{groceries}", json={"parent_id": books["emi"]["id"]})
     got = categories(session)
-    assert got["Supermarket"].details == "weekly" and got["Supermarket"].parent_id == got["EMI"].id
+    assert got["Supermarket"].details == "weekly"
     client.post(f"/api/categories/{groceries}/close")
     session.expire_all()
     assert categories(session)["Supermarket"].closed_on is not None
@@ -220,24 +219,19 @@ def test_the_plan_is_kept_against_the_category(client, session, books):
 
 def test_the_category_service_makes_changes_closes_and_removes_categories(session, root_accounts):
     svc = services(session)
-    food = svc.categories.create(CategoryCreate(name="Food", kind="spending"))
-    dining = svc.categories.create(CategoryCreate(name="Dining", kind="spending", parent_id=food.id))
-    assert dining.path == "Food:Dining" and dining.parent_id == food.id
-    with pytest.raises(ValueError, match="cannot hold"):
-        svc.categories.create(CategoryCreate(name="Tips", kind="earning", parent_id=food.id))
-    with pytest.raises(ValueError):
-        svc.categories.create(
-            CategoryCreate(name="dining", kind="spending", parent_id=food.id)
-        )  # taken (capitals aside)
-    with pytest.raises(ValueError):  # three levels is one too many
-        svc.categories.create(CategoryCreate(name="Pizza", kind="spending", parent_id=dining.id))
+    svc.categories.create(CategoryCreate(name="Food", kind="spending"))
+    dining = svc.categories.create(CategoryCreate(name="Dining", kind="spending"))
+    assert dining.name == "Dining"
+    with pytest.raises(ValueError, match="you already have a category called 'Dining'!"):
+        svc.categories.create(CategoryCreate(name="dining", kind="spending"))  # taken (capitals aside)
+    assert svc.categories.create(CategoryCreate(name="Dining", kind="earning")).kind == "earning", "another kind"
     renamed = svc.categories.update(dining.id, CategoryUpdate(name="Eating out"))
-    assert renamed.path == "Food:Eating out"
-    moved = svc.categories.update(dining.id, CategoryUpdate(parent_id=None))
-    assert moved.parent_id is None and moved.path == "Eating out"
+    assert renamed.name == "Eating out"
     assert svc.categories.close(dining.id).closed_on is not None
-    assert [c.name for c in svc.categories.list()] == ["Food"], "closed ones are left out"
-    assert {c.name for c in svc.categories.list(include_closed=True)} == {"Food", "Eating out"}
+    assert [(c.kind, c.name) for c in svc.categories.list()] == [("earning", "Dining"), ("spending", "Food")], (
+        "closed ones are left out"
+    )
+    assert {c.name for c in svc.categories.list(include_closed=True)} == {"Food", "Eating out", "Dining"}
     assert svc.categories.reopen(dining.id).closed_on is None
 
 

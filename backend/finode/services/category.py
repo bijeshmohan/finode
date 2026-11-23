@@ -1,8 +1,8 @@
 """Budget categories: what money was for (Groceries, EMI, Salary), kept apart from the books' accounts.
 
 A category stands alone. The books post an expense to the root Expenses account and an income to the root Income
-account; the line carries the category. A category sits at most two levels deep (a group and the categories in it), its
-name is unique among its siblings (capitals aside), and the built-in Uncategorised of each kind is made on demand."""
+account; the line carries the category. Categories are one flat list: a name is unique among the categories of its kind
+(capitals aside), and the built-in Uncategorised of each kind is made on demand."""
 
 import builtins
 from datetime import date
@@ -45,43 +45,29 @@ class CategoryService:
     # ---- reading -----------------------------------------------------------------------------------
 
     @staticmethod
-    def _path(category: BudgetCategory, by_id: dict[UUID, BudgetCategory]) -> str:
-        names: list[str] = []
-        seen: set[UUID] = set()
-        current: BudgetCategory | None = category
-        while current is not None and current.id not in seen:
-            seen.add(current.id)
-            names.append(current.name)
-            current = by_id.get(current.parent_id) if current.parent_id else None
-        return ":".join(reversed(names))
-
-    def _to_read(self, category: BudgetCategory, by_id: dict[UUID, BudgetCategory]) -> CategoryRead:
+    def _to_read(category: BudgetCategory) -> CategoryRead:
         return CategoryRead(
             id=category.id,
             name=category.name,
             kind="spending" if category.kind == "spending" else "earning",
-            parent_id=category.parent_id,
             details=category.details,
             closed_on=category.closed_on,
             system_key=category.system_key,
-            path=self._path(category, by_id),
         )
 
     def list(self, kind: str | None = None, include_closed: bool = False) -> builtins.list[CategoryRead]:
-        every = self.cr.list()
-        by_id = {c.id: c for c in every}
         return sorted(
             (
-                self._to_read(c, by_id)
-                for c in every
+                self._to_read(c)
+                for c in self.cr.list()
                 if (kind is None or c.kind == kind) and (include_closed or c.closed_on is None)
             ),
-            key=lambda c: (c.kind, c.path.lower()),
+            key=lambda c: (c.kind, c.name.lower()),
         )
 
     def read(self, category_id: UUID) -> CategoryRead | None:
         category = self.cr.read(category_id)
-        return self._to_read(category, {c.id: c for c in self.cr.list()}) if category is not None else None
+        return self._to_read(category) if category is not None else None
 
     def _get(self, category_id: UUID) -> BudgetCategory:
         category = self.cr.read(category_id)
@@ -97,96 +83,56 @@ class CategoryService:
 
     # ---- rules -------------------------------------------------------------------------------------
 
-    def _check_name_free(self, name: str, parent_id: UUID | None, kind: str, exclude: UUID | None = None) -> None:
+    def _check_name_free(self, name: str, kind: str, exclude: UUID | None = None) -> None:
         wanted = name.casefold()
         for other in self.cr.list():
-            same_place = other.parent_id == parent_id and other.kind == kind and other.id != exclude
-            if same_place and other.name.casefold() == wanted:
-                who = "you already have" if parent_id is None else f"'{self._get(parent_id).name}' already has"
-                raise ValueError(f"{who} a category called '{other.name}'!")
-
-    def _check_parent(self, parent_id: UUID | None, kind: str, moving: UUID | None = None) -> None:
-        """A parent is a top-level category of the same kind that is open and is not the one being moved (categories
-        go two levels deep: a category and its subcategories)."""
-        if parent_id is None:
-            return
-        parent = self._get(parent_id)
-        if parent.kind != kind:
-            raise ValueError(f"'{parent.name}' is a {parent.kind} category: it cannot hold {kind} subcategories!")
-        if parent.parent_id is not None:
-            raise ValueError(
-                "categories can be at most two levels deep (a category and a subcategory, like Food › Groceries)!"
-            )
-        if parent.closed_on is not None:
-            raise ValueError(f"'{parent.name}' is closed: reopen it to add subcategories to it!")
-        if moving is not None:
-            if parent.id == moving:
-                raise ValueError("a category cannot be moved into itself!")
-            if self.cr.has_children(moving):
-                raise ValueError(
-                    "categories can be at most two levels deep: a category that holds subcategories cannot move inside another!"
-                )
+            if other.kind == kind and other.id != exclude and other.name.casefold() == wanted:
+                raise ValueError(f"you already have a category called '{other.name}'!")
 
     # ---- changing ----------------------------------------------------------------------------------
 
     def create(self, data: CategoryCreate) -> CategoryRead:
         ensure_room(len(self.cr.list()), settings.max_categories, "categories")
-        self._check_parent(data.parent_id, data.kind)
-        self._check_name_free(data.name, data.parent_id, data.kind)
-        made = self.cr.add(
-            BudgetCategory(
-                user_id=self.uid, name=data.name, details=data.details, kind=data.kind, parent_id=data.parent_id
-            )
-        )
+        self._check_name_free(data.name, data.kind)
+        made = self.cr.add(BudgetCategory(user_id=self.uid, name=data.name, details=data.details, kind=data.kind))
         self.db.commit()
         return self._read(made.id)
 
     def update(self, category_id: UUID, data: CategoryUpdate) -> CategoryRead:
-        """Rename it, change its note or move it into another group (or out of its group)."""
+        """Rename it or change its note."""
         category = self._get(category_id)
         name = data.name if "name" in data.model_fields_set and data.name is not None else category.name
-        parent = data.parent_id if "parent_id" in data.model_fields_set else category.parent_id
-        if parent != category.parent_id:
-            self._check_parent(parent, category.kind, moving=category_id)
-        if name != category.name or parent != category.parent_id:
-            self._check_name_free(name, parent, category.kind, exclude=category_id)
-        category.name, category.parent_id = name, parent
+        if name != category.name:
+            self._check_name_free(name, category.kind, exclude=category_id)
+        category.name = name
         if "details" in data.model_fields_set:
             category.details = data.details
         self.cr.save(category)
         self.db.commit()
         return self._read(category_id)
 
-    def _branch(self, category_id: UUID) -> builtins.list[BudgetCategory]:
-        return [c for c in self.cr.list() if c.id == category_id or c.parent_id == category_id]
-
     def close(self, category_id: UUID, today: date | None = None) -> CategoryRead:
-        """No longer offered, history kept: closes the category and the categories in it. Refused while a running
-        recurring transaction still records into it."""
+        """No longer offered, history kept. Refused while a running recurring transaction still records into it."""
         category = self._get(category_id)
-        branch = self._branch(category_id)
-        rules = RecurringRepository.active_rules_for_categories(self.db, self.uid, {m.id for m in branch})
+        rules = RecurringRepository.active_rules_for_categories(self.db, self.uid, {category.id})
         if rules:
             label = rules[0].payee or "a recurring transaction"
             raise CategoryInUseError(f"'{label}' still records into it: stop that recurring transaction first!")
-        self.cr.set_closed([m.id for m in branch if m.closed_on is None], today or local_today())
+        if category.closed_on is None:
+            self.cr.set_closed([category.id], today or local_today())
         self.db.commit()
         return self._read(category.id)
 
     def reopen(self, category_id: UUID) -> CategoryRead:
-        """Reopen a category with the categories in it, and the group it is in (an open one sits in an open group)."""
+        """Offer it again."""
         category = self._get(category_id)
-        ids = [m.id for m in self._branch(category_id)]
-        if category.parent_id is not None:
-            ids.append(category.parent_id)
-        self.cr.set_closed(ids, None)
+        self.cr.set_closed([category.id], None)
         self.db.commit()
         return self._read(category_id)
 
     def _unused(self, category: BudgetCategory) -> bool:
         return not (
-            self.cr.has_children(category.id)
-            or self.cr.used_by_lines(category.id)
+            self.cr.used_by_lines(category.id)
             or RecurringRepository.uses_category(self.db, self.uid, category.id)
             or SharedExpenseRepository(self.db, self.uid).uses_category(category.id)
             or category.system_key is not None
@@ -214,19 +160,16 @@ class CategoryService:
             raise ValueError("the built-in Uncategorised cannot be merged: merge a category into it instead.")
         if origin.kind != into.kind:
             raise ValueError("cannot merge a spending category into an earning one!")
-        if self.cr.has_children(source):
-            raise ValueError(f"'{origin.name}' holds categories: merge or move them first!")
         if into.closed_on is not None:
             raise ValueError(f"'{into.name}' is closed: reopen it first!")
-        by_id = {c.id: c for c in self.cr.list()}
         budget = BudgetRepository(self.db, self.uid)
         transaction_ids = self.tr.labelled(source)
-        entries = self.register(source, own_only=True)
+        entries = self.register(source)
         result = CategoryMergeResult(
             dry_run=dry_run,
             merged=not dry_run,
-            source=self._path(origin, by_id),
-            into=self._path(into, by_id),
+            source=origin.name,
+            into=into.name,
             balance_moved=entries[-1].balance if entries else Decimal("0.00"),
             entries_moved=len(transaction_ids),
             plan_months_moved=budget.months_for_category(source),
@@ -246,12 +189,11 @@ class CategoryService:
             raise
         return result
 
-    def register(self, category_id: UUID, own_only: bool = False) -> builtins.list[RegisterEntry]:
-        """The entries that have a line labelled with the category (and with the categories in it, unless `own_only`),
-        oldest first. Each one's change is signed by the kind's normal side (spending adds with a debit, earning with a
+    def register(self, category_id: UUID) -> builtins.list[RegisterEntry]:
+        """The entries that have a line labelled with the category, oldest first. Each one's change is signed by the kind's normal side (spending adds with a debit, earning with a
         credit), so the running balance adds up to what the category came to."""
         category = self._get(category_id)
-        ids = {category_id} if own_only else {m.id for m in self._branch(category_id)}
+        ids = {category_id}
         normal = PostingSide.DEBIT if category.kind == "spending" else PostingSide.CREDIT
         lines = self.tr.postings_for_categories(ids)
         changes: dict[UUID, Decimal] = {}

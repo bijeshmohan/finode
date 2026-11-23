@@ -28,7 +28,7 @@ def books(client, root_accounts, expense_account, income_account):
 def test_matching_statement(client, books):
     check = client.get(f"/api/accounts/{books['id']}/check-balance", params={"statement_balance": "880"}).json()
     assert check["matches"] is True and check["difference"] == "0.00" and check["book_balance"] == "880.00"
-    assert check["path"] == "Assets:Bank Account:HDFC"
+    assert check["path"] == "Assets:HDFC"
     assert [e["change"] for e in check["recent"]] == ["-40.00", "-75.00"], "only the last 14 days"
 
 
@@ -55,7 +55,7 @@ def test_unknown_account(client):
 async def test_assistants_can_check_a_statement(session, books):
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="read")) as c:
         ok = payload(await c.call_tool("check_balance", {"account": "HDFC", "statement_balance": "880"}))
-        assert ok["matches"] is True and ok["account"] == "Assets:Bank Account:HDFC"
+        assert ok["matches"] is True and ok["account"] == "Assets:HDFC"
         off = payload(await c.call_tool("check_balance", {"account": books["id"], "statement_balance": "805"}))
         assert off["difference"] == "-75.00" and off["same_size_as_difference"][0]["change"] == "-75.00"
         assert off["matches"] is False

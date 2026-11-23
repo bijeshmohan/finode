@@ -1,11 +1,9 @@
-// A category's own page: its month (the month pill beside the way back), its subcategories with theirs
-// and "Everything else" labelled with it itself, and its own entries. The menu edits, adds a subcategory, deletes or
+// A category's own page: its month (the month pill beside the way back) and its entries. The menu edits, deletes or
 // restores it.
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { messageOf } from "../../api/messages";
-import { useGrouping } from "../../app/currency";
 import { useNewEntryHere } from "../../app/newEntry";
 import { useToday } from "../../app/session";
 import { useToast } from "../../app/toast";
@@ -16,8 +14,6 @@ import { type HeroOpen, InfoNote, Menu, MenuNote, menuStyles } from "../../compo
 import { MonthPill } from "../../components/MonthPill";
 import look from "../../components/Page.module.css";
 import { monthName } from "../../lib/dates";
-import { formatMoney } from "../../lib/money";
-import { positive, sameAmount } from "../../lib/split";
 import { RegisterList } from "../transactions/RegisterList";
 import { TransactionSheet } from "../transactions/TransactionSheet";
 import { useOpenEntry } from "../transactions/useOpenEntry";
@@ -47,7 +43,6 @@ function CategoryMenu({
   const toast = useToast();
   const navigate = useNavigate();
   const earning = view.kind === "earning";
-  const subs = view.subs.length > 0;
   return (
     <Menu open={open} onToggle={onToggle}>
       <Link to={`/categories/${view.id}/edit`}>
@@ -58,12 +53,6 @@ function CategoryMenu({
         <Link to="/budget">
           <Icon name="budget" />
           See in Budgets
-        </Link>
-      )}
-      {view.can_add_child && (
-        <Link to={`/categories/new?parent=${view.id}`}>
-          <Icon name="plus" />
-          Add subcategory
         </Link>
       )}
       {view.closed_on ? (
@@ -99,8 +88,8 @@ function CategoryMenu({
             className={menuStyles.danger}
             onClick={() => {
               const ask =
-                `Delete ${view.name}${subs ? " and the subcategories in it" : ""}? If there are entries, they stay in ` +
-                `your history and reports, but ${subs ? "these categories leave" : "it leaves"} your lists and pickers.`;
+                `Delete ${view.name}? If there are entries, they stay in your history and reports, but it leaves ` +
+                "your lists and pickers.";
               if (!window.confirm(ask)) return;
               onError(null);
               change.mutate(
@@ -130,7 +119,6 @@ function CategoryMenu({
 export function CategoryPage() {
   const { categoryId = "" } = useParams();
   const today = useToday();
-  const grouping = useGrouping();
   const [params, setParams] = useSearchParams();
   const asked = params.get("month");
   const query = useCategory(categoryId, asked);
@@ -145,13 +133,9 @@ export function CategoryPage() {
   if (!view) return <h1 className="sr-only">Category</h1>;
   const earning = view.kind === "earning";
   const tab = earning ? "income" : "expense";
-  const money = (value: string) => (
-    <span className={earning && positive(value) ? styles.income : undefined}>{formatMoney(value, grouping)}</span>
-  );
   const toggle = (which: "menu" | "info") => (open: boolean) => {
     setHeroOpen(open ? which : null);
   };
-  const hasOwn = !sameAmount(view.own_here, "0");
 
   return (
     <>
@@ -186,7 +170,7 @@ export function CategoryPage() {
                 />
               )}
             </div>
-            <p className={look.sub}>{view.group ? view.group.name : earning ? "Earning" : "Spending"}</p>
+            <p className={look.sub}>{earning ? "Earning" : "Spending"}</p>
           </div>
           <div className={look.actions}>
             <CategoryMenu view={view} open={heroOpen === "menu"} onToggle={toggle("menu")} onError={setError} />
@@ -207,52 +191,15 @@ export function CategoryPage() {
         )}
       </header>
 
-      {(view.subs.length > 0 || hasOwn) && (
-        <>
-          <div className={look.sectionHead}>
-            <h2>Subcategories</h2>
-          </div>
-          <div className={styles.tile}>
-            {view.subs.map((s) => (
-              <Link key={s.id} className={styles.row} to={`/categories/${s.id}?month=${view.month}`}>
-                <span className={styles.main}>
-                  <span className={styles.name}>{s.name}</span>
-                </span>
-                <span className={styles.amount}>{money(s.total)}</span>
-              </Link>
-            ))}
-            {hasOwn && (
-              <div className={styles.row}>
-                <span className={styles.main}>
-                  <span className={styles.name}>Everything else</span>
-                  <span className={styles.rowSub}>posted to {view.name} itself</span>
-                </span>
-                <span className={styles.amount}>{money(view.own_here)}</span>
-              </div>
-            )}
-          </div>
-          {view.can_add_child && (
-            <Link className={look.addRow} to={`/categories/new?parent=${view.id}`}>
-              <Icon name="plus" />
-              Add subcategory
-            </Link>
-          )}
-        </>
-      )}
-
-      {(view.entries.length > 0 || view.subs.length === 0) && (
-        <div className={look.sectionHead}>
-          <h2>Transactions</h2>
-        </div>
-      )}
+      <div className={look.sectionHead}>
+        <h2>Transactions</h2>
+      </div>
       {view.entries.length > 0 ? (
         <RegisterList rows={view.entries} onOpen={openEntry} />
       ) : (
-        view.subs.length === 0 && (
-          <div className={look.empty}>
-            <p>Nothing in {monthName(view.month)}.</p>
-          </div>
-        )
+        <div className={look.empty}>
+          <p>Nothing in {monthName(view.month)}.</p>
+        </div>
       )}
       {openId && <TransactionSheet id={openId} onClose={closeEntry} onOpen={openEntry} />}
     </>
