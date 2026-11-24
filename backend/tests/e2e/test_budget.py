@@ -273,8 +273,8 @@ def test_the_head_is_the_same_on_accounts_categories_and_budgets(signed_in_page:
         page.goto(path)
         title = page.locator("main h1").first.bounding_box()
         top = (
-            page.get_by_text(label) if isinstance(label, re.Pattern) else page.get_by_text(label, exact=True)
-        ).bounding_box()
+            page.get_by_text(label).first if isinstance(label, re.Pattern) else page.get_by_text(label, exact=True)
+        ).bounding_box()  # each type also says how many accounts it holds: the page's own line comes first
         assert title and top
         spots[path] = (round(title["y"]), round(top["y"]))
     assert len({s[0] for s in spots.values()}) == 1, f"the titles line up: {spots}"

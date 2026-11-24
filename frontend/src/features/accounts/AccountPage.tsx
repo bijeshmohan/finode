@@ -1,4 +1,4 @@
-// An account's (or a group's) own page: its balance and kind, a card's bill, a group's accounts as cards,
+// An account's (or a group's) own page: its balance and kind, a card's bill, a group's accounts as a list,
 // what is dated ahead, and its entries with the running balance, a chunk at a time. The pin and the "…" menu pin, close,
 // reopen and edit it.
 import { useState } from "react";
@@ -19,7 +19,7 @@ import { RegisterList } from "../transactions/RegisterList";
 import { TransactionSheet } from "../transactions/TransactionSheet";
 import { UpcomingCard } from "../transactions/UpcomingCard";
 import { useOpenEntry } from "../transactions/useOpenEntry";
-import { AccountCard } from "./AccountCard";
+import { AccountRows } from "./AccountRows";
 import look from "../../components/Page.module.css";
 import styles from "./Accounts.module.css";
 import { CardBill } from "./CardBill";
@@ -236,11 +236,7 @@ export function AccountPage() {
           <div className={look.sectionHead}>
             <h2>Accounts</h2>
           </div>
-          <div className={styles.rail}>
-            {view.cards.map((c) => (
-              <AccountCard key={c.id} card={c} />
-            ))}
-          </div>
+          <AccountRows cards={view.cards} withIcons />
         </>
       )}
       <div className={look.sectionHead}>
