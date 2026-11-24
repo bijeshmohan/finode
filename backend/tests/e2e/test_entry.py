@@ -340,10 +340,13 @@ def test_adding_a_category_from_the_picker(signed_in_page: Page, books, api: Api
     page.get_by_role("dialog", name="Spent on").get_by_role("button", name="＋ New category").click()
     sheet = page.get_by_role("dialog", name="New category")
     sheet.get_by_label("Name").fill("Coffee")
+    sheet.get_by_role("button", name=re.compile("Choose an icon")).click()
+    page.get_by_role("dialog", name="Icon").get_by_role("button", name="coffee").click()
+    expect(sheet).to_be_visible()  # choosing an icon closes only the icon sheet
     sheet.get_by_role("button", name="Add category").click()
     expect(sheet).to_have_count(0)
     expect(side(page, "Spent on")).to_contain_text("Coffee")
-    assert any(c["name"] == "Coffee" for c in api.get("/categories/"))
+    assert any(c["name"] == "Coffee" and c["icon"] == "coffee" for c in api.get("/categories/"))
 
 
 def test_the_amount_is_a_bare_figure_with_the_rupee_sign_against_it(signed_in_page: Page, books):

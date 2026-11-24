@@ -96,12 +96,17 @@ def test_every_bar_runs_the_full_width_of_its_row(signed_in_page: Page, api: Api
         page.goto("/budget")
         expect(category(page, "Rent")).to_be_visible()
         rows = page.locator("main button:has(> span[aria-hidden='true'])")
-        sizes = rows.evaluate_all(
-            "els => els.map(e => [Math.round(e.getBoundingClientRect().width),"
-            " Math.round(e.querySelector(':scope > span[aria-hidden]').getBoundingClientRect().width)])"
+        # The bar runs from where the name starts (after the category's icon) to the row's right edge.
+        edges = rows.evaluate_all(
+            "els => els.map(e => { const r = e.getBoundingClientRect();"
+            " const bar = e.querySelector(':scope > span[aria-hidden]').getBoundingClientRect();"
+            " const name = e.querySelector(':scope > span:nth-child(2)').getBoundingClientRect();"
+            " return [Math.round(r.right), Math.round(bar.right), Math.round(name.left), Math.round(bar.left)]; })"
         )
-        assert len(sizes) >= 4, sizes  # every category is a row, Dining and Delivery included
-        assert all(row == bar for row, bar in sizes), f"at {width}px: {sizes}"
+        assert len(edges) >= 4, edges  # every category is a row, Dining and Delivery included
+        assert all(row == bar_right and name == bar_left for row, bar_right, name, bar_left in edges), (
+            f"at {width}px: {edges}"
+        )
 
 
 def test_names_and_amounts_line_up(signed_in_page: Page, api: Api, books):

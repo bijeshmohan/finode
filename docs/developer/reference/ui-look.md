@@ -56,6 +56,10 @@ Replaced the passbook look (2026-11-07) on the owner's pick of three directions 
 
 **Corners** follow what a thing is: tiles and sheets `--radius` (14px), fields `--radius-sm` (10px), buttons `--radius-button` (10px), the docked "+" a rounded square (`--radius`); chips and switchers stay fully round.
 
+## Category icons (2026-11-24)
+
+A category's icon is a plain line drawing in `--muted`, 20 point, stroke 1.75, with nothing behind it (the owner chose this over a tinted circle: mock-ups https://claude.ai/artifact/8eGK2R8VkPXdhZfb1htNXZ). `components/CategoryIcon` draws it from `category-icons.json` (a name the build does not know draws `tag`); the shared `Row` takes `icon` and puts it in a fixed 22-point slot before the name, so names line up; Budgets lines, the Categories list, the pickers and the Add screen's chosen category (16 point) use the same drawing. The server says which icon a row leads with. `components/IconPicker` is the Icon field: the chosen icon and its name (or "Choose an icon"), opening a sheet with the groups as headings and a six-column grid; the chosen one is filled in ink. The Upcoming card keeps its date block as its lead and shows no icon.
+
 ## Colours and dark mode
 
 Every colour is a token in `frontend/src/styles/tokens.css`. Both dark blocks (the automatic `prefers-color-scheme` one and the chosen `data-theme="dark"` one) define the same tokens (`frontend/src/styles/tokens.test.ts`). The look (auto, light, dark) is chosen on Settings and kept in this browser (`lib/theme.ts`); `index.html` applies it before the first paint. Form fields use `--field-border`, stronger than the hairline `--border` in dark. `favicon.svg` and `apple-touch-icon.png` follow the ink palette (`favicon.svg` in both themes); the phone's status bar takes the page's own colour (`theme-color`).
