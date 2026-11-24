@@ -151,7 +151,7 @@ async def test_a_split_row_may_name_only_a_category_and_a_rule_may_carry_one(ses
 @pytest.mark.anyio
 async def test_making_a_category_needs_write_and_changing_one_needs_manage(session, client, books):
     async with running_app(session), mcp_client(make_token(session, TEST_USER_ID, scope="write")) as c:
-        made = (await call(c, "create_category", name="Dining", kind="spending"))["created"]
+        made = (await call(c, "create_category", name="Dining", kind="spending", icon="utensils"))["created"]
         assert made["name"] == "Dining" and made["kind"] == "spending"
         with pytest.raises(ToolFailed, match="not manage accounts, categories or tags"):
             await call(c, "update_category", category="Dining", name="Eating out")
