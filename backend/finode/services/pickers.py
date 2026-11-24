@@ -21,6 +21,8 @@ class PickOption:
     label: str
     budget: bool = False
     balance: Decimal | None = None
+    # A category's icon (an account has none).
+    icon: str | None = None
 
 
 PickGroups = list[tuple[str, list[PickOption]]]
@@ -60,7 +62,7 @@ def category_groups(categories: list[CategoryRead], keep: Collection[UUID] = fro
     found: PickGroups = []
     for root, kind in (("Income", "earning"), ("Expenses", "spending")):
         mine = [c for c in categories if c.kind == kind and (c.closed_on is None or c.id in keep)]
-        options = [PickOption(c.id, c.name) for c in sorted(mine, key=lambda c: c.name.lower())]
+        options = [PickOption(c.id, c.name, icon=c.icon) for c in sorted(mine, key=lambda c: c.name.lower())]
         if options:
             found.append((root, options))
     return found

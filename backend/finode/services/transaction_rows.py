@@ -21,6 +21,7 @@ from ..schemas.transaction import PostingBase, RelatedRef, TransactionRead
 from ..tags import clean_tag
 from .account_tree import build_tree, without_contacts
 from .contact import ContactService
+from .row_icon import IconLine, row_icon
 from .transaction import TransactionService
 
 PAGE_SIZE = 25
@@ -45,6 +46,7 @@ class UpcomingItem:
     sub: str
     amount: Decimal
     income: bool = False
+    icon: str = "arrow-left-right"
 
 
 @dataclass
@@ -54,6 +56,8 @@ class TransactionRow:
     credits: list[str]
     amount: Decimal
     kind: RowKind
+    # The icon the row leads with (services/row_icon.py).
+    icon: str
     # The earlier entry this one is related to, with its date and amount, when a list loaded it (`list_rows`).
     related: RelatedRef | None = None
 
@@ -107,12 +111,27 @@ class AccountIndex:
     roots: dict[UUID, str]
     # The categories' names: a line on Expenses or Income is named for what it was for.
     categories: dict[UUID, str] = field(default_factory=dict)
+    # What a row leads with: the categories' icons, the people's accounts and Opening Balances (services/row_icon.py).
+    icons: dict[UUID, str] = field(default_factory=dict)
+    contacts: frozenset[UUID] = frozenset()
+    opening: UUID | None = None
 
     @classmethod
     def build(cls, accounts: list[AccountRead], categories: list[CategoryRead] | None = None) -> AccountIndex:
         names = {a.id: a.name for a in accounts}
         roots = {node.account.id: root.account.name for root in build_tree(accounts) for node in root.walk()}
-        return cls(names, roots, {c.id: c.name for c in categories or []})
+        return cls(
+            names,
+            roots,
+            {c.id: c.name for c in categories or []},
+            {c.id: c.icon for c in categories or []},
+            frozenset(a.id for a in accounts if a.contact_account),
+            next((a.id for a in accounts if a.name == OPENING_BALANCES and roots.get(a.id) == "Equity"), None),
+        )
+
+    def icon(self, lines: list[IconLine]) -> str:
+        """The icon a row of these lines leads with."""
+        return row_icon(lines, self.roots, self.icons, self.contacts, self.opening)
 
     def line_name(self, posting: PostingBase | ComingUpLine) -> str:
         """What a line is called in a list: its category when it sits on Expenses or Income, else its account."""
@@ -151,6 +170,7 @@ def to_row(transaction: TransactionRead, index: AccountIndex) -> TransactionRow:
         credits=side_names(PostingSide.CREDIT),
         amount=amount,
         kind=kind,
+        icon=index.icon(list(transaction.postings)),
     )
 
 
@@ -202,7 +222,8 @@ def upcoming_items(ahead: Iterable[TransactionRead], index: AccountIndex) -> lis
     for t in sorted(ahead, key=lambda t: (t.date, t.created)):
         r = to_row(t, index)
         sub = f"{', '.join(r.credits)} \u2192 {', '.join(r.debits)}" if t.payee else ", ".join(r.credits)
-        items.append(UpcomingItem(t.id, t.date, t.payee or ", ".join(r.debits), sub, r.amount, r.kind == "income"))
+        title = t.payee or ", ".join(r.debits)
+        items.append(UpcomingItem(t.id, t.date, title, sub, r.amount, r.kind == "income", r.icon))
     return items
 
 
@@ -460,6 +481,8 @@ class RegisterRow:
     inflow: bool
     negative: bool
     balance: Decimal | None
+    # The icon the row leads with; none on a category's page (its header shows it once).
+    icon: str | None = None
 
 
 def is_inflow(root_name: str, change: Decimal) -> bool:
@@ -488,6 +511,7 @@ def account_register_row(entry: RegisterEntry, root_name: str) -> RegisterRow:
         inflow=is_inflow(root_name, entry.change),
         negative=False,
         balance=entry.balance,
+        icon=entry.icon,
     )
 
 

@@ -20,6 +20,8 @@ class ComingRow:
     item: ComingUpItem
     title: str
     sub: str
+    # The icon the row leads with (services/row_icon.py).
+    icon: str = "arrow-left-right"
 
 
 @dataclass
@@ -56,6 +58,7 @@ def coming_days(
             item=item,
             title=item.payee or ", ".join(debits),
             sub=f"{', '.join(credits)} → {', '.join(debits)}" if item.payee else ", ".join(credits),
+            icon=index.icon([*item.debits, *item.credits]),
         )
 
     days: list[ComingDay] = []

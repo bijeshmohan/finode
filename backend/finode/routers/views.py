@@ -158,6 +158,7 @@ def row_read(row: TransactionRow) -> RowRead:
         related=row.related,
         recurring=row.recurring,
         by_assistant=row.by_assistant,
+        icon=row.icon,
     )
 
 
@@ -204,7 +205,15 @@ def transactions_view(
         if found.summary
         else None,
         upcoming=[
-            UpcomingRead(id=u.transaction_id, date=u.date, title=u.title, sub=u.sub, amount=u.amount, income=u.income)
+            UpcomingRead(
+                id=u.transaction_id,
+                date=u.date,
+                title=u.title,
+                sub=u.sub,
+                amount=u.amount,
+                income=u.income,
+                icon=u.icon,
+            )
             for u in found.upcoming
         ],
         upcoming_total=found.upcoming_total,
@@ -402,7 +411,9 @@ def _pick_groups(groups: Iterable[tuple[str, list]]) -> list[PickGroupRead]:
     return [
         PickGroupRead(
             title=title,
-            options=[PickOptionRead(id=o.id, label=o.label, budget=o.budget, balance=o.balance) for o in options],
+            options=[
+                PickOptionRead(id=o.id, label=o.label, budget=o.budget, balance=o.balance, icon=o.icon) for o in options
+            ],
         )
         for title, options in groups
     ]
@@ -529,7 +540,15 @@ def account_view(account_id: UUID, accounts: Accounts, offset: int = Query(defau
         postable=node.postable,
         new_transaction_url=page.new_transaction_url,
         upcoming=[
-            UpcomingRead(id=u.transaction_id, date=u.date, title=u.title, sub=u.sub, amount=u.amount, income=u.income)
+            UpcomingRead(
+                id=u.transaction_id,
+                date=u.date,
+                title=u.title,
+                sub=u.sub,
+                amount=u.amount,
+                income=u.income,
+                icon=u.icon,
+            )
             for u in page.upcoming
         ],
         upcoming_total=page.upcoming_total,
@@ -563,7 +582,10 @@ def categories_view(categories: Categories, reports: Reports, month: str = "", t
         is_current=is_current,
         tab="income" if shown == "income" else "expense",
         grand=grand,
-        rows=[CategoryRowRead(id=r.category.id, name=r.category.name, total=r.total, share=r.share) for r in rows],
+        rows=[
+            CategoryRowRead(id=r.category.id, name=r.category.name, total=r.total, share=r.share, icon=r.category.icon)
+            for r in rows
+        ],
     )
 
 
@@ -579,6 +601,7 @@ def category_view(category_id: UUID, categories: Categories, reports: Reports, m
     return CategoryView(
         id=category.id,
         name=category.name,
+        icon=category.icon,
         details=category.details,
         kind=category.kind,
         built_in=category.system_key is not None,
@@ -657,6 +680,7 @@ def _budget_row(row: budget_view.Row) -> BudgetRowRead:
         hint=row.hint,
         percent=r.percent,
         over=r.over,
+        icon=line.icon,
     )
 
 
@@ -750,6 +774,7 @@ def coming_up_view(service: ComingUp, accounts: Accounts, categories: Categories
                         income=r.item.income,
                         recurring_id=r.item.recurring_id,
                         transaction_id=r.item.transaction_id,
+                        icon=r.icon,
                     )
                     for r in d.rows
                 ],

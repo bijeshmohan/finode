@@ -120,6 +120,8 @@ class RegisterEntry(BaseModel):
     posted_on: Date | None = None
     # A group's register: the accounts of the group the entry touches (empty on an account's own).
     accounts: list[str] = []
+    # The icon the entry's row leads with (services/row_icon.py).
+    icon: str = "arrow-left-right"
 
 
 class CardBill(BaseModel):

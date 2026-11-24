@@ -34,6 +34,8 @@ class RowRead(BaseModel):
     related: RelatedRef | None
     recurring: bool
     by_assistant: str | None
+    # The icon the row leads with (services/row_icon.py; finode/category_icons.py).
+    icon: str
 
 
 class DayTotal(BaseModel):
@@ -60,6 +62,8 @@ class UpcomingRead(BaseModel):
     sub: str
     amount: Decimal
     income: bool
+    # The icon the row leads with (services/row_icon.py; finode/category_icons.py).
+    icon: str
 
 
 class AppliedFilter(BaseModel):
@@ -182,6 +186,8 @@ class PickOptionRead(BaseModel):
     label: str
     budget: bool
     balance: Decimal | None
+    # A category's icon; none for an account.
+    icon: str | None = None
 
 
 class PickGroupRead(BaseModel):
@@ -302,6 +308,8 @@ class RegisterRowRead(BaseModel):
     negative: bool
     # The account's running balance (none on a category's page).
     balance: Decimal | None
+    # The icon the row leads with; none on a category's page (its header shows it once).
+    icon: str | None = None
 
 
 class AccountView(BaseModel):
@@ -345,6 +353,7 @@ class CategoryRowRead(BaseModel):
     total: Decimal
     # Its part of the month ("34%", "<1%", "0%"; empty when the month adds up to nothing).
     share: str
+    icon: str
 
 
 class CategoriesView(BaseModel):
@@ -365,6 +374,7 @@ class CategoryView(BaseModel):
 
     id: UUID
     name: str
+    icon: str
     details: str | None
     kind: Literal["spending", "earning"]
     built_in: bool
@@ -425,6 +435,7 @@ class BudgetRowRead(BaseModel):
     # How far the bar runs (100 when over).
     percent: int
     over: bool
+    icon: str
 
 
 class BudgetSum(BaseModel):
@@ -498,6 +509,8 @@ class ComingRowRead(BaseModel):
     # A rule's occurrence (not recorded yet) or an entry dated ahead: one of the two.
     recurring_id: UUID | None
     transaction_id: UUID | None
+    # The icon the row leads with (services/row_icon.py; finode/category_icons.py).
+    icon: str
 
 
 class ComingDayRead(BaseModel):

@@ -1544,6 +1544,10 @@
             "title": "Category Id",
             "type": "string"
           },
+          "icon": {
+            "title": "Icon",
+            "type": "string"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -1557,6 +1561,7 @@
         "required": [
           "category_id",
           "name",
+          "icon",
           "assigned",
           "activity",
           "available",
@@ -1775,6 +1780,10 @@
             "title": "Hint",
             "type": "string"
           },
+          "icon": {
+            "title": "Icon",
+            "type": "string"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -1831,7 +1840,8 @@
           "state",
           "hint",
           "percent",
-          "over"
+          "over",
+          "icon"
         ],
         "title": "BudgetRowRead",
         "type": "object"
@@ -2329,6 +2339,10 @@
       "CategoryRowRead": {
         "description": "One row of the Categories page: a category, its month and its share.",
         "properties": {
+          "icon": {
+            "title": "Icon",
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -2352,7 +2366,8 @@
           "id",
           "name",
           "total",
-          "share"
+          "share",
+          "icon"
         ],
         "title": "CategoryRowRead",
         "type": "object"
@@ -2439,6 +2454,10 @@
             "title": "Entries",
             "type": "array"
           },
+          "icon": {
+            "title": "Icon",
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -2484,6 +2503,7 @@
         "required": [
           "id",
           "name",
+          "icon",
           "details",
           "kind",
           "built_in",
@@ -2576,6 +2596,10 @@
             "title": "Amount",
             "type": "string"
           },
+          "icon": {
+            "title": "Icon",
+            "type": "string"
+          },
           "income": {
             "title": "Income",
             "type": "boolean"
@@ -2619,7 +2643,8 @@
           "amount",
           "income",
           "recurring_id",
-          "transaction_id"
+          "transaction_id",
+          "icon"
         ],
         "title": "ComingRowRead",
         "type": "object"
@@ -5908,6 +5933,17 @@
             "title": "Budget",
             "type": "boolean"
           },
+          "icon": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -7148,6 +7184,11 @@
             "title": "Date",
             "type": "string"
           },
+          "icon": {
+            "default": "arrow-left-right",
+            "title": "Icon",
+            "type": "string"
+          },
           "payee": {
             "anyOf": [
               {
@@ -7223,6 +7264,17 @@
             "format": "date",
             "title": "Date",
             "type": "string"
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon"
           },
           "id": {
             "format": "uuid",
@@ -7452,6 +7504,10 @@
             "title": "Date",
             "type": "string"
           },
+          "icon": {
+            "title": "Icon",
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -7508,7 +7564,8 @@
           "is_opening",
           "related",
           "recurring",
-          "by_assistant"
+          "by_assistant",
+          "icon"
         ],
         "title": "RowRead",
         "type": "object"
@@ -9926,6 +9983,10 @@
             "title": "Date",
             "type": "string"
           },
+          "icon": {
+            "title": "Icon",
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -9950,7 +10011,8 @@
           "title",
           "sub",
           "amount",
-          "income"
+          "income",
+          "icon"
         ],
         "title": "UpcomingRead",
         "type": "object"

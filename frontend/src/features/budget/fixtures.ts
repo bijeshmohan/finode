@@ -12,6 +12,7 @@ export function row(over: Partial<BudgetRow> = {}): BudgetRow {
   return {
     category_id: ids.rent,
     name: "Rent",
+    icon: "house",
     assigned: "500.00",
     activity: "0.00",
     available: "500.00",

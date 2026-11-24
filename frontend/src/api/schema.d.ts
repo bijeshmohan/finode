@@ -2950,6 +2950,8 @@ export interface components {
              * Format: uuid
              */
             category_id: string;
+            /** Icon */
+            icon: string;
             /** Name */
             name: string;
             /** Overspent Last Month */
@@ -3042,6 +3044,8 @@ export interface components {
             category_id: string;
             /** Hint */
             hint: string;
+            /** Icon */
+            icon: string;
             /** Name */
             name: string;
             /** Of */
@@ -3259,6 +3263,8 @@ export interface components {
          * @description One row of the Categories page: a category, its month and its share.
          */
         CategoryRowRead: {
+            /** Icon */
+            icon: string;
             /**
              * Id
              * Format: uuid
@@ -3295,6 +3301,8 @@ export interface components {
             details: string | null;
             /** Entries */
             entries: components["schemas"]["RegisterRowRead"][];
+            /** Icon */
+            icon: string;
             /**
              * Id
              * Format: uuid
@@ -3354,6 +3362,8 @@ export interface components {
         ComingRowRead: {
             /** Amount */
             amount: string;
+            /** Icon */
+            icon: string;
             /** Income */
             income: boolean;
             /** Recurring Id */
@@ -4591,6 +4601,8 @@ export interface components {
             balance: string | null;
             /** Budget */
             budget: boolean;
+            /** Icon */
+            icon?: string | null;
             /**
              * Id
              * Format: uuid
@@ -4992,6 +5004,11 @@ export interface components {
              * Format: date
              */
             date: string;
+            /**
+             * Icon
+             * @default arrow-left-right
+             */
+            icon: string;
             /** Payee */
             payee: string | null;
             /** Posted On */
@@ -5017,6 +5034,8 @@ export interface components {
              * Format: date
              */
             date: string;
+            /** Icon */
+            icon?: string | null;
             /**
              * Id
              * Format: uuid
@@ -5146,6 +5165,8 @@ export interface components {
              * Format: date
              */
             date: string;
+            /** Icon */
+            icon: string;
             /**
              * Id
              * Format: uuid
@@ -5994,6 +6015,8 @@ export interface components {
              * Format: date
              */
             date: string;
+            /** Icon */
+            icon: string;
             /**
              * Id
              * Format: uuid
