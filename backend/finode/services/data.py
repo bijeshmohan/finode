@@ -14,6 +14,7 @@ from pydantic import ValidationError
 
 from ..category_icons import CHOOSABLE as CHOOSABLE_ICONS
 from ..category_icons import DEFAULT as DEFAULT_ICON
+from ..category_icons import SYSTEM as SYSTEM_ICONS
 from ..clock import local_today
 from ..config import settings
 from ..ledger import AccountDecl, LedgerPosting, LedgerTransaction, parse, write
@@ -263,7 +264,8 @@ class DataService:
                 + ":"
                 + ":".join(_segment(n) for n in names[c.id].split(":")),
                 c.details,
-                icon=c.icon,
+                # The built-in Uncategorised's mark is not an icon a file can give a category: it is left out.
+                icon=None if c.system_key else c.icon,
             )
             for c in sorted(categories, key=lambda c: (c.kind, names[c.id]))
         ]
@@ -504,6 +506,8 @@ class DataService:
             note, line = category_notes.get(key, (None, 0))
             flat = plan.category_flat[key]
             icon, icon_line = category_icons.get(key, (DEFAULT_ICON, line))
+            if icon in SYSTEM_ICONS:  # a mark no category chooses (an older export's Uncategorised): as if unlabelled
+                icon = DEFAULT_ICON
             if icon not in CHOOSABLE_ICONS:
                 errors.append(f"line {icon_line}: '{icon}' is not one of finode's category icons")
                 icon = DEFAULT_ICON

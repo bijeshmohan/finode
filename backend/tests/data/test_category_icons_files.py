@@ -67,3 +67,23 @@ def test_kind_and_icon_labels_do_not_mix(client):
     assert done.status_code == 200, done.text
     assert {a["name"]: a["type"] for a in client.get("/api/accounts/").json() if a["type"]} == {"HDFC": "assets.bank"}
     assert _icons(client)["Fuel"] == "fuel"
+
+
+def test_books_with_uncategorised_export_and_import_again(client, root_accounts):
+    """The built-in Uncategorised's mark is not a category icon a file can give: the export leaves it out, and a file
+    that still has it (an export from before this fix) imports with the generic tag."""
+    hdfc = client.post("/api/accounts/", json={"name": "HDFC", "type": "assets.bank", "balance": "100"}).json()
+    body = {"postings": [leg({"id": root_accounts["Expenses"]}, "debit", "40"), leg(hdfc, "credit", "40")]}
+    assert client.post("/api/transactions/", json=body).status_code == 201
+    text = client.get("/api/export", params={"format": "ledger"}).text
+    assert "Uncategorised" in text and "circle-dashed" not in text
+    older = text.replace("account Expenses:Uncategorised", "account Expenses:Uncategorised  ; icon: circle-dashed")
+    try:
+        as_user(OTHER)
+        preview = client.post("/api/import", files={"file": ("a.ledger", older.encode())}, params={"dry_run": True})
+        assert preview.status_code == 200, preview.text
+        done = _import(client, text)
+        assert done.status_code == 200, done.text
+        assert _icons(client)["Uncategorised"] == "tag"
+    finally:
+        as_user(TEST_USER_ID)
