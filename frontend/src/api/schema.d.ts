@@ -3205,6 +3205,13 @@ export interface components {
             details: string | null;
             /** Editing */
             editing: boolean;
+            /** Icon */
+            icon?: string | null;
+            /**
+             * Icon Fixed
+             * @default false
+             */
+            icon_fixed: boolean;
             /**
              * Kind
              * @enum {string}

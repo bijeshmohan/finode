@@ -146,6 +146,32 @@ describe("a category's page", () => {
 });
 
 describe("the category form", () => {
+  it("changes a category's icon and sends only that", async () => {
+    const { fetch } = renderApp(`/categories/${ids.food}/edit`, {
+      ...SIGNED_IN,
+      "/api/views/category-form": [200, categoryForm({ editing: true, name: "Food", icon: "utensils" })],
+      [`/api/categories/${ids.food}`]: [200, { id: ids.food }],
+    });
+    await userEvent.click(await screen.findByRole("button", { name: /utensils.*Change/ }));
+    await userEvent.click(
+      within(await screen.findByRole("dialog", { name: "Icon" })).getByRole("button", { name: "pizza" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(await sent(fetch, `/api/categories/${ids.food}`, "PATCH")).toEqual({ icon: "pizza" });
+  });
+
+  it("the built-in Uncategorised offers no icon to choose", async () => {
+    renderApp(`/categories/${ids.food}/edit`, {
+      ...SIGNED_IN,
+      "/api/views/category-form": [
+        200,
+        categoryForm({ editing: true, name: "Uncategorised", icon: "circle-dashed", icon_fixed: true }),
+      ],
+    });
+    expect(await screen.findByLabelText("Name")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Change|Choose an icon/ })).not.toBeInTheDocument();
+  });
+
   it("adds a category; there is no group to choose", async () => {
     const { fetch, router } = renderApp("/categories/new", {
       ...SIGNED_IN,
@@ -155,10 +181,17 @@ describe("the category form", () => {
     await userEvent.type(await screen.findByLabelText("Name"), "Groceries");
     expect(screen.queryByRole("button", { name: /^Under/ })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Add category" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Choose an icon");
+    expect(calledPaths(fetch)).not.toContain("/api/categories/");
+    await userEvent.click(screen.getByRole("button", { name: /Choose an icon/ }));
+    await userEvent.click(
+      within(await screen.findByRole("dialog", { name: "Icon" })).getByRole("button", { name: "shopping cart" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add category" }));
     expect(await sent(fetch, "/api/categories/", "POST")).toEqual({
       name: "Groceries",
       kind: "spending",
-      icon: "tag",
+      icon: "shopping-cart",
       details: null,
     });
     await waitFor(() => {

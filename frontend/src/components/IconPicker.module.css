@@ -1,0 +1,90 @@
+/* A category's icon field (looks like the form's fields) and the sheet of icons it opens. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.fieldLabel {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.pick {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: max(16px, 1rem);
+  text-align: left;
+  cursor: pointer;
+}
+.pick:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.chosen {
+  display: grid;
+  flex: none;
+  place-items: center;
+}
+.name {
+  flex: 1;
+  min-width: 0;
+}
+.name::first-letter {
+  text-transform: uppercase;
+}
+.change {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+.empty {
+  color: var(--muted);
+}
+.group + .group {
+  margin-top: 0.75rem;
+}
+.groupTitle {
+  margin: 0 0 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+.cell {
+  display: grid;
+  place-items: center;
+  min-height: var(--tap);
+  aspect-ratio: 1;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .cell:hover {
+    background: var(--surface-2);
+  }
+}
+.cell[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.cell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

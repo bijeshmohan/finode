@@ -415,6 +415,10 @@ class CategoryFormView(BaseModel):
     kind: Literal["spending", "earning"]
     name: str
     details: str | None
+    # Its icon; none for a new category until one is chosen.
+    icon: str | None = None
+    # The built-in Uncategorised keeps its icon: the form offers no choice.
+    icon_fixed: bool = False
 
 
 class BudgetRowRead(BaseModel):

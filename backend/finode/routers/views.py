@@ -655,6 +655,8 @@ def category_form_view(categories: Categories, category_id: UUID | None = None, 
         kind="earning" if form.kind == "earning" else "spending",
         name=current.name if current else "",
         details=current.details if current else None,
+        icon=current.icon if current else None,
+        icon_fixed=current is not None and current.system_key is not None,
     )
 
 

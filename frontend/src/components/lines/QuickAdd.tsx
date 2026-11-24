@@ -6,6 +6,7 @@ import { useState } from "react";
 import { messageOf } from "../../api/messages";
 import { usePlaces } from "../../app/currency";
 import { Icon } from "../../components/Icon";
+import { IconPicker } from "../../components/IconPicker";
 import { Sheet } from "../../components/Sheet";
 import { tidyAmount } from "../../lib/amount";
 import styles from "./QuickAdd.module.css";
@@ -33,6 +34,8 @@ export function QuickAdd({ making, accountTypes, onMade, onClose }: QuickAddProp
     account ? (offered.find((t) => t.name === making.root)?.key ?? offered[0]?.key ?? "") : "",
   );
   const [balance, setBalance] = useState("");
+  const [icon, setIcon] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
   const pending = addAccount.isPending || addCategory.isPending;
   const error = addAccount.error ?? addCategory.error;
   const made = (created: { id: string }) => {
@@ -46,7 +49,12 @@ export function QuickAdd({ making, accountTypes, onMade, onClose }: QuickAddProp
       const opening = balance.trim() ? tidyAmount(balance, places).replace(/,/g, "") : "0";
       addAccount.mutate({ name: name.trim(), type, balance: opening, bill_rounding: "none" }, { onSuccess: made });
     } else {
-      addCategory.mutate({ name: name.trim(), kind: making.kind, icon: "tag" }, { onSuccess: made });
+      if (!icon) {
+        setProblem("Choose an icon");
+        return;
+      }
+      setProblem(null);
+      addCategory.mutate({ name: name.trim(), kind: making.kind, icon }, { onSuccess: made });
     }
   };
 
@@ -115,9 +123,18 @@ export function QuickAdd({ making, accountTypes, onMade, onClose }: QuickAddProp
             <span className={styles.hint}>Optional. Recorded as an opening balance dated today.</span>
           </label>
         )}
-        {error && (
+        {!account && (
+          <IconPicker
+            value={icon}
+            onChange={(chosen) => {
+              setIcon(chosen);
+              setProblem(null);
+            }}
+          />
+        )}
+        {(problem ?? error) && (
           <p className={styles.error} role="alert">
-            {messageOf(error)}
+            {problem ?? messageOf(error)}
           </p>
         )}
         <div className={styles.actions}>

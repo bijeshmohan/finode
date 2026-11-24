@@ -8,6 +8,7 @@ import pytest
 from tests.books import leg
 from tests.budget.test_budget import account
 from tests.guards.test_isolation import B_USER, signed_in_as
+from tests.svc import services
 
 THIS_MONTH = date.today().replace(day=1)
 LAST_MONTH = (THIS_MONTH - timedelta(days=1)).replace(day=1)
@@ -114,6 +115,15 @@ def test_a_category_form(client, books):
     assert form(client, root="income")["kind"] == "earning"
     food = form(client, category_id=books["food"]["id"])
     assert food["editing"] is True and food["name"] == "Food" and "parent_id" not in food
+
+
+def test_the_category_form_starts_on_the_icon(client, books, session):
+    assert form(client)["icon"] is None, "a new category has no icon until one is chosen"
+    food = form(client, category_id=books["food"]["id"])
+    assert food["icon"] == "tag" and food["icon_fixed"] is False
+    uncategorised = services(session).categories.uncategorised("spending")
+    fixed = form(client, category_id=str(uncategorised.id))
+    assert fixed["icon"] == "circle-dashed" and fixed["icon_fixed"] is True
 
 
 def test_a_strangers_category_form_is_not_found(client, books):

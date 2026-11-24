@@ -2197,6 +2197,22 @@
             "title": "Editing",
             "type": "boolean"
           },
+          "icon": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon"
+          },
+          "icon_fixed": {
+            "default": false,
+            "title": "Icon Fixed",
+            "type": "boolean"
+          },
           "kind": {
             "enum": [
               "spending",

@@ -47,6 +47,8 @@ export function categoryForm(over: Partial<CategoryFormView> = {}): CategoryForm
     kind: "spending",
     name: "",
     details: null,
+    icon: null,
+    icon_fixed: false,
     ...over,
   };
 }
