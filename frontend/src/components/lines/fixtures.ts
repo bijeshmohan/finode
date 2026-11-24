@@ -25,12 +25,12 @@ export const groups: PickGroup[] = [
     ],
   },
   { title: "People", options: [{ id: ids.ada, label: "Ada", budget: false, balance: "0.00" }] },
-  { title: "Income", options: [{ id: ids.salary, label: "Salary", budget: false, balance: null }] },
+  { title: "Income", options: [{ id: ids.salary, label: "Salary", budget: false, balance: null, icon: "wallet" }] },
   {
     title: "Expenses",
     options: [
-      { id: ids.food, label: "Food", budget: false, balance: null },
-      { id: ids.emi, label: "EMI", budget: false, balance: null },
+      { id: ids.food, label: "Food", budget: false, balance: null, icon: "utensils" },
+      { id: ids.emi, label: "EMI", budget: false, balance: null, icon: "landmark" },
     ],
   },
 ];

@@ -61,6 +61,7 @@ export function ComingUpPage() {
                     {day.rows.map((r, i) => (
                       <li key={`${r.recurring_id ?? r.transaction_id ?? ""}-${String(i)}`}>
                         <Row
+                          icon={r.icon}
                           title={r.title}
                           detail={r.sub}
                           extra={

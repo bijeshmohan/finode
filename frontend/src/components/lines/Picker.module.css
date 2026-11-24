@@ -48,8 +48,17 @@
 }
 .name {
   display: flex;
+  flex: 1;
   flex-direction: column;
   min-width: 0;
+}
+/* A category's icon before its name. */
+.icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  color: var(--muted);
 }
 .under {
   font-size: 0.8125rem;

@@ -54,4 +54,11 @@ describe("Picker", () => {
     await userEvent.click(await screen.findByRole("button", { name: "No category" }));
     expect(onChange).toHaveBeenCalledWith(null);
   });
+
+  it("shows a category's icon and none for an account", async () => {
+    picker({ groups });
+    const sheet = await screen.findByRole("dialog", { name: "Paid from" });
+    expect(within(sheet).getByRole("button", { name: /Food/ }).querySelector("svg")).not.toBeNull();
+    expect(within(sheet).getByRole("button", { name: /Bank/ }).querySelector("svg")).toBeNull();
+  });
 });

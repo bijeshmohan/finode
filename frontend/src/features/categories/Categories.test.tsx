@@ -30,6 +30,21 @@ describe("the Categories page", () => {
     expect(screen.getByRole("link", { name: "Add category" })).toHaveAttribute("href", "/categories/new?root=expense");
   });
 
+  it("leads each category with its icon", async () => {
+    renderApp("/categories", { ...SIGNED_IN, ...INR, "/api/views/categories": [200, categories()] });
+    expect((await screen.findByRole("link", { name: /Food/ })).querySelector("svg")).not.toBeNull();
+  });
+
+  it("a category's page shows its icon beside its name", async () => {
+    renderApp(`/categories/${ids.food}`, {
+      ...SIGNED_IN,
+      ...INR,
+      [`/api/views/categories/${ids.food}`]: [200, category()],
+    });
+    const heading = await screen.findByRole("heading", { level: 1, name: /Food/ });
+    expect(heading.parentElement?.querySelector("svg")).not.toBeNull();
+  });
+
   it("the tab and the month live in the address", async () => {
     const asked: string[] = [];
     const { router } = renderApp("/categories?month=2026-10&tab=income", {

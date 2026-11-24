@@ -13,6 +13,7 @@ import { shortDate } from "../../lib/dates";
 import { formatMoney } from "../../lib/money";
 import { allocation, differs, positive, sameAmount } from "../../lib/split";
 import { AmountField } from "../AmountField";
+import { CategoryIcon } from "../CategoryIcon";
 import { Icon } from "../Icon";
 import {
   canSwap,
@@ -21,6 +22,7 @@ import {
   KINDS,
   type Kind,
   keepsChoice,
+  iconOf,
   labelOf,
   offered,
   screenOrder,
@@ -204,6 +206,7 @@ export function Lines<S extends LinesState>({
         </h2>
         {state[s].map((r, index) => {
           const label = labelOf(r.choice, groups);
+          const icon = category ? iconOf(r.choice, groups) : null;
           const { when, amount } = describe(s, index, r);
           const valueId = `${ids[s]}-${r.key}`;
           return (
@@ -218,7 +221,12 @@ export function Lines<S extends LinesState>({
                   }}
                 >
                   <span id={valueId} className={styles.rowName}>
-                    <span className={label ? undefined : styles.placeholder}>
+                    {icon && (
+                      <span className={styles.rowIcon}>
+                        <CategoryIcon name={icon} size={16} />
+                      </span>
+                    )}
+                    <span className={label ? styles.rowLabel : `${styles.rowLabel} ${styles.placeholder}`}>
                       {label ?? (category ? "Category…" : "Account…")}
                     </span>
                     {when && <span className={styles.rowWhen}>{when}</span>}

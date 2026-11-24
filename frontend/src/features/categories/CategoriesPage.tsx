@@ -9,6 +9,7 @@ import { Figure } from "../../components/Figure";
 import { Icon } from "../../components/Icon";
 import { LoadError } from "../../components/LoadError";
 import { MonthPill } from "../../components/MonthPill";
+import { CategoryIcon } from "../../components/CategoryIcon";
 import look from "../../components/Page.module.css";
 import { monthName } from "../../lib/dates";
 import { formatMoney } from "../../lib/money";
@@ -31,6 +32,9 @@ function Rows({ view }: { view: CategoriesView }) {
         const sub = empty ? "Nothing yet" : r.share ? `${r.share} of ${earning ? "earnings" : "spending"}` : "";
         return (
           <Link key={r.id} className={styles.row} to={`/categories/${r.id}?month=${view.month}`}>
+            <span className={styles.icon}>
+              <CategoryIcon name={r.icon} />
+            </span>
             <span className={styles.main}>
               <span className={styles.name}>{r.name}</span>
               <span className={styles.rowSub}>{sub}</span>

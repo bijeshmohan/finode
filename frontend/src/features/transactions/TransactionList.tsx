@@ -22,6 +22,7 @@ function Entry({ row, today, onOpen }: { row: Row; today: string; onOpen: (id: s
   return (
     <li className={row.is_system ? styles.system : undefined}>
       <ListRow
+        icon={row.icon}
         title={
           <span className={row.related ? styles.titleWithPill : undefined}>
             <span className={styles.titleText}>{row.title}</span>

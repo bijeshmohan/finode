@@ -207,6 +207,7 @@ def account_page(accounts: AccountService, account_id: UUID, today: date, offset
             + (f" · {e.comment}" if e.comment and e.payee else e.comment or ""),
             abs(e.change),
             is_inflow(root.account.name, e.change),
+            e.icon,
         )
         for e in page.upcoming
     ]

@@ -174,3 +174,17 @@ def test_picker_options_carry_icons(client, books):
     options = {o["label"]: o["icon"] for g in groups for o in g["options"]}
     assert options["Food"] == "utensils"
     assert options["HDFC"] is None
+
+
+def test_account_upcoming_rows_carry_icons(client, books):
+    body = {
+        "date": "2999-01-05",
+        "payee": "Later",
+        "postings": [
+            leg({"id": books["expenses"]}, "debit", "20", category_id=books["food"]["id"]),
+            leg(books["hdfc"], "credit", "20"),
+        ],
+    }
+    assert client.post("/api/transactions/", json=body).status_code == 201
+    upcoming = client.get(f"/api/views/accounts/{books['hdfc']['id']}").json()["upcoming"]
+    assert _by_title(upcoming)["Later"] == "utensils"
