@@ -15,9 +15,9 @@ from .conftest import Api
 
 
 def cards(page: Page) -> list[str]:
-    """The names on the account cards that are shown."""
-    return page.locator("main section a[href^='/accounts/']:not([href*='new'])").evaluate_all(
-        "els => els.filter(e => !e.closest('h2')).map(e => e.querySelector('span > span:not(:has(svg))').textContent)"
+    """The names on the account rows that are shown."""
+    return page.locator("main section li a[href^='/accounts/']:not([href*='new'])").evaluate_all(
+        "els => els.map(e => e.querySelector('[class*=title]').firstChild.textContent)"
     )
 
 
@@ -32,7 +32,7 @@ def nested(api: Api, books):
     api.post("/accounts/", name="Rainy", type="assets.cash")
 
 
-def test_every_kind_is_a_row_of_cards_under_its_heading(signed_in_page: Page, api: Api, books):
+def test_every_kind_is_a_list_under_its_heading(signed_in_page: Page, api: Api, books):
     page = signed_in_page
     nested(api, books)
     page.goto("/accounts")
@@ -43,57 +43,32 @@ def test_every_kind_is_a_row_of_cards_under_its_heading(signed_in_page: Page, ap
     expect(page.locator("main h2")).to_have_text(["Bank Account", "Cash", "Credit Card", "Prepaid Wallet"])
 
 
-def test_a_long_row_scrolls_sideways_on_its_own_and_the_page_does_not(signed_in_page: Page, api: Api, books):
+def test_nothing_scrolls_sideways_however_many_accounts_a_kind_holds(signed_in_page: Page, api: Api, books):
+    """The owner's choice (2026-11-24): every account shows in its kind's list, and nothing on the page scrolls
+    sideways, on a phone or a desktop."""
     page = signed_in_page
     for number in range(8):
         api.post("/accounts/", name=f"Wallet {number}", type="assets.wallet")
-    api.post("/accounts/", name="Fund A", type="assets.cash")
-    page.goto("/accounts")
-    wallets, funds = kind(page, "Prepaid Wallet"), kind(page, "Cash")
-    expect(wallets).to_contain_text("8 accounts")
-    rail = wallets.locator("div").filter(has=page.get_by_role("link", name="Add account")).last
-    assert rail.evaluate("el => el.scrollWidth > el.clientWidth + 1"), "eight cards run past the edge"
-    assert not page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth")
-    rail.evaluate("el => { el.scrollLeft = el.scrollWidth }")
-    assert rail.evaluate("el => el.scrollLeft") > 0
-    funds_rail = funds.locator("div").filter(has=page.get_by_role("link", name="Add account")).last
-    assert funds_rail.evaluate("el => el.scrollLeft") == 0
+    for width in (390, 1280):
+        page.set_viewport_size({"width": width, "height": 800})
+        page.goto("/accounts")
+        wallets = kind(page, "Prepaid Wallet")
+        expect(wallets).to_contain_text("8 accounts")
+        for number in range(8):
+            expect(wallets.get_by_role("link", name=re.compile(f"^Wallet {number}"))).to_be_visible()
+        assert not page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth")
+        sideways = page.locator("main *").evaluate_all(
+            "els => els.filter(e => e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).overflowX !== 'visible'"
+            " && getComputedStyle(e).overflowX !== 'hidden' && getComputedStyle(e).overflowX !== 'clip').length"
+        )
+        assert sideways == 0, f"{sideways} parts scroll sideways at {width}px"
+        rows = wallets.locator("li a[href^='/accounts/']:not([href*='new'])")
+        assert rows.evaluate_all("els => els.every(e => e.getBoundingClientRect().right <= innerWidth)")
 
 
-def test_with_a_mouse_a_long_row_shows_a_scrollbar_to_drag_and_on_a_touch_screen_it_does_not(
-    signed_in_page: Page, api: Api, books, browser, server: str
+def test_the_kinds_have_room_between_them_and_a_heading_larger_than_an_accounts_name(
+    signed_in_page: Page, api: Api, books
 ):
-    """A mouse cannot swipe and its wheel scrolls the page, so a desktop needs a scrollbar to reach the last cards."""
-    page = signed_in_page
-    page.set_viewport_size({"width": 1280, "height": 800})
-    for number in range(8):
-        api.post("/accounts/", name=f"Wallet {number}", type="assets.wallet")
-    page.goto("/accounts")
-    expect(kind(page, "Prepaid Wallet")).to_contain_text("8 accounts")
-    rail = kind(page, "Prepaid Wallet").locator("div").filter(has=page.get_by_role("link", name="Add account")).last
-    assert rail.evaluate("el => el.scrollWidth > el.clientWidth + 1"), "eight cards run past a desktop's edge too"
-    # Headless browsers hide every scrollbar, so the test reads the style that shows it rather than measuring it.
-    assert rail.evaluate("el => getComputedStyle(el).scrollbarWidth") == "thin", "a scrollbar to drag"
-
-    phone = browser.new_context(
-        viewport={"width": 390, "height": 844}, base_url=server, reduced_motion="reduce", has_touch=True, is_mobile=True
-    )
-    try:
-        touch = phone.new_page()
-        touch.context.add_cookies(page.context.cookies())
-        touch.goto("/accounts")
-        expect(kind(touch, "Prepaid Wallet")).to_contain_text("8 accounts")
-        rail = (
-            kind(touch, "Prepaid Wallet").locator("div").filter(has=touch.get_by_role("link", name="Add account")).last
-        )
-        assert rail.evaluate("el => getComputedStyle(el).scrollbarWidth") == "none", (
-            "a touch screen swipes, with no bar"
-        )
-    finally:
-        phone.close()
-
-
-def test_the_kinds_have_room_between_them_and_a_heading_larger_than_a_cards_name(signed_in_page: Page, api: Api, books):
     page = signed_in_page
     nested(api, books)
     page.goto("/accounts")
@@ -104,14 +79,14 @@ def test_the_kinds_have_room_between_them_and_a_heading_larger_than_a_cards_name
     gaps = page.locator("main section").evaluate_all(
         "els => els.slice(1).map((e, i) => Math.round(e.getBoundingClientRect().top - els[i].getBoundingClientRect().bottom))"
     )
-    assert gaps and min(gaps) >= 24, f"space between kinds: {gaps}"
+    assert gaps and min(gaps) >= 36, f"space between kinds: {gaps}"
 
 
-def test_a_card_opens_the_account_and_the_add_card_opens_the_form_on_that_kind(signed_in_page: Page, api: Api, books):
+def test_a_row_opens_the_account_and_the_add_line_opens_the_form_on_that_kind(signed_in_page: Page, api: Api, books):
     page = signed_in_page
     nested(api, books)
     page.goto("/accounts")
-    expect(kind(page, "Prepaid Wallet").get_by_role("link", name="Add account")).to_have_attribute(
+    expect(kind(page, "Prepaid Wallet").get_by_role("link", name="Add prepaid wallet")).to_have_attribute(
         "href", "/accounts/new?type=assets.wallet"
     )
     kind(page, "Prepaid Wallet").get_by_role("link", name=re.compile("HDFC")).click()
@@ -151,15 +126,15 @@ def test_closing_an_account_from_its_page(signed_in_page: Page, books):
     expect(page.get_by_role("link", name=re.compile("^Cash closed"))).to_be_visible()
 
 
-def test_the_cards_of_a_row_are_the_same_size(signed_in_page: Page, api: Api, books):
+def test_the_rows_of_every_list_are_the_same_width(signed_in_page: Page, api: Api, books):
     page = signed_in_page
     nested(api, books)
     page.goto("/accounts")
     expect(kind(page, "Prepaid Wallet")).to_be_visible()
-    sizes = page.locator("main section a[href^='/accounts/']:not([href*='new'])").evaluate_all(
-        "els => els.filter(e => !e.closest('h2')).map(e => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)].join('x') })"
+    widths = page.locator("main section li a[href^='/accounts/']").evaluate_all(
+        "els => els.map(e => Math.round(e.getBoundingClientRect().width))"
     )
-    assert len(sizes) >= 4 and len(set(sizes)) == 1, sizes
+    assert len(widths) >= 4 and len(set(widths)) == 1, widths
 
 
 def test_edit_on_an_account_is_in_its_menu(signed_in_page: Page, books):
@@ -303,10 +278,10 @@ def test_an_empty_page_shows_the_four_types_and_each_adds_an_account_of_its_type
     page = signed_in_page
     page.goto("/accounts")
     expect(page.locator("main h2")).to_have_text(["Bank Account", "Cash", "Credit Card", "Prepaid Wallet"])
-    expect(kind(page, "Prepaid Wallet").get_by_role("link", name="Add account")).to_have_attribute(
+    expect(kind(page, "Prepaid Wallet").get_by_role("link", name="Add prepaid wallet")).to_have_attribute(
         "href", "/accounts/new?type=assets.wallet"
     )
-    kind(page, "Prepaid Wallet").get_by_role("link", name="Add account").click()
+    kind(page, "Prepaid Wallet").get_by_role("link", name="Add prepaid wallet").click()
     page.wait_for_url(re.compile(r"/accounts/new\?type=assets.wallet$"))
     expect(page.get_by_role("radio", name="Prepaid Wallet")).to_have_attribute("aria-checked", "true")
 

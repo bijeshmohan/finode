@@ -1,19 +1,27 @@
-// The Accounts page: the pinned accounts, then a row of cards per type (Bank Account, Cash, Credit Card, Prepaid
-// Wallet, in the person's order). Every account is part of the budget. Closed accounts wait behind "Load more".
+// The Accounts page: the pinned accounts, then a list per type (Bank Account, Cash, Credit Card, Prepaid Wallet, in
+// the person's order), each under its heading with its total. Every account is part of the budget. Closed accounts wait
+// behind "Load more". Nothing scrolls sideways (the owner's choice, 2026-11-24).
 import { useState } from "react";
-import { Link } from "react-router";
 
 import { useGrouping } from "../../app/currency";
 import { CategoryIcon } from "../../components/CategoryIcon";
 import { Icon } from "../../components/Icon";
 import { LoadError } from "../../components/LoadError";
 import { formatMoney } from "../../lib/money";
-import { AccountCard } from "./AccountCard";
+import { AccountRows } from "./AccountRows";
 import look from "../../components/Page.module.css";
 import styles from "./Accounts.module.css";
 import { useAccounts } from "./queries";
 
 const plural = (n: number) => `${String(n)} account${n === 1 ? "" : "s"}`;
+
+/** The line that ends each type's list. */
+const ADD: Record<string, string> = {
+  "assets.bank": "Add bank account",
+  "assets.cash": "Add cash account",
+  "liabilities.cards": "Add credit card",
+  "assets.wallet": "Add prepaid wallet",
+};
 
 export function AccountsPage() {
   const grouping = useGrouping();
@@ -34,14 +42,17 @@ export function AccountsPage() {
           {page.pinned.length > 0 && (
             <section className={styles.kind}>
               <div className={styles.kindHead}>
-                <h2>Pinned</h2>
-                <p>{plural(page.pinned.length)}</p>
+                <div>
+                  <div className={styles.kindTitle}>
+                    <span className={styles.typeIcon}>
+                      <Icon name="pin" />
+                    </span>
+                    <h2>Pinned</h2>
+                  </div>
+                  <p>{plural(page.pinned.length)}</p>
+                </div>
               </div>
-              <div className={styles.rail}>
-                {page.pinned.map((c) => (
-                  <AccountCard key={c.id} card={c} mark={false} />
-                ))}
-              </div>
+              <AccountRows cards={page.pinned} withIcons />
             </section>
           )}
           {page.kinds
@@ -49,28 +60,24 @@ export function AccountsPage() {
             .map((k) => (
               <section key={k.type} className={styles.kind}>
                 <div className={styles.kindHead}>
-                  <div className={styles.kindTitle}>
-                    <span className={styles.typeIcon}>
-                      <CategoryIcon name={k.icon} />
-                    </span>
-                    <h2>{k.name}</h2>
+                  <div>
+                    <div className={styles.kindTitle}>
+                      <span className={styles.typeIcon}>
+                        <CategoryIcon name={k.icon} />
+                      </span>
+                      <h2>{k.name}</h2>
+                    </div>
+                    <p>{plural(k.open_count)}</p>
                   </div>
-                  <p>
-                    {formatMoney(k.total, grouping)}
-                    {k.owed ? " owed" : ""} · {plural(k.open_count)}
+                  <p className={styles.kindTotal}>
+                    <span>{formatMoney(k.total, grouping)}</span>
+                    {k.owed && <small>owed</small>}
                   </p>
                 </div>
-                <div className={styles.rail}>
-                  {k.cards
-                    .filter((c) => showClosed || !c.closed)
-                    .map((c) => (
-                      <AccountCard key={c.id} card={c} />
-                    ))}
-                  <Link className={`${styles.card} ${styles.addCard}`} to={k.add_url}>
-                    <Icon name="plus" />
-                    Add account
-                  </Link>
-                </div>
+                <AccountRows
+                  cards={k.cards.filter((c) => showClosed || !c.closed)}
+                  add={{ to: k.add_url, label: ADD[k.type] ?? "Add account" }}
+                />
               </section>
             ))}
 

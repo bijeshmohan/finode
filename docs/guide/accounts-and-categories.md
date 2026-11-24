@@ -15,20 +15,20 @@ finode follows your **cash flow**: what came in, what went out and where you sta
 
 ## Accounts page
 
-**Accounts** is one page, with a quiet count ("9 accounts") under the title. Under it, each of the four kinds has a large heading with its total and the number of accounts in it ("2,54,880.50 · 4 accounts"), some space between one kind and the next, and a **row of cards**, one card per account, that you swipe sideways. The kinds come in your order (**Settings › Order of account types**; it starts Bank Account, Cash, Credit Card, Prepaid Wallet), and all four show even before they hold an account. Credit cards show what you **owe** ("22,570.00 owed"), never a minus sign. A card shows the account's name and its balance. It adds one quiet line only when there is something to say: a credit card with a bill says **Bill due 15 Nov** (in red once it is close or overdue); an account with no entry for a month says **No entry since 12 Sep**; an empty one says **No entries yet**. A row with more cards than fit runs past the edge of the screen: swipe it sideways (on a computer, drag the thin bar under the row, or hold Shift while you turn the mouse wheel). The last card of a row, **+ Add account**, opens the form on that kind. Things to know:
+**Accounts** is one page, with a quiet count ("9 accounts") under the title. Your **pinned** accounts come first, each with its kind's icon. Under them, each of the four kinds has a large heading with its icon and the number of accounts in it ("4 accounts"), its total at the right, some space between one kind and the next, and a **list** of its accounts, one line each. The kinds come in your order (**Settings › Order of account types**; it starts Bank Account, Cash, Credit Card, Prepaid Wallet), and all four show even before they hold an account. Credit cards show what you **owe** ("22,570.00", with "owed" under it), never a minus sign. A line shows the account's name and its balance. It adds one quiet line only when there is something to say: a credit card with a bill says **Bill due 15 Nov** (in red once it is close or overdue); an account with no entry for a month says **No entry since 12 Sep**; an empty one says **No entries yet**. Every account shows: nothing runs past the edge of the screen. The last line of each list, **+ Add bank account** (or cash account, credit card, prepaid wallet), opens the form on that kind. Things to know:
 
 - Every open account is listed, used or not. Closed ones are tucked behind one **Load more** button at the bottom (they carry a *closed* badge).
 - An account belongs to its kind for good, and holds no accounts of its own.
 
 ### Add an account
 
-Tap **+ Add account**, the dashed card at the end of a kind's row. The form asks for a **Name**, the **Kind** (Bank Account, Cash, Credit Card or Prepaid Wallet; nothing is chosen unless you came from a kind's row), an optional **Current balance** (**Amount you owe now** for a credit card) and an optional note (behind *+ Add a note*). The balance is recorded as an *Opening balance* entry against the system's Opening Balances account, and you will see it in your transactions.
+Tap the add line at the end of a kind's list (**+ Add bank account**, for example). The form asks for a **Name**, the **Kind** (Bank Account, Cash, Credit Card or Prepaid Wallet; nothing is chosen unless you came from a kind's list), an optional **Current balance** (**Amount you owe now** for a credit card) and an optional note (behind *+ Add a note*). The balance is recorded as an *Opening balance* entry against the system's Opening Balances account, and you will see it in your transactions.
 
-<img src="img/accounts.png" alt="The Accounts page: a row of cards under each kind" width="300">
+<img src="img/accounts.png" alt="The Accounts page: a list of accounts under each kind" width="300">
 
 An account page shows its balance (the **+** at the bottom adds an entry for this account), a small **i** beside the name when you wrote a description for the account (tap it to read the note), a **…** menu (Edit, close it), and its transactions (the newest 30, then **Load more**). Entries dated in the future are in one **upcoming** card at the top of that list.
 
-Each kind has its own icon, shown beside its heading, on its accounts' cards and when you choose a kind for a new account: a bank building for Bank Account, a banknote for Cash, a card for Credit Card and a wallet for Prepaid Wallet. A transfer between your accounts shows the icon of the account the money went into (paying your card bill shows the card). The kinds are headings, not pages: an account sits straight under Assets or Liabilities (as `Assets:HDFC` in an export) and the Accounts page groups it under its kind.
+Each kind has its own icon, shown beside its heading, on your pinned accounts and when you choose a kind for a new account: a bank building for Bank Account, a banknote for Cash, a card for Credit Card and a wallet for Prepaid Wallet. A transfer between your accounts shows the icon of the account the money went into (paying your card bill shows the card). The kinds are headings, not pages: an account sits straight under Assets or Liabilities (as `Assets:HDFC` in an export) and the Accounts page groups it under its kind.
 
 <img src="img/account-page.png" alt="An account page: balance, Add transaction, upcoming card, transactions" width="300">
 
@@ -47,7 +47,7 @@ Give a credit card its **statement day** (the day of the month the bank closes t
 
 ### Pin an account
 
-Open an account and tap the pin button beside **…**. The Accounts page now starts with a **Pinned** row of the accounts you pinned, and each of them also stays in its own kind's row, marked with a small pin in the corner of its card. Tap the button again to unpin. Pinning only chooses where an account is listed: your balances and budget do not change.
+Open an account and tap the pin button beside **…**. The Accounts page now starts with a **Pinned** list of the accounts you pinned, and each of them also stays in its own kind's list. Tap the button again to unpin. Pinning only chooses where an account is listed: your balances and budget do not change.
 
 ### Closing and deleting
 

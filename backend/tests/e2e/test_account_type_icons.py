@@ -1,5 +1,5 @@
-"""Account type icons in a browser: the Accounts page's headings and cards, the new account form's kinds, and a card
-payment's row on Transactions, which leads with the credit card it went into."""
+"""Account type icons in a browser: the Accounts page's headings (once, not again on each row under them), the new
+account form's kinds, and a card payment's row on Transactions, which leads with the credit card it went into."""
 
 import re
 from datetime import date
@@ -24,7 +24,7 @@ def test_account_type_icons(signed_in_page: Page, api: Api):
     page.goto("/accounts")
     heading = page.get_by_role("heading", name="Credit Card", level=2)
     expect(heading.locator("xpath=..").locator("svg[data-icon='credit-card']")).to_be_visible()
-    expect(page.get_by_role("link", name=re.compile("^HDFC")).locator("svg[data-icon='landmark']")).to_be_visible()
+    expect(page.get_by_role("link", name=re.compile("^HDFC")).locator("svg[data-icon]")).to_have_count(0)
 
     page.goto("/accounts/new")
     kinds = page.get_by_role("radiogroup", name="Kind of account")
