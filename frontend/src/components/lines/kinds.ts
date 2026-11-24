@@ -52,7 +52,7 @@ function optionOf(id: string | null, groups: PickGroup[]) {
   return null;
 }
 
-/** A chosen category's icon (an account has none). */
+/** A chosen option's icon (a category's own, or an account's type's); the rows ask only for a category's. */
 export function iconOf(id: string | null, groups: PickGroup[]): string | null {
   return optionOf(id, groups)?.option.icon ?? null;
 }
