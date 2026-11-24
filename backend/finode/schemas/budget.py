@@ -29,6 +29,8 @@ class BudgetCard(BaseModel):
 class BudgetLine(BaseModel):
     category_id: UUID
     name: str
+    # The category's icon (finode/category_icons.py).
+    icon: str
     # What was assigned in the month, what was spent (refunds subtract) and what is left,
     # counting everything assigned and spent in earlier months too.
     assigned: Decimal = Money

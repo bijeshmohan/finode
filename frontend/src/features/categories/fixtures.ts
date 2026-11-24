@@ -14,9 +14,9 @@ export function categories(over: Partial<CategoriesView> = {}): CategoriesView {
     tab: "expense",
     grand: "1000.00",
     rows: [
-      { id: ids.rent, name: "Rent", total: "600.00", share: "60%" },
-      { id: ids.food, name: "Food", total: "400.00", share: "40%" },
-      { id: ids.groceries, name: "Travel", total: "0.00", share: "0%" },
+      { id: ids.rent, name: "Rent", total: "600.00", share: "60%", icon: "house" },
+      { id: ids.food, name: "Food", total: "400.00", share: "40%", icon: "utensils" },
+      { id: ids.groceries, name: "Travel", total: "0.00", share: "0%", icon: "plane" },
     ],
     ...over,
   };
@@ -26,6 +26,7 @@ export function category(over: Partial<CategoryView> = {}): CategoryView {
   return {
     id: ids.food,
     name: "Food",
+    icon: "utensils",
     details: null,
     kind: "spending",
     built_in: false,
@@ -46,6 +47,8 @@ export function categoryForm(over: Partial<CategoryFormView> = {}): CategoryForm
     kind: "spending",
     name: "",
     details: null,
+    icon: null,
+    icon_fixed: false,
     ...over,
   };
 }

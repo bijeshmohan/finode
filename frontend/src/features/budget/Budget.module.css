@@ -30,6 +30,19 @@
 .row + .row {
   border-top: 1px solid var(--surface-2);
 }
+/* A line led by its category's icon: the icon has its own column; the bar runs under the name and the figure. */
+.withIcon {
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+}
+.withIcon .bar {
+  grid-column: 2 / -1;
+}
+.icon {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  color: var(--muted);
+}
 .main {
   display: flex;
   flex: 1;

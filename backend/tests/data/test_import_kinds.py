@@ -29,7 +29,7 @@ def test_an_export_imports_again_for_someone_else(client):
 
     hdfc = client.post("/api/accounts/", json={"name": "HDFC", "type": "assets.bank", "balance": "100"}).json()
     amex = client.post("/api/accounts/", json={"name": "Amex", "type": "liabilities.cards"}).json()
-    food = client.post("/api/categories/", json={"name": "Food", "kind": "spending"}).json()
+    food = client.post("/api/categories/", json={"name": "Food", "kind": "spending", "icon": "tag"}).json()
     body = {"postings": [leg(food, "debit", "40"), leg(amex, "credit", "40")]}
     assert client.post("/api/transactions/", json=body).status_code == 201
     text = client.get("/api/export", params={"format": "ledger"}).text
@@ -105,7 +105,7 @@ def test_an_account_named_after_its_kind_survives_an_export_and_an_import(client
     from tests.data.test_backup import OTHER, as_user
 
     cash = client.post("/api/accounts/", json={"name": "Cash", "type": "assets.cash", "balance": "100"}).json()
-    food = client.post("/api/categories/", json={"name": "Food", "kind": "spending"}).json()
+    food = client.post("/api/categories/", json={"name": "Food", "kind": "spending", "icon": "tag"}).json()
     assert client.post("/api/transactions/", json={"postings": [leg(food, "debit", "40"), leg(cash, "credit", "40")]})
     text = client.get("/api/export", params={"format": "ledger"}).text
     try:

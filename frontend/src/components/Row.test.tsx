@@ -37,4 +37,17 @@ describe("Row", () => {
     screen.getByRole("button", { name: /Coffee/ }).click();
     expect(open).toHaveBeenCalledOnce();
   });
+
+  it("leads with an icon when it has one, before the name", () => {
+    const { container } = render(<Row title="Gifts" icon="gift" figure="10.00" />);
+    const svgs = container.querySelectorAll("svg");
+    expect(svgs).toHaveLength(1);
+    const name = screen.getByText("Gifts");
+    expect(svgs[0]?.compareDocumentPosition(name)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("has no icon when it is not given one", () => {
+    const { container } = render(<Row title="HDFC" figure="10.00" />);
+    expect(container.querySelector("svg")).toBeNull();
+  });
 });

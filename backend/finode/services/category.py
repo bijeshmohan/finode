@@ -50,6 +50,7 @@ class CategoryService:
             id=category.id,
             name=category.name,
             kind="spending" if category.kind == "spending" else "earning",
+            icon=category.icon,
             details=category.details,
             closed_on=category.closed_on,
             system_key=category.system_key,
@@ -94,13 +95,19 @@ class CategoryService:
     def create(self, data: CategoryCreate) -> CategoryRead:
         ensure_room(len(self.cr.list()), settings.max_categories, "categories")
         self._check_name_free(data.name, data.kind)
-        made = self.cr.add(BudgetCategory(user_id=self.uid, name=data.name, details=data.details, kind=data.kind))
+        made = self.cr.add(
+            BudgetCategory(user_id=self.uid, name=data.name, details=data.details, kind=data.kind, icon=data.icon)
+        )
         self.db.commit()
         return self._read(made.id)
 
     def update(self, category_id: UUID, data: CategoryUpdate) -> CategoryRead:
-        """Rename it or change its note."""
+        """Rename it, change its note or its icon. The built-in Uncategorised keeps its icon."""
         category = self._get(category_id)
+        if data.icon is not None and data.icon != category.icon:
+            if category.system_key is not None:
+                raise ValueError("the built-in Uncategorised keeps its icon")
+            category.icon = data.icon
         name = data.name if "name" in data.model_fields_set and data.name is not None else category.name
         if name != category.name:
             self._check_name_free(name, category.kind, exclude=category_id)

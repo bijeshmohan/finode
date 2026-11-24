@@ -25,6 +25,23 @@ describe("Sheet", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it("a sheet opened from inside another closes on its own", () => {
+    const outer = vi.fn();
+    const inner = vi.fn();
+    render(
+      <Sheet open onClose={outer} title="New category">
+        <Sheet open onClose={inner} title="Icon">
+          icons
+        </Sheet>
+      </Sheet>,
+    );
+    const icon = screen.getByRole("dialog", { name: "Icon" });
+    fireEvent(icon, new Event("cancel", { cancelable: true }));
+    fireEvent(icon, new Event("close"));
+    expect(inner).toHaveBeenCalled();
+    expect(outer).not.toHaveBeenCalled();
+  });
+
   it("a tap on the dimmed area closes it, a tap inside does not", () => {
     const onClose = vi.fn();
     render(

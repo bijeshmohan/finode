@@ -84,8 +84,8 @@ describe("the Transactions page", () => {
         200,
         page({
           upcoming: [
-            { id: "u1", date: "2026-11-20", title: "Rent", sub: "Bank", amount: "900.00", income: false },
-            { id: "u2", date: "2026-11-25", title: "Gym", sub: "Card", amount: "50.00", income: false },
+            { id: "u1", date: "2026-11-20", title: "Rent", sub: "Bank", amount: "900.00", income: false, icon: "tag" },
+            { id: "u2", date: "2026-11-25", title: "Gym", sub: "Card", amount: "50.00", income: false, icon: "tag" },
           ],
           upcoming_total: "950.00",
         }),

@@ -18,6 +18,14 @@
     background: var(--surface-2);
   }
 }
+/* The icon a row leads with: a quiet line drawing in its own slot, so names line up. */
+.icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  color: var(--muted);
+}
 .main {
   display: flex;
   flex: 1;

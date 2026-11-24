@@ -12,13 +12,13 @@ from .account import AccountType, BillRounding
 from .day import Day
 
 FORMAT = "finode-backup"
-VERSION = 7
+VERSION = 8
 # Files of version 1 (before finode kept one currency) are still read; what they carry beyond that is below.
 # Before version 5 a category was an Income or Expenses account: a restore turns those accounts into categories.
 # Version 6 adds contacts.
 # Version 7: accounts sit straight under their roots with a type (no type accounts), categories are one flat list; a
 # restore flattens an older file (services/cash_flow.py, services/flatten.py).
-READS = (1, 2, 3, 4, 5, 6, 7)
+READS = (1, 2, 3, 4, 5, 6, 7, 8)
 
 
 class BackupProfile(BaseModel):
@@ -72,6 +72,8 @@ class BackupCategory(BaseModel):
     closed_on: Day | None = None
     # "uncategorised.spending" / "uncategorised.earning" on the built-in ones.
     system_key: str | None = None
+    # Version 8: one of finode's category icons. An older file's categories restore with the generic tag.
+    icon: str | None = None
 
 
 class BackupPosting(BaseModel):

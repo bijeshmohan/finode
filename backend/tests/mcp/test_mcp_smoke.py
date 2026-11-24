@@ -119,6 +119,7 @@ async def test_every_read_only_tool_answers_on_a_ledger_that_uses_every_feature(
         "get_transaction": [{"transaction_id": ledger["entry"]["transaction_id"]}],
         "list_tags": [{}],
         "list_categories": [{}, {"kind": "earning"}],
+        "list_category_icons": [{}],
         "payee_defaults": [{"payee": "BigBasket"}],
         "check_balance": [
             {"account": bank["id"], "statement_balance": "1"},

@@ -1,10 +1,11 @@
-// Adding or editing a category: its name and a note. An edit sends only what changed.
+// Adding or editing a category: its name, its icon and a note. An edit sends only what changed.
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { messageOf } from "../../api/messages";
 import { useToast } from "../../app/toast";
 import { Icon } from "../../components/Icon";
+import { IconPicker } from "../../components/IconPicker";
 import { LoadError } from "../../components/LoadError";
 import look from "../../components/Page.module.css";
 import form from "../../components/Forms.module.css";
@@ -20,6 +21,7 @@ function FormBody({ view, categoryId }: { view: CategoryFormView; categoryId: st
   const editing = view.editing;
   const [name, setName] = useState(view.name);
   const [note, setNote] = useState(view.details ?? "");
+  const [icon, setIcon] = useState<string | null>(view.icon ?? null);
   const [problem, setProblem] = useState<string | null>(null);
   const tab = view.kind === "earning" ? "income" : "expense";
   const back = editing && categoryId ? `/categories/${categoryId}` : `/categories?tab=${tab}`;
@@ -31,8 +33,12 @@ function FormBody({ view, categoryId }: { view: CategoryFormView; categoryId: st
       setProblem(messageOf(e));
     };
     if (!editing) {
+      if (!icon) {
+        setProblem("Choose an icon");
+        return;
+      }
       add.mutate(
-        { name: name.trim(), kind: view.kind, details },
+        { name: name.trim(), kind: view.kind, icon, details },
         {
           onSuccess: (made) => {
             toast("Category added");
@@ -46,6 +52,7 @@ function FormBody({ view, categoryId }: { view: CategoryFormView; categoryId: st
     const changes: CategoryUpdate = {};
     if (name.trim() !== view.name) changes.name = name.trim();
     if (details !== view.details) changes.details = details;
+    if (icon && icon !== view.icon && !view.icon_fixed) changes.icon = icon;
     if (!categoryId || Object.keys(changes).length === 0) {
       void navigate(back);
       return;
@@ -90,6 +97,15 @@ function FormBody({ view, categoryId }: { view: CategoryFormView; categoryId: st
             }}
           />
         </label>
+        {!view.icon_fixed && (
+          <IconPicker
+            value={icon}
+            onChange={(chosen) => {
+              setIcon(chosen);
+              setProblem(null);
+            }}
+          />
+        )}
         <details className={form.note} open={view.details ? true : undefined}>
           <summary>{view.details ? "Note" : "+ Add a note"}</summary>
           <label>

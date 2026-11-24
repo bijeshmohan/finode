@@ -234,8 +234,11 @@ def run_budget(session, seed: int, steps: int) -> int:
     s = services(session)
     bank = s.accounts.create(AccountCreate(name="Bank", type="assets.bank", balance=Decimal(5000)))
     card = s.accounts.create(AccountCreate(name="Card", type="liabilities.cards"))
-    salary = s.categories.create(CategoryCreate(name="Salary", kind="earning"))
-    cats = [s.categories.create(CategoryCreate(name=n, kind="spending")) for n in ("Rent", "Food", "Fun", "Bills")]
+    salary = s.categories.create(CategoryCreate(name="Salary", kind="earning", icon="tag"))
+    cats = [
+        s.categories.create(CategoryCreate(name=n, kind="spending", icon="tag"))
+        for n in ("Rent", "Food", "Fun", "Bills")
+    ]
     done = 0
     for step in range(steps):
         s = services(session)

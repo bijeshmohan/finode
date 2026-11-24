@@ -63,10 +63,10 @@ A category is what money was for (Groceries, EMI, Salary), apart from the accoun
 
 | Method | Path | What it does |
 |---|---|---|
-| `GET` | `/categories/` | Your categories with their name and kind. `kind` narrows to `spending` or `earning`; `include_closed` adds closed ones. |
-| `POST` | `/categories/` | Make a category. Names are unique per kind, capitals aside. |
+| `GET` | `/categories/` | Your categories with their name, kind and `icon`. `kind` narrows to `spending` or `earning`; `include_closed` adds closed ones. |
+| `POST` | `/categories/` | Make a category with its `icon` (required: a name from `finode/category_icons.py`; unknown names and the system marks are a 422). Names are unique per kind, capitals aside. |
 | `GET` | `/categories/{category_id}` | One category. |
-| `PATCH` | `/categories/{category_id}` | Rename it or change its note. |
+| `PATCH` | `/categories/{category_id}` | Rename it, or change its note or its `icon` (the built-in Uncategorised keeps its own). |
 | `POST` | `/categories/{category_id}/close` | Close it: history stays, nothing more can be labelled with it. |
 | `POST` | `/categories/{category_id}/reopen` | Reopen it. |
 | `POST` | `/categories/{category_id}/delete` | Remove an unused category for good. One with history is closed instead; the answer's `outcome` says `deleted` or `closed`. |
@@ -223,7 +223,9 @@ ledger's own, line by line, for scripts and tools.
 What one screen of the finode app shows, in one call. A view is built by the server's own services
 (`services/transaction_rows.py` and the `*_view.py` modules), so the app formats nothing the server already works out (a
 row's name and second line, which way the money went, a month's totals); `backend/tests/guards/test_query_counts.py` holds each under a
-ceiling.
+ceiling. Every row of entries (Transactions, upcoming, an account's entries, Coming up), every Budgets line, every
+Categories row and every category option in the pickers carries `icon`, the icon it leads with (`services/row_icon.py`;
+a category's own entries carry none).
 Add a view only for a screen that would otherwise need several calls or would have to repeat a rule of the server.
 
 | Method | Path | What it does |
@@ -236,10 +238,10 @@ Add a view only for a screen that would otherwise need several calls or would ha
 | `GET` | `/views/related-entries` | Earlier entries a new one can be related to: the newest 30 up to today, narrowed by `q`, without `exclude` and the opening balances. |
 | `GET` | `/views/accounts` | The Accounts page: `account_count`, the `pinned` cards, and `kinds` (a row of cards per type, in the person's order: `type`, `name`) with `total`, `owed`, `open_count`, `all_closed` and `add_url` (`/accounts/new?type=…`). Each card has its balance, `closed`, `pinned` and its one quiet `note` (`overdue` / `due` on a day, `soon` when near; `empty`: no entries yet; `stale`: none since a day). Closed accounts are listed too (`has_closed`), for Load more. |
 | `GET` | `/views/accounts/{account_id}` | An account's (or a root's) own page: balance, the `sub` line, `badge`, a card's `bill` (or `can_set_days`), a group's open accounts as `cards`, `direct`, what is dated ahead (`upcoming`, `upcoming_total`, `balance_after`), the menu's flags (`can_pin`, `can_edit`, `postable`, `has_children`), and its `entries` newest first with the running balance and `inflow`, a chunk at a time (`offset` = the previous chunk's `next_offset`, while `has_more`). |
-| `GET` | `/views/categories` | The Categories page for a `month` (`YYYY-MM`; this month for anything else, never one that has not started) and a `tab` (`expense` or `income`): `grand`, and `rows` biggest first, each a category with its `total` and its `share` of the month. |
+| `GET` | `/views/categories` | The Categories page for a `month` (`YYYY-MM`; this month for anything else, never one that has not started) and a `tab` (`expense` or `income`): `grand`, and `rows` biggest first, each a category with its `icon`, its `total` and its `share` of the month. |
 | `GET` | `/views/categories/{category_id}` | A category's own page for a `month`: `total`, `built_in`, `closed_on`, `can_delete`, and its `entries` newest first. |
 | `GET` | `/views/account-form` | Where the account form starts: `account_id` edits one the person made (it keeps its type: `types` is empty); otherwise a new account, opened for a `type` or not. Answers the name, `details`, `balance`, `type`, the four `types` in the person's order (`key`, `name`), a card's days and rounding. 404 for an account that is not the person's or not theirs to edit. |
-| `GET` | `/views/category-form` | Where the category form starts: `category_id` edits one; otherwise a new one (`root` = `expense` / `income`). Answers `kind`, name and `details`. |
+| `GET` | `/views/category-form` | Where the category form starts: `category_id` edits one; otherwise a new one (`root` = `expense` / `income`). Answers `kind`, name, `details`, `icon` (none for a new one) and `icon_fixed` (the built-in Uncategorised). |
 | `GET` | `/views/budget` | The Budgets page for a `month` (this month for anything else): `ready_to_assign` and the `sum` behind it (`money_in_accounts`, `reserved_for_cards`, `available`, `assigned_to_later_months`), `copyable` (what copying last month would assign), `show_intro`, `has_budget_accounts`, `overspent`, `pace` (the current month only), and `rows` biggest budget first: each with `assigned`, `activity`, `available`, how it reads (`of` or none for nothing assigned, `state` `overspent` / `all_spent`, `hint`), its bar (`percent`, `over`). |
 | `GET` | `/views/budget-move` | The categories money can move between in a `month` (`name`, `available`), with the `source` it moves from (404 when not one of them). |
 | `GET` | `/views/todo` | The to-do bell's sheet: `count`, the card bills due soon or overdue (`name`: the card's own name, `days_to_due`) and the failing rules. |

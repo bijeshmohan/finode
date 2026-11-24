@@ -2,7 +2,7 @@
 Income), balances derived from postings, closing, reopening, deleting, merging, pinning and the account register."""
 
 import builtins
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
@@ -26,6 +26,7 @@ from ..schemas.account import AccountBase, AccountFields, AccountType, BalanceCh
 from ..schemas.transaction import PostingBase, PostingCreate, TransactionCreate
 from . import cards
 from .account_types import TYPE_KEYS, TYPE_ROOTS, type_key, type_order
+from .row_icon import row_icon
 from .simple import label_simple
 
 # How many entries an account's page shows before "Load more" (a day is never split, so a chunk can run a little over).
@@ -537,6 +538,7 @@ class AccountService:
         transactions.sort(key=lambda t: (t.date, t.created))
         postings_of = self.tr.postings_for_transactions(list(changes))
         related = self.tr.related_refs([t.related_id for t in transactions])
+        icon_of = self._icon_of(all_accounts, accounts_by_id)
 
         entries = []
         balance = Decimal("0.00")
@@ -561,9 +563,20 @@ class AccountService:
                     balance=balance,
                     related=related.get(transaction.related_id) if transaction.related_id else None,
                     posted_on=next((p.posted_on for p in own if p.posted_on), None),
+                    icon=icon_of(postings_of.get(transaction.id, [])),
                 )
             )
         return entries
+
+    def _icon_of(
+        self, all_accounts: builtins.list[Account], accounts_by_id: dict[UUID, Account]
+    ) -> Callable[[Sequence[Posting]], str]:
+        """What an entry's row leads with (services/row_icon.py), from what is already loaded: no query per row."""
+        roots = {a.id: self._get_root_name(a, accounts_by_id) for a in all_accounts}
+        icons = {c.id: c.icon for c in CategoryRepository(self.ar.db, self.ar.uid).list()}
+        contacts = self.ar.contact_account_ids()
+        opening = next((a.id for a in all_accounts if self.is_opening_balances(a, all_accounts)), None)
+        return lambda postings: row_icon(postings, roots, icons, contacts, opening)
 
     def _counter_name(self, posting: Posting | PostingBase, accounts_by_id: dict[UUID, Account]) -> str:
         """What the other side of an entry is called in an account's list: a line on Expenses or Income is named for
@@ -781,6 +794,7 @@ class AccountService:
         loaded = self.tr.read_many(wanted)
         postings_of = self.tr.postings_for_transactions(wanted)
         related = self.tr.related_refs([t.related_id for t in loaded.values()])
+        icon_of = self._icon_of(all_accounts, accounts_by_id)
 
         def entry(transaction_id: UUID) -> RegisterEntry:
             transaction = loaded[transaction_id]
@@ -805,6 +819,7 @@ class AccountService:
                 accounts=list(dict.fromkeys(accounts_by_id[p.account_id].name for p in own))
                 if len(target_ids) > 1
                 else [],
+                icon=icon_of(postings_of.get(transaction_id, [])),
             )
 
         return RegisterPage(

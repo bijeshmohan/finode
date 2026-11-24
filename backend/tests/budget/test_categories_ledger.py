@@ -187,7 +187,7 @@ def test_a_category_that_labels_entries_cannot_be_deleted_only_closed(client, se
     svc = services(session)
     result = svc.categories.delete(UUID(books["emi"]["id"]))
     assert result.outcome == "closed" and result.category.closed_on is not None
-    unused = svc.categories.create(CategoryCreate(name="Gifts", kind="spending"))
+    unused = svc.categories.create(CategoryCreate(name="Gifts", kind="spending", icon="tag"))
     assert svc.categories.delete(unused.id).outcome == "deleted"
     assert svc.categories.read(unused.id) is None
 
@@ -219,12 +219,14 @@ def test_the_plan_is_kept_against_the_category(client, session, books):
 
 def test_the_category_service_makes_changes_closes_and_removes_categories(session, root_accounts):
     svc = services(session)
-    svc.categories.create(CategoryCreate(name="Food", kind="spending"))
-    dining = svc.categories.create(CategoryCreate(name="Dining", kind="spending"))
+    svc.categories.create(CategoryCreate(name="Food", kind="spending", icon="tag"))
+    dining = svc.categories.create(CategoryCreate(name="Dining", kind="spending", icon="tag"))
     assert dining.name == "Dining"
     with pytest.raises(ValueError, match="you already have a category called 'Dining'!"):
-        svc.categories.create(CategoryCreate(name="dining", kind="spending"))  # taken (capitals aside)
-    assert svc.categories.create(CategoryCreate(name="Dining", kind="earning")).kind == "earning", "another kind"
+        svc.categories.create(CategoryCreate(name="dining", kind="spending", icon="tag"))  # taken (capitals aside)
+    assert svc.categories.create(CategoryCreate(name="Dining", kind="earning", icon="tag")).kind == "earning", (
+        "another kind"
+    )
     renamed = svc.categories.update(dining.id, CategoryUpdate(name="Eating out"))
     assert renamed.name == "Eating out"
     assert svc.categories.close(dining.id).closed_on is not None
@@ -250,7 +252,7 @@ def test_uncategorised_is_made_once_per_kind_and_comes_back_if_closed(session, r
 def test_a_categories_list_is_sorted_by_kind_and_name(session, root_accounts):
     svc = services(session)
     for name, kind in (("Salary", "earning"), ("Rent", "spending"), ("Food", "spending")):
-        svc.categories.create(CategoryCreate(name=name, kind=kind))
+        svc.categories.create(CategoryCreate(name=name, kind=kind, icon="tag"))
     assert [(c.kind, c.name) for c in svc.categories.list()] == [
         ("earning", "Salary"),
         ("spending", "Food"),

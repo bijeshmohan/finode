@@ -486,7 +486,7 @@ def test_a_negative_assignment_can_only_take_back_what_the_category_has_left(cli
     svc.accounts.create(AccountCreate(name="Bank", type="assets.bank", balance=Decimal(1000)))
     from finode.schemas.category import CategoryCreate
 
-    food = svc.categories.create(CategoryCreate(name="Food", kind="spending"))
+    food = svc.categories.create(CategoryCreate(name="Food", kind="spending", icon="tag"))
     this_month = local_today().replace(day=1)
     last_month = (this_month - timedelta(days=1)).replace(day=1)
 

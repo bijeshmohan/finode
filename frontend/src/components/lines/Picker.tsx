@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useGrouping } from "../../app/currency";
 import { Sheet } from "../../components/Sheet";
 import { formatMoney } from "../../lib/money";
+import { CategoryIcon } from "../CategoryIcon";
 import styles from "./Picker.module.css";
 import type { PickGroup } from "./queries";
 
@@ -96,6 +97,11 @@ export function Picker({
                   choose(option.id);
                 }}
               >
+                {option.icon && (
+                  <span className={styles.icon}>
+                    <CategoryIcon name={option.icon} />
+                  </span>
+                )}
                 <span className={styles.name}>
                   {option.label}
                   {wanted && <small className={styles.under}>{group.title}</small>}

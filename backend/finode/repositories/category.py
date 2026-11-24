@@ -9,6 +9,7 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
+from ..category_icons import UNCATEGORISED as UNCATEGORISED_ICON
 from ..models.category import BudgetCategory
 from .cache import remembered
 
@@ -75,4 +76,4 @@ class CategoryRepository:
             return found
         taken = {c.name.casefold() for c in self.list() if c.kind == kind}
         name = UNCATEGORISED if UNCATEGORISED.casefold() not in taken else f"{UNCATEGORISED} (built-in)"
-        return self.add(BudgetCategory(user_id=self.uid, name=name, kind=kind, system_key=key))
+        return self.add(BudgetCategory(user_id=self.uid, name=name, kind=kind, system_key=key, icon=UNCATEGORISED_ICON))

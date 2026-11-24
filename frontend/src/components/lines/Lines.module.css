@@ -147,7 +147,13 @@
   gap: 0.6rem;
   min-width: 0;
 }
-.rowName > span:first-child {
+.rowIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  align-self: center;
+}
+.rowLabel {
   flex: 1;
   min-width: 0;
   overflow: hidden;

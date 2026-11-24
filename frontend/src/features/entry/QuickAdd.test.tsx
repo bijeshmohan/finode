@@ -52,7 +52,14 @@ describe("adding from the picker", () => {
     await userEvent.type(within(sheet).getByLabelText("Name"), "Coffee");
     expect(within(sheet).queryByLabelText("Under")).not.toBeInTheDocument();
     await userEvent.click(within(sheet).getByRole("button", { name: "Add category" }));
-    expect(await sent(fetch, "/api/categories/")).toEqual({ name: "Coffee", kind: "spending" });
+    expect(await within(sheet).findByRole("alert")).toHaveTextContent("Choose an icon");
+    expect(fetch.mock.calls.some(([r]) => new URL(r.url).pathname === "/api/categories/")).toBe(false);
+    await userEvent.click(within(sheet).getByRole("button", { name: /Choose an icon/ }));
+    await userEvent.click(
+      within(await screen.findByRole("dialog", { name: "Icon" })).getByRole("button", { name: "coffee" }),
+    );
+    await userEvent.click(within(sheet).getByRole("button", { name: "Add category" }));
+    expect(await sent(fetch, "/api/categories/")).toEqual({ name: "Coffee", kind: "spending", icon: "coffee" });
     await waitFor(() => {
       expect(screen.queryByRole("dialog", { name: "New category" })).not.toBeInTheDocument();
     });
@@ -71,8 +78,12 @@ describe("adding from the picker", () => {
     const sheet = await openNew("Earned from", "category");
     expect(within(sheet).getByPlaceholderText("e.g. Freelance")).toBeInTheDocument();
     await userEvent.type(within(sheet).getByLabelText("Name"), "Freelance");
+    await userEvent.click(within(sheet).getByRole("button", { name: /Choose an icon/ }));
+    await userEvent.click(
+      within(await screen.findByRole("dialog", { name: "Icon" })).getByRole("button", { name: "laptop" }),
+    );
     await userEvent.click(within(sheet).getByRole("button", { name: "Add category" }));
-    expect(await sent(fetch, "/api/categories/")).toEqual({ name: "Freelance", kind: "earning" });
+    expect(await sent(fetch, "/api/categories/")).toEqual({ name: "Freelance", kind: "earning", icon: "laptop" });
   });
 
   it("an account of the type chosen, with a balance", async () => {

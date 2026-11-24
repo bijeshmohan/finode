@@ -35,6 +35,7 @@ export function RegisterList({ rows, onOpen }: RegisterProps) {
             {items.map((row) => (
               <li key={row.id}>
                 <Row
+                  icon={row.icon ?? undefined}
                   title={
                     <span className={row.related ? listStyles.titleWithPill : undefined}>
                       <span className={listStyles.titleText}>{row.title}</span>

@@ -59,7 +59,7 @@ An account that holds a balance cannot be closed. A closed account keeps its his
 
 <img src="img/categories.png" alt="The Categories page: the month, Spending and Earning, ranked categories" width="300">
 
-Every category is listed, biggest first, including the ones with nothing in the month. To add one, tap **+ Add category** at the end of the list. Categories are one flat list: a category holds no other categories.
+Every category is listed, biggest first, including the ones with nothing in the month. To add one, tap **+ Add category** at the end of the list, give it a name and choose its **icon** (tap *Choose an icon* and pick one from the groups); every category has one, and it shows beside the category on Budgets, Categories, the Add screen and your transactions. Categories you had before icons came show a plain tag until you open one, tap **Edit** and choose. Categories are one flat list: a category holds no other categories.
 
 **Deleting a category:** if it has never been used it is removed. If it has history it is *closed* instead: it leaves your lists and pickers but stays in the months where it has amounts. **Restore category** brings it back. Both are under the **…** menu.
 

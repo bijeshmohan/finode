@@ -35,6 +35,8 @@ class AccountDecl:
     line: int = 0
     # Which of the four kinds an account under Assets or Liabilities is ("Bank Account"), from a `; kind:` label.
     kind: str | None = None
+    # A category's icon ("shopping-cart"), from an `; icon:` label.
+    icon: str | None = None
 
 
 @dataclass

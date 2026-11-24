@@ -262,6 +262,7 @@ class BudgetService:
                 BudgetLine(
                     category_id=category.id,
                     name=category.name,
+                    icon=category.icon,
                     assigned=a,
                     activity=s,
                     available=v,

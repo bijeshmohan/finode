@@ -7,6 +7,7 @@ import { messageOf } from "../../api/messages";
 import { useNewEntryHere } from "../../app/newEntry";
 import { useToday } from "../../app/session";
 import { useToast } from "../../app/toast";
+import { CategoryIcon } from "../../components/CategoryIcon";
 import { Figure } from "../../components/Figure";
 import { Icon } from "../../components/Icon";
 import { LoadError } from "../../components/LoadError";
@@ -156,6 +157,9 @@ export function CategoryPage() {
         <div className={look.title}>
           <div className={look.names}>
             <div className={look.nameRow}>
+              <span className={styles.icon}>
+                <CategoryIcon name={view.icon} />
+              </span>
               <h1>
                 {view.name}
                 {view.built_in && <span className={look.badge}>built in</span>}

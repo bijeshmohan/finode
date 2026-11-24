@@ -14,6 +14,9 @@ from uuid import UUID
 
 from pydantic import ValidationError
 
+from ..category_icons import CHOOSABLE as CHOOSABLE_ICONS
+from ..category_icons import DEFAULT as DEFAULT_ICON
+from ..category_icons import UNCATEGORISED as UNCATEGORISED_ICON
 from ..config import settings
 from ..currencies import find as find_currency
 from ..limits import LimitReached, ensure_room
@@ -135,6 +138,7 @@ class BackupService:
                     details=c.details,
                     closed_on=c.closed_on,
                     system_key=c.system_key,
+                    icon=c.icon,
                 )
                 for c in sorted(self.cr.list(), key=lambda c: (c.kind, c.name.lower()))
             ],
@@ -614,6 +618,8 @@ class BackupService:
                 )
             elif not c.name.strip() or len(c.name) > 40:
                 errors.append("a category has no name, or a name that is too long.")
+            elif c.icon is not None and c.system_key is None and c.icon not in CHOOSABLE_ICONS:
+                errors.append(f"category '{c.name}': '{c.icon}' is not one of finode's category icons.")
             elif (c.kind, c.parent_id, c.name.casefold()) in names:
                 errors.append(f"category '{c.name}' appears twice in the same place.")
             names.add((c.kind, c.parent_id, c.name.casefold()))
@@ -818,6 +824,7 @@ class BackupService:
                         kind=c.kind,
                         system_key=c.system_key,
                         closed_on=c.closed_on,
+                        icon=UNCATEGORISED_ICON if c.system_key else c.icon or DEFAULT_ICON,
                     )
                 )
                 cats[c.id] = made_category.id

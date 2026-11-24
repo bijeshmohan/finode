@@ -14,6 +14,7 @@ export function row(overrides: Partial<Row> = {}): Row {
     related: null,
     recurring: false,
     by_assistant: null,
+    icon: "utensils",
     ...overrides,
   };
 }

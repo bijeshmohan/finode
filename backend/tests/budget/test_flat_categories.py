@@ -5,7 +5,7 @@ from tests.budget.test_budget import assign, budget
 
 
 def made(client, name, kind="spending", **extra):
-    response = client.post("/api/categories/", json={"name": name, "kind": kind, **extra})
+    response = client.post("/api/categories/", json={"name": name, "kind": kind, "icon": "tag", **extra})
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -30,7 +30,7 @@ def test_a_category_has_no_parent(client):
 
 def test_names_are_unique_per_kind(client):
     made(client, "Rent")
-    again = client.post("/api/categories/", json={"name": "rent", "kind": "spending"})
+    again = client.post("/api/categories/", json={"name": "rent", "kind": "spending", "icon": "tag"})
     assert again.status_code == 400
     made(client, "Rent", kind="earning")
 

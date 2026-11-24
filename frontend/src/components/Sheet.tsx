@@ -111,13 +111,16 @@ export function Sheet({ open, onClose, title, showTitle = true, panelOnWide = fa
       data-side-panel={panel ? "" : undefined}
       aria-labelledby={showTitle ? titleId : undefined}
       aria-label={showTitle ? undefined : title}
+      // A sheet opened from inside this one (the icon picker in a form sheet) sends its own cancel and close, which React
+      // passes on to this one: only this dialog's own close it.
       onCancel={(event) => {
+        if (event.target !== event.currentTarget) return;
         event.preventDefault();
         onClose();
       }}
       // The browser can close a dialog by itself (a repeated Escape): the page is told, so React and the dialog agree.
-      onClose={() => {
-        if (open) onClose();
+      onClose={(event) => {
+        if (event.target === event.currentTarget && open) onClose();
       }}
       data-typing={typing ? "" : undefined}
       onPointerDown={(event) => {

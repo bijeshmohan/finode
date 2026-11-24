@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 
 import { useGrouping } from "../../app/currency";
+import { CategoryIcon } from "../../components/CategoryIcon";
 import { formatMoney } from "../../lib/money";
 import styles from "./Budget.module.css";
 import type { BudgetRow } from "./queries";
@@ -12,6 +13,9 @@ function Inside({ row }: { row: BudgetRow }) {
   const negative = row.available.startsWith("-");
   return (
     <>
+      <span className={styles.icon}>
+        <CategoryIcon name={row.icon} />
+      </span>
       <span className={styles.main}>
         <span className={styles.name}>{row.name}</span>
         <span className={styles.sub}>
@@ -43,7 +47,7 @@ export function BudgetRows({ rows, onOpen }: { rows: BudgetRow[]; onOpen: (row: 
         <button
           key={r.category_id}
           type="button"
-          className={styles.row}
+          className={`${styles.row} ${styles.withIcon}`}
           onClick={() => {
             onOpen(r);
           }}

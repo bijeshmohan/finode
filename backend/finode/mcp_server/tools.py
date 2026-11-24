@@ -12,6 +12,8 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field, ValidationError
 
+from ..category_icons import GROUPS as ICON_GROUPS
+from ..category_icons import check_icon
 from ..clock import local_today
 from ..config import settings
 from ..models.api_token import TokenScope
@@ -65,8 +67,8 @@ finode is the user's personal double-entry ledger.
   with their paths; spending ones are what the budget plans against, earning ones label income. Spending sent
   to a category (to=Groceries) already carries it. When money goes into a loan or fund, pass category (EMI, SIP) to
   record_transaction, or on a row of record_split: that is what the budget counts. A row may name only a category
-  instead of an account. create_category makes one; renaming, moving, closing and merging categories need access to
-  manage accounts.
+  instead of an account. create_category makes one and needs an icon: use the one the person names, else choose the
+  closest from list_category_icons. Renaming, moving, closing and merging categories need access to manage accounts.
 - get_card_bill gives a card's bill (what is due and when) from its statement day and due day.
 - check_balance sets a statement's balance against the books and points at the entries that could explain a gap.
 - payee_defaults tells how the user usually books a payee (which accounts); use it before guessing a category.
@@ -1552,6 +1554,7 @@ def _category_row(c: CategoryRead) -> dict[str, Any]:
         "id": str(c.id),
         "name": c.name,
         "kind": c.kind,
+        "icon": c.icon,
         **({"closed": c.closed_on.isoformat()} if c.closed_on else {}),
         **({"details": c.details} if c.details else {}),
     }
@@ -1571,15 +1574,37 @@ def list_categories(
         return {"categories": [_category_row(c) for c in s.categories.list(kind, include_closed)]}
 
 
+def _icon(name: str) -> str:
+    """A category icon the tools were given, refused with where to find the names."""
+    try:
+        return check_icon(name)
+    except ValueError as e:
+        raise ToolError(f"{e} (see list_category_icons)") from None
+
+
+@_tool_errors
+def list_category_icons() -> dict[str, Any]:
+    """The icons a category can have, in the groups the app shows them in. create_category and update_category take
+    one of these names."""
+    return {"groups": [{"name": name, "icons": list(icons)} for name, icons in ICON_GROUPS]}
+
+
 @_tool_errors
 def create_category(
     name: Annotated[str, Field(max_length=40, description="The new category's name")],
     kind: Annotated[Literal["spending", "earning"], Field(description="Spending (budgeted) or earning (income)")],
+    icon: Annotated[
+        str,
+        Field(
+            max_length=40,
+            description="Its icon, a name from list_category_icons: the one the person names, else the closest",
+        ),
+    ],
     details: Annotated[str | None, Field(max_length=200, description="What it is for")] = None,
 ) -> dict[str, Any]:
-    """Make a category (categories are one flat list). Check list_categories first."""
+    """Make a category (categories are one flat list) with its icon. Check list_categories first."""
     with services() as s:
-        made = s.categories.create(CategoryCreate(name=name, kind=kind, details=details))
+        made = s.categories.create(CategoryCreate(name=name, kind=kind, details=details, icon=_icon(icon)))
         return {"created": _category_row(made)}
 
 
@@ -1588,8 +1613,9 @@ def update_category(
     category: Annotated[str, Field(description="The category's path or id")],
     name: Annotated[str | None, Field(max_length=40, description="New name")] = None,
     details: Annotated[str | None, Field(max_length=200, description="New note; an empty string clears it")] = None,
+    icon: Annotated[str | None, Field(max_length=40, description="New icon, a name from list_category_icons")] = None,
 ) -> dict[str, Any]:
-    """Rename a category or change its note. Its id never changes."""
+    """Rename a category, or change its note or its icon. Its id never changes."""
     with services() as s:
         found = _categories(s).find(category)
         fields: dict[str, Any] = {}
@@ -1597,8 +1623,10 @@ def update_category(
             fields["name"] = name
         if details is not None:
             fields["details"] = details.strip() or None
+        if icon is not None:
+            fields["icon"] = _icon(icon)
         if not fields:
-            raise ToolError("nothing to change: give name or details!")
+            raise ToolError("nothing to change: give name, details or icon!")
         return {"updated": _category_row(s.categories.update(found.id, CategoryUpdate(**fields)))}
 
 
@@ -1663,6 +1691,7 @@ READ_TOOLS = [
     get_transaction,
     list_tags,
     list_categories,
+    list_category_icons,
     payee_defaults,
     check_balance,
     get_card_bill,

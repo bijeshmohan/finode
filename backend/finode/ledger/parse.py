@@ -89,6 +89,20 @@ def _take_kind(comment: str | None) -> tuple[str | None, str | None]:
     return found.group(1).strip(), rest or None
 
 
+ICON_LABEL = re.compile(r"(?:^|[\s,])icon:\s*([^,;\s]+)", re.IGNORECASE)
+
+
+def _take_icon(comment: str | None) -> tuple[str | None, str | None]:
+    """A category's `icon: shopping-cart` label and what is left of its comment."""
+    if not comment:
+        return None, None
+    found = ICON_LABEL.search(comment)
+    if found is None:
+        return None, comment
+    rest = (comment[: found.start()] + comment[found.end() :]).strip(" ,")
+    return found.group(1).strip(), rest or None
+
+
 def _split_comment(text: str) -> tuple[str, str | None]:
     parts = INLINE_COMMENT.split(text, maxsplit=1)
     if len(parts) == 1:
@@ -216,17 +230,19 @@ def _parse_directive(raw: str, block: list[tuple[int, str]], line: int, state: _
     rest = raw[len(word) :].strip()
     if word == "account":
         name, comment = _split_comment(rest)
+        icon, comment = _take_icon(comment)
         kind, note = _take_kind(comment)
         for _, sub in block:
             text = sub.strip()
             if text.startswith((";", "#")):
-                found, _ = _take_kind(text.lstrip(";# "))
-                kind = kind or found
+                found_icon, label = _take_icon(text.lstrip(";# "))
+                found, _ = _take_kind(label)
+                kind, icon = kind or found, icon or found_icon
                 continue
             keyword, _, value = text.partition(" ")
             if keyword == "note" and value.strip():
                 note = value.strip()
-        state.journal.accounts.append(AccountDecl(name.strip(), note, line, kind))
+        state.journal.accounts.append(AccountDecl(name.strip(), note, line, kind, icon))
     elif word == "commodity":
         return  # how a currency is written: nothing finode needs
     elif word == "P":

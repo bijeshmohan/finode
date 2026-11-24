@@ -76,7 +76,7 @@ def test_a_rule_can_name_the_category_of_what_it_pays(client, books):
 
 
 def test_a_rule_with_a_category_that_does_not_fit_is_refused(client, books):
-    salary = client.post("/api/categories/", json={"name": "Salary", "kind": "earning"}).json()
+    salary = client.post("/api/categories/", json={"name": "Salary", "kind": "earning", "icon": "tag"}).json()
     response = client.post(
         "/api/recurring/",
         json={
@@ -140,7 +140,7 @@ def test_a_backup_carries_the_category_of_each_line_and_rule_and_restoring_gives
     paid(client, books["bank"], books["food"], "40")
     make_rule(client, books, category_id=books["emi"]["id"])
     doc = client.get("/api/backup").json()
-    assert doc["version"] == 7 and {c["name"] for c in doc["categories"]} >= {"SIP", "Food", "EMI"}
+    assert doc["version"] == 8 and {c["name"] for c in doc["categories"]} >= {"SIP", "Food", "EMI"}
     labelled = [p for t in doc["transactions"] for p in t["postings"] if p["category"]]
     assert {p["category"] for p in labelled} == {books["sip"]["id"], books["food"]["id"], books["emi"]["id"]}
     assert doc["recurring"][0]["category"] == books["emi"]["id"]

@@ -44,6 +44,8 @@ def rich(client, root_accounts):
     food = acct(client, "Food", root_accounts["Expenses"])
     groceries = acct(client, "Groceries", food["id"])
     emi = acct(client, "EMI", root_accounts["Expenses"])
+    for made, icon in ((groceries, "shopping-cart"), (emi, "landmark")):
+        assert client.patch(f"/api/categories/{made['id']}", json={"icon": icon}).status_code == 200
     salary = acct(client, "Salary", root_accounts["Income"])
     assert client.post(f"/api/accounts/{old['id']}/close").status_code == 200
 
@@ -152,7 +154,7 @@ def rich(client, root_accounts):
         },
     )
     assert draft.status_code == 201, draft.text
-    rent = client.post("/api/categories/", json={"name": "Rent", "kind": "earning"}).json()
+    rent = client.post("/api/categories/", json={"name": "Rent", "kind": "earning", "icon": "tag"}).json()
     shared_income = client.post(
         "/api/shared-incomes/",
         json={
@@ -212,7 +214,8 @@ def canonical(doc: dict) -> dict:
             for a in doc["accounts"]
         )
         + sorted(
-            (paths[c["id"]], c["details"], c["closed_on"] is not None, c["system_key"]) for c in doc["categories"]
+            (paths[c["id"]], c["details"], c["closed_on"] is not None, c["system_key"], c["icon"])
+            for c in doc["categories"]
         ),
         "transactions": [
             (
@@ -285,7 +288,7 @@ def test_the_backup_has_everything(client, rich):
         and 'attachment; filename="finode-backup-' in response.headers["content-disposition"]
     )
     doc = response.json()
-    assert doc["format"] == "finode-backup" and doc["version"] == 7
+    assert doc["format"] == "finode-backup" and doc["version"] == 8
     assert doc["profile"]["first_name"] == "Ada" and doc["profile"]["default_currency"] == "INR"
     names = {a["name"] for a in doc["accounts"]}
     assert {
@@ -720,3 +723,39 @@ def test_a_backup_with_broken_contact_activity_is_refused(client, rich):
         assert client.get("/api/contacts/").json() == [], "nothing was saved"
     finally:
         as_user(TEST_USER_ID)
+
+
+def _restore_as_other(client, doc):
+    try:
+        as_user(OTHER)
+        response = client.post("/api/restore", files={"file": ("b.json", json.dumps(doc), "application/json")})
+        icons = {c["name"]: c["icon"] for c in client.get("/api/categories/", params={"include_closed": True}).json()}
+    finally:
+        as_user(TEST_USER_ID)
+    return response, icons
+
+
+def test_the_backup_keeps_category_icons(client, rich):
+    doc = client.get("/api/backup").json()
+    assert doc["version"] == 8
+    assert {c["name"]: c["icon"] for c in doc["categories"]}["Groceries"] == "shopping-cart"
+
+
+def test_old_backup_gets_default_icons(client, rich):
+    doc = client.get("/api/backup").json()
+    doc["version"] = 7
+    for c in doc["categories"]:
+        del c["icon"]
+    response, icons = _restore_as_other(client, doc)
+    assert response.status_code == 200, response.text
+    assert icons["Groceries"] == "tag" and icons["EMI"] == "tag"
+    assert all(icon == "circle-dashed" for name, icon in icons.items() if name.startswith("Uncategorised"))
+
+
+def test_v8_unknown_icon_is_refused(client, rich):
+    doc = client.get("/api/backup").json()
+    next(c for c in doc["categories"] if c["name"] == "Groceries")["icon"] = "rocket"
+    response, icons = _restore_as_other(client, doc)
+    assert response.status_code == 400
+    assert "Groceries" in response.text and "'rocket' is not one of finode's category icons" in response.text
+    assert icons == {}, "nothing was restored"
