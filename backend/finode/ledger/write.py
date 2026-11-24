@@ -14,7 +14,8 @@ def write(accounts: list[AccountDecl], transactions: list[LedgerTransaction], ge
     """Render a journal that ledger and hledger read as-is; amounts are debit positive, written without a commodity."""
     out = [f"; finode export, {generated.isoformat()}", ""]
     for decl in accounts:
-        out.append(f"account {decl.name}" + (f"  ; kind: {decl.kind}" if decl.kind else ""))
+        label = f"kind: {decl.kind}" if decl.kind else f"icon: {decl.icon}" if decl.icon else ""
+        out.append(f"account {decl.name}" + (f"  ; {label}" if label else ""))
         if decl.note:
             out.append(f"    note {_one_line(decl.note)}")
     if accounts:

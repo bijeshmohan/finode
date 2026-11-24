@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
+from ..category_icons import CHOOSABLE as CHOOSABLE_ICONS
 from ..category_icons import DEFAULT as DEFAULT_ICON
 from ..clock import local_today
 from ..config import settings
@@ -104,7 +105,8 @@ class _Planned:
 class _Plan:
     summary: ImportSummary = field(default_factory=ImportSummary)
     new_accounts: list[tuple[Key, str | None]] = field(default_factory=list)  # key, note
-    new_categories: list[tuple[Key, str | None]] = field(default_factory=list)  # key (Expenses:Groceries), note
+    # key (Expenses:Groceries), note, icon
+    new_categories: list[tuple[Key, str | None, str]] = field(default_factory=list)
     # Each category path of the file (Expenses:Food:Groceries) as the flat category it becomes (Expenses:Groceries).
     category_flat: dict[Key, Key] = field(default_factory=dict)
     transactions: list[_Planned] = field(default_factory=list)
@@ -261,6 +263,7 @@ class DataService:
                 + ":"
                 + ":".join(_segment(n) for n in names[c.id].split(":")),
                 c.details,
+                icon=c.icon,
             )
             for c in sorted(categories, key=lambda c: (c.kind, names[c.id]))
         ]
@@ -402,11 +405,16 @@ class DataService:
         # Accounts: everything declared or posted to, plus their parents.
         declared: dict[Key, tuple[str | None, int]] = {}
         used: dict[Key, int] = {}
+        category_icons: dict[Key, tuple[str, int]] = {}  # a category's `; icon:` label, and its line
         for decl in journal.accounts:
             try:
-                declared.setdefault(canon(_resolve(decl.name), decl.line, posted=False), (decl.note, decl.line))
+                key = canon(_resolve(decl.name), decl.line, posted=False)
             except ValueError as e:
                 errors.append(f"line {decl.line}: {e}")
+                continue
+            declared.setdefault(key, (decl.note, decl.line))
+            if decl.icon:
+                category_icons.setdefault(key, (decl.icon, decl.line))
         for transaction in journal.transactions:
             for posting in transaction.postings:
                 if posting.amount == 0:
@@ -495,11 +503,15 @@ class DataService:
         for key in sorted((k for k in plan.category_flat if k not in existing_categories), key=lambda k: (len(k), k)):
             note, line = category_notes.get(key, (None, 0))
             flat = plan.category_flat[key]
+            icon, icon_line = category_icons.get(key, (DEFAULT_ICON, line))
+            if icon not in CHOOSABLE_ICONS:
+                errors.append(f"line {icon_line}: '{icon}' is not one of finode's category icons")
+                icon = DEFAULT_ICON
             try:
-                CategoryCreate(name=flat[-1], kind=CATEGORY_ROOTS[key[0]], details=note, icon=DEFAULT_ICON)  # type: ignore[arg-type]
+                CategoryCreate(name=flat[-1], kind=CATEGORY_ROOTS[key[0]], details=note, icon=icon)  # type: ignore[arg-type]
             except ValidationError as e:
                 errors.append(f"line {line}: category '{':'.join(key)}': {_message(e)}")
-            plan.new_categories.append((flat, note))
+            plan.new_categories.append((flat, note, icon))
 
         totals = {"Assets": Decimal("0.00"), "Liabilities": Decimal("0.00")}
         for transaction in journal.transactions:
@@ -535,7 +547,7 @@ class DataService:
 
         summary = plan.summary
         summary.new_accounts = [":".join(key) for key, _ in plan.new_accounts]
-        summary.new_categories = [":".join(key) for key, _ in plan.new_categories]
+        summary.new_categories = [":".join(key) for key, *_ in plan.new_categories]
         summary.accounts_reused = sum(1 for key in known if key in existing and len(key) > 1)
         summary.transactions = len(plan.transactions)
         if plan.transactions:
@@ -669,14 +681,14 @@ class DataService:
             flat = plan.category_flat
             categories = self._category_keys()
             repository = CategoryRepository(self.ar.db, self.ar.uid)
-            for key, note in plan.new_categories:
+            for key, note, icon in plan.new_categories:
                 made = repository.add(
                     BudgetCategory(
                         user_id=self.ar.uid,
                         name=key[-1],
                         details=note,
                         kind=CATEGORY_ROOTS[key[0]],
-                        icon=DEFAULT_ICON,
+                        icon=icon,
                     )
                 )
                 categories[key] = made.id

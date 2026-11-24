@@ -163,7 +163,7 @@ def _version_6(doc: dict) -> dict:
 
 def test_a_version_6_file_restores_flat(client, rich):
     doc = client.get("/api/backup").json()
-    assert doc["version"] == 7
+    assert doc["version"] == 8
     types = {a["name"]: a["type"] for a in doc["accounts"] if a.get("type")}
     closed = {a["name"] for a in doc["accounts"] if a["closed_on"]}
     ready = client.get("/api/budget/").json()["ready_to_assign"]
