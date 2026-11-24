@@ -25,7 +25,7 @@ from ..schemas import AccountCreate, AccountRead, AccountUpdate, RegisterEntry
 from ..schemas.account import AccountBase, AccountFields, AccountType, BalanceCheck, BillRounding, CardBill, MergeResult
 from ..schemas.transaction import PostingBase, PostingCreate, TransactionCreate
 from . import cards
-from .account_types import TYPE_KEYS, TYPE_ROOTS, type_key, type_order
+from .account_types import TYPE_KEYS, TYPE_ROOTS, type_icon, type_key, type_order
 from .row_icon import row_icon
 from .simple import label_simple
 
@@ -576,7 +576,16 @@ class AccountService:
         icons = {c.id: c.icon for c in CategoryRepository(self.ar.db, self.ar.uid).list()}
         contacts = self.ar.contact_account_ids()
         opening = next((a.id for a in all_accounts if self.is_opening_balances(a, all_accounts)), None)
-        return lambda postings: row_icon(postings, roots, icons, contacts, opening)
+        types = {a.id: icon for a in all_accounts if (icon := type_icon(a))}
+        return lambda postings: row_icon(
+            postings,
+            [p.account_id for p in postings if p.side == PostingSide.DEBIT],
+            roots,
+            icons,
+            contacts,
+            opening,
+            types,
+        )
 
     def _counter_name(self, posting: Posting | PostingBase, accounts_by_id: dict[UUID, Account]) -> str:
         """What the other side of an entry is called in an account's list: a line on Expenses or Income is named for

@@ -20,6 +20,7 @@ from ..schemas.coming_up import ComingUpLine
 from ..schemas.transaction import PostingBase, RelatedRef, TransactionRead
 from ..tags import clean_tag
 from .account_tree import build_tree, without_contacts
+from .account_types import type_icon
 from .contact import ContactService
 from .row_icon import IconLine, row_icon
 from .transaction import TransactionService
@@ -115,6 +116,8 @@ class AccountIndex:
     icons: dict[UUID, str] = field(default_factory=dict)
     contacts: frozenset[UUID] = frozenset()
     opening: UUID | None = None
+    # Each typed account's type icon: a transfer shows the receiving account's.
+    types: dict[UUID, str] = field(default_factory=dict)
 
     @classmethod
     def build(cls, accounts: list[AccountRead], categories: list[CategoryRead] | None = None) -> AccountIndex:
@@ -127,11 +130,12 @@ class AccountIndex:
             {c.id: c.icon for c in categories or []},
             frozenset(a.id for a in accounts if a.contact_account),
             next((a.id for a in accounts if a.name == OPENING_BALANCES and roots.get(a.id) == "Equity"), None),
+            {a.id: icon for a in accounts if (icon := type_icon(a))},
         )
 
-    def icon(self, lines: list[IconLine]) -> str:
-        """The icon a row of these lines leads with."""
-        return row_icon(lines, self.roots, self.icons, self.contacts, self.opening)
+    def icon(self, lines: list[IconLine], into: list[UUID]) -> str:
+        """The icon a row of these lines leads with; `into` is the accounts on the debit side."""
+        return row_icon(lines, into, self.roots, self.icons, self.contacts, self.opening, self.types)
 
     def line_name(self, posting: PostingBase | ComingUpLine) -> str:
         """What a line is called in a list: its category when it sits on Expenses or Income, else its account."""
@@ -170,7 +174,9 @@ def to_row(transaction: TransactionRead, index: AccountIndex) -> TransactionRow:
         credits=side_names(PostingSide.CREDIT),
         amount=amount,
         kind=kind,
-        icon=index.icon(list(transaction.postings)),
+        icon=index.icon(
+            list(transaction.postings), [p.account_id for p in transaction.postings if p.side == PostingSide.DEBIT]
+        ),
     )
 
 

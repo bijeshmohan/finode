@@ -92,7 +92,7 @@ from ..schemas.views import (
 from ..services import budget_view, cards
 from ..services import people_view as people_view_service
 from ..services.account_tree import Node, build_tree
-from ..services.account_types import TYPE_KEYS, TYPE_NAMES, TYPE_ROOTS
+from ..services.account_types import TYPE_ICONS, TYPE_KEYS, TYPE_NAMES, TYPE_ROOTS, type_icon
 from ..services.accounts_view import (
     AccountForm,
     CardNote,
@@ -422,7 +422,8 @@ def _pick_groups(groups: Iterable[tuple[str, list]]) -> list[PickGroupRead]:
 def _account_types() -> list[AccountTypeOption]:
     """What a new account can be from the pickers' "＋ New": the four types, each with the root it sits under."""
     return [
-        AccountTypeOption(key=cast(AccountType, key), name=TYPE_NAMES[key], root=TYPE_ROOTS[key]) for key in TYPE_KEYS
+        AccountTypeOption(key=cast(AccountType, key), name=TYPE_NAMES[key], icon=TYPE_ICONS[key], root=TYPE_ROOTS[key])
+        for key in TYPE_KEYS
     ]
 
 
@@ -475,6 +476,7 @@ def _card(node: Node, notes: dict[UUID, CardNote]) -> AccountCard:
         closed=account.closed_on is not None,
         pinned=account.pinned,
         note=_note(notes.get(account.id)),
+        icon=type_icon(account),
     )
 
 
@@ -495,6 +497,7 @@ def accounts_view(accounts: Accounts):
             KindRow(
                 name=k.name,
                 type=cast(AccountType, k.type),
+                icon=TYPE_ICONS[k.type],
                 total=k.total,
                 owed=k.owed,
                 open_count=k.open_count,
@@ -521,6 +524,7 @@ def account_view(account_id: UUID, accounts: Accounts, offset: int = Query(defau
     return AccountView(
         id=account.id,
         name=account.name,
+        icon=type_icon(account),
         details=account.details,
         badge="system" if node.kind == "system" else "closed" if account.closed_on else None,
         sub=page.sub,
@@ -635,7 +639,9 @@ def account_form_view(accounts: Accounts, account_id: UUID | None = None, type: 
         details=account.details if account else None,
         balance=account.balance if account else None,
         type=cast(AccountType | None, form.type),
-        types=[AccountTypeChoice(key=cast(AccountType, key), name=name) for key, name in form.types],
+        types=[
+            AccountTypeChoice(key=cast(AccountType, key), name=name, icon=TYPE_ICONS[key]) for key, name in form.types
+        ],
         statement_day=account.statement_day if account else None,
         due_day=account.due_day if account else None,
         bill_rounding=account.bill_rounding if account else "none",

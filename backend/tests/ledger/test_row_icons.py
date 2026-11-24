@@ -28,10 +28,14 @@ ROOTS = {
     OPENING: "Equity",
 }
 ICONS = {FOOD: "utensils", FEES: "receipt"}
+TYPES = {BANK: "landmark", CARD: "credit-card"}
+UNTYPED = uuid4()
+ROOTS[UNTYPED] = "Assets"
 
 
 def icon(*lines: Line) -> str:
-    return row_icon(lines, ROOTS, ICONS, {ASHA}, OPENING)
+    """The first line is the one the money went into (the debit side), as in the tests' entries."""
+    return row_icon(lines, [lines[0].account_id], ROOTS, ICONS, {ASHA}, OPENING, TYPES)
 
 
 def test_opening_is_flag():
@@ -64,8 +68,13 @@ def test_loan_is_user():
     assert icon(Line(ASHA), Line(BANK)) == "user"
 
 
-def test_transfer_is_arrows():
-    assert icon(Line(CARD), Line(BANK)) == "arrow-left-right"
+def test_transfer_is_the_receiving_accounts_type():
+    assert icon(Line(CARD), Line(BANK)) == "credit-card"
+    assert icon(Line(BANK), Line(CARD)) == "landmark"
+
+
+def test_transfer_into_an_untyped_account_is_arrows():
+    assert icon(Line(UNTYPED), Line(BANK)) == "arrow-left-right"
 
 
 def test_unknown_category_id_is_tag():
@@ -109,7 +118,7 @@ def test_transactions_view_rows_carry_icons(client, books):
     rows = client.get("/api/views/transactions").json()["rows"]
     icons = _by_title(rows)
     assert icons["Swiggy"] == "utensils"
-    assert icons["Card bill"] == "arrow-left-right"
+    assert icons["Card bill"] == "credit-card"
     assert "user" in icons.values(), icons
     assert "flag" in icons.values(), icons
 
@@ -140,7 +149,7 @@ def test_closed_category_keeps_its_icon_on_rows(client, books):
 def test_account_register_rows_carry_icons(client, books):
     rows = client.get(f"/api/views/accounts/{books['hdfc']['id']}").json()["entries"]
     icons = _by_title(rows)
-    assert icons["Swiggy"] == "utensils" and icons["Card bill"] == "arrow-left-right"
+    assert icons["Swiggy"] == "utensils" and icons["Card bill"] == "credit-card"
 
 
 def test_coming_up_rows_carry_icons(client, books, monkeypatch):
@@ -173,7 +182,7 @@ def test_picker_options_carry_icons(client, books):
     groups = client.get("/api/views/entry-form").json()["groups"]
     options = {o["label"]: o["icon"] for g in groups for o in g["options"]}
     assert options["Food"] == "utensils"
-    assert options["HDFC"] is None
+    assert options["HDFC"] == "landmark"
 
 
 def test_account_upcoming_rows_carry_icons(client, books):

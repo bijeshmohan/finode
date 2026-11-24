@@ -202,6 +202,7 @@ class AccountTypeOption(BaseModel):
 
     key: AccountType
     name: str
+    icon: str
     # Assets or Liabilities: the sheet offers the types of the side it was opened for.
     root: str
 
@@ -267,6 +268,8 @@ class AccountCard(BaseModel):
     closed: bool
     pinned: bool
     note: CardNoteRead | None
+    # Its type's icon (services/account_types.TYPE_ICONS); null for an account with no type.
+    icon: str | None
 
 
 class KindRow(BaseModel):
@@ -274,6 +277,7 @@ class KindRow(BaseModel):
 
     name: str
     type: AccountType
+    icon: str
     total: Decimal
     # A liability's total reads "owed".
     owed: bool
@@ -317,6 +321,8 @@ class AccountView(BaseModel):
 
     id: UUID
     name: str
+    # Its type's icon; null for Opening Balances and the like.
+    icon: str | None
     details: str | None
     badge: Literal["system", "closed"] | None
     sub: str
@@ -394,6 +400,7 @@ class AccountTypeChoice(BaseModel):
 
     key: AccountType
     name: str
+    icon: str
 
 
 class AccountFormView(BaseModel):

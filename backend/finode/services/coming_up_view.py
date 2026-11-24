@@ -58,7 +58,7 @@ def coming_days(
             item=item,
             title=item.payee or ", ".join(debits),
             sub=f"{', '.join(credits)} → {', '.join(debits)}" if item.payee else ", ".join(credits),
-            icon=index.icon([*item.debits, *item.credits]),
+            icon=index.icon([*item.debits, *item.credits], [line.account_id for line in item.debits]),
         )
 
     days: list[ComingDay] = []

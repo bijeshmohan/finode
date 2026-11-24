@@ -26,6 +26,17 @@
             "title": "Closed",
             "type": "boolean"
           },
+          "icon": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -56,7 +67,8 @@
           "balance",
           "closed",
           "pinned",
-          "note"
+          "note",
+          "icon"
         ],
         "title": "AccountCard",
         "type": "object"
@@ -390,6 +402,10 @@
       "AccountTypeChoice": {
         "description": "One of the four types a new account can be (the form's switcher).",
         "properties": {
+          "icon": {
+            "title": "Icon",
+            "type": "string"
+          },
           "key": {
             "enum": [
               "assets.bank",
@@ -407,7 +423,8 @@
         },
         "required": [
           "key",
-          "name"
+          "name",
+          "icon"
         ],
         "title": "AccountTypeChoice",
         "type": "object"
@@ -415,6 +432,10 @@
       "AccountTypeOption": {
         "description": "What a new account made from the Add screen's \"New account\" sheet can be: one of the four types.",
         "properties": {
+          "icon": {
+            "title": "Icon",
+            "type": "string"
+          },
           "key": {
             "enum": [
               "assets.bank",
@@ -437,6 +458,7 @@
         "required": [
           "key",
           "name",
+          "icon",
           "root"
         ],
         "title": "AccountTypeOption",
@@ -658,6 +680,17 @@
             "title": "Has More",
             "type": "boolean"
           },
+          "icon": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -721,6 +754,7 @@
         "required": [
           "id",
           "name",
+          "icon",
           "details",
           "badge",
           "sub",
@@ -4872,6 +4906,10 @@
             "title": "Cards",
             "type": "array"
           },
+          "icon": {
+            "title": "Icon",
+            "type": "string"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -4903,6 +4941,7 @@
         "required": [
           "name",
           "type",
+          "icon",
           "total",
           "owed",
           "open_count",
