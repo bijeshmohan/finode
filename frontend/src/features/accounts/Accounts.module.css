@@ -9,6 +9,19 @@
 .kindHead {
   padding: 0 0.25rem 0.6rem;
 }
+.kindTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+/* A type's icon beside its heading, or beside an account's name on its page. */
+.typeIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  color: var(--muted);
+}
 .kindHead h2 {
   margin: 0;
   font-size: 1.25rem;
@@ -92,7 +105,13 @@
   min-width: 0;
   font-weight: 600;
 }
-.cardName > span:first-child {
+.cardIcon {
+  display: inline-flex;
+  flex: none;
+  margin-right: 0.4rem;
+  color: var(--muted);
+}
+.cardLabel {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

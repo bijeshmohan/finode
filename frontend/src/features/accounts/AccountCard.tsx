@@ -4,6 +4,7 @@ import { Link } from "react-router";
 
 import { useGrouping } from "../../app/currency";
 import { useToday } from "../../app/session";
+import { CategoryIcon } from "../../components/CategoryIcon";
 import { Icon } from "../../components/Icon";
 import { shortDate } from "../../lib/dates";
 import { formatMoney } from "../../lib/money";
@@ -33,7 +34,12 @@ export function AccountCard({ card, mark = true }: { card: AccountCardData; mark
         </span>
       )}
       <span className={styles.cardName}>
-        <span>{card.name}</span>
+        {card.icon && (
+          <span className={styles.cardIcon}>
+            <CategoryIcon name={card.icon} size={16} />
+          </span>
+        )}
+        <span className={styles.cardLabel}>{card.name}</span>
         {card.closed && <span className={look.badge}>closed</span>}
       </span>
       <span className={styles.cardFoot}>

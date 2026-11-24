@@ -1,11 +1,13 @@
-// The segmented switcher (.chips.seg): one choice of a few, as a radio group the arrow keys move through.
+// The segmented switcher (.chips.seg): one choice of a few, as a radio group the arrow keys move through. Options with
+// an icon (the account types) show it above the label.
 import { type KeyboardEvent, useRef } from "react";
 
+import { CategoryIcon } from "./CategoryIcon";
 import styles from "./Chips.module.css";
 
 interface ChipsProps<T extends string> {
   label: string;
-  options: readonly { value: T; label: string }[];
+  options: readonly { value: T; label: string; icon?: string }[];
   value: T;
   onChange: (value: T) => void;
 }
@@ -15,6 +17,7 @@ export function Chips<T extends string>({ label, options, value, onChange }: Chi
   const chosen = options.findIndex((o) => o.value === value);
   // The one chip Tab lands on: the chosen one, or the first when nothing matches.
   const focusable = chosen === -1 ? 0 : chosen;
+  const withIcons = options.some((o) => o.icon);
 
   // The radio-group pattern: the arrow keys move the choice and the focus together.
   function move(event: KeyboardEvent, step: number) {
@@ -27,7 +30,7 @@ export function Chips<T extends string>({ label, options, value, onChange }: Chi
   }
 
   return (
-    <div role="radiogroup" aria-label={label} className={styles.seg}>
+    <div role="radiogroup" aria-label={label} className={withIcons ? `${styles.seg} ${styles.withIcons}` : styles.seg}>
       {options.map((option, index) => {
         return (
           <button
@@ -48,6 +51,7 @@ export function Chips<T extends string>({ label, options, value, onChange }: Chi
               if (event.key === "ArrowLeft" || event.key === "ArrowUp") move(event, -1);
             }}
           >
+            {option.icon && <CategoryIcon name={option.icon} />}
             {option.label}
           </button>
         );

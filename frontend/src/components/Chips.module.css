@@ -33,3 +33,19 @@
   background: var(--surface);
   box-shadow: var(--shadow);
 }
+/* Chips with an icon: the icon over the label, so four still fit across a phone. */
+.withIcons {
+  border-radius: var(--radius);
+}
+.withIcons .chip {
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 0.2rem;
+  min-height: 3.5rem;
+  padding: 0.5rem 0.25rem 0.4rem;
+  border-radius: calc(var(--radius) - 3px);
+  font-size: 0.78rem;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.15;
+}

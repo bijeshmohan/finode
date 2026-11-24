@@ -41,6 +41,15 @@
   font-weight: 500;
   color: var(--muted);
 }
+/* A field that is not one input (the Kind chips): looks like a label. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted);
+}
 .form input,
 .form select {
   min-height: var(--tap);

@@ -18,6 +18,7 @@ export function card(over: Partial<AccountCardData> = {}): AccountCardData {
     closed: false,
     pinned: false,
     note: null,
+    icon: "landmark",
     ...over,
   };
 }
@@ -30,6 +31,7 @@ export function accounts(over: Partial<AccountsView> = {}): AccountsView {
       {
         name: "Bank Account",
         type: "assets.bank",
+        icon: "landmark",
         total: "5000.00",
         owed: false,
         open_count: 1,
@@ -40,6 +42,7 @@ export function accounts(over: Partial<AccountsView> = {}): AccountsView {
       {
         name: "Credit Card",
         type: "liabilities.cards",
+        icon: "credit-card",
         total: "300.00",
         owed: true,
         open_count: 1,
@@ -49,6 +52,7 @@ export function accounts(over: Partial<AccountsView> = {}): AccountsView {
           card({
             id: ids.visa,
             name: "Visa",
+            icon: "credit-card",
             balance: "300.00",
             note: { kind: "due", on: "2026-11-20", soon: true },
           }),
@@ -64,6 +68,7 @@ export function account(over: Partial<AccountView> = {}): AccountView {
   return {
     id: ids.hdfc,
     name: "HDFC",
+    icon: "landmark",
     details: null,
     badge: null,
     sub: "Bank Account",
@@ -108,10 +113,10 @@ export function entry(id: string, over: Partial<AccountView["entries"][number]> 
 }
 
 export const types: components["schemas"]["AccountTypeChoice"][] = [
-  { key: "assets.bank", name: "Bank Account" },
-  { key: "assets.cash", name: "Cash" },
-  { key: "liabilities.cards", name: "Credit Card" },
-  { key: "assets.wallet", name: "Prepaid Wallet" },
+  { key: "assets.bank", name: "Bank Account", icon: "landmark" },
+  { key: "assets.cash", name: "Cash", icon: "banknote" },
+  { key: "liabilities.cards", name: "Credit Card", icon: "credit-card" },
+  { key: "assets.wallet", name: "Prepaid Wallet", icon: "wallet" },
 ];
 
 export function accountForm(

@@ -17,6 +17,11 @@ describe("CategoryIcon", () => {
     expect(container.querySelector("svg")).toHaveAttribute("width", "16");
   });
 
+  it("says which icon it draws, for tests and styles", () => {
+    const { container } = render(<CategoryIcon name="credit-card" />);
+    expect(container.querySelector("svg")).toHaveAttribute("data-icon", "credit-card");
+  });
+
   it("unknown icon draws the tag", () => {
     const unknown = render(<CategoryIcon name="rocket" />).container.querySelector("svg")?.innerHTML;
     const tag = render(<CategoryIcon name="tag" />).container.querySelector("svg")?.innerHTML;
