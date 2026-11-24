@@ -17,7 +17,7 @@ from .conftest import Api
 def cards(page: Page) -> list[str]:
     """The names on the account cards that are shown."""
     return page.locator("main section a[href^='/accounts/']:not([href*='new'])").evaluate_all(
-        "els => els.filter(e => !e.closest('h2')).map(e => e.querySelector('span > span').textContent)"
+        "els => els.filter(e => !e.closest('h2')).map(e => e.querySelector('span > span:not(:has(svg))').textContent)"
     )
 
 

@@ -2414,6 +2414,8 @@ export interface components {
             balance: string;
             /** Closed */
             closed: boolean;
+            /** Icon */
+            icon: string | null;
             /**
              * Id
              * Format: uuid
@@ -2531,6 +2533,8 @@ export interface components {
          * @description One of the four types a new account can be (the form's switcher).
          */
         AccountTypeChoice: {
+            /** Icon */
+            icon: string;
             /**
              * Key
              * @enum {string}
@@ -2544,6 +2548,8 @@ export interface components {
          * @description What a new account made from the Add screen's "New account" sheet can be: one of the four types.
          */
         AccountTypeOption: {
+            /** Icon */
+            icon: string;
             /**
              * Key
              * @enum {string}
@@ -2605,6 +2611,8 @@ export interface components {
             has_children: boolean;
             /** Has More */
             has_more: boolean;
+            /** Icon */
+            icon: string | null;
             /**
              * Id
              * Format: uuid
@@ -4176,6 +4184,8 @@ export interface components {
             all_closed: boolean;
             /** Cards */
             cards: components["schemas"]["AccountCard"][];
+            /** Icon */
+            icon: string;
             /** Name */
             name: string;
             /** Open Count */

@@ -75,10 +75,13 @@ DEFAULT = "tag"
 # The system marks.
 UNCATEGORISED = "circle-dashed"  # the built-in Uncategorised, and a line with no category
 SEVERAL = "layers"  # an entry spread over several categories
-TRANSFER = "arrow-left-right"  # money between one's own accounts
+TRANSFER = "arrow-left-right"  # money between accounts when none has a type
 PERSON = "user"  # a loan, a borrowing, a settlement with a person
 OPENING = "flag"  # an opening balance or an adjustment
-SYSTEM: frozenset[str] = frozenset({UNCATEGORISED, SEVERAL, TRANSFER, PERSON, OPENING})
+# The account types' own (services/account_types.TYPE_ICONS); the other two types' icons are in the Money group.
+CASH = "banknote"
+CARD = "credit-card"
+SYSTEM: frozenset[str] = frozenset({UNCATEGORISED, SEVERAL, TRANSFER, PERSON, OPENING, CASH, CARD})
 
 
 def check_icon(name: str) -> str:

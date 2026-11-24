@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { messageOf } from "../../api/messages";
 import { usePlaces } from "../../app/currency";
+import { Chips } from "../../components/Chips";
 import { Icon } from "../../components/Icon";
 import { IconPicker } from "../../components/IconPicker";
 import { Sheet } from "../../components/Sheet";
@@ -90,22 +91,15 @@ export function QuickAdd({ making, accountTypes, onMade, onClose }: QuickAddProp
           />
         </label>
         {account && (
-          <label>
-            Kind
-            <select
-              required
+          <div className={styles.field}>
+            <span>Kind</span>
+            <Chips
+              label="Kind of account"
+              options={offered.map((t) => ({ value: t.key, label: t.name, icon: t.icon }))}
               value={type}
-              onChange={(event) => {
-                setType(event.target.value as AccountTypeOption["key"]);
-              }}
-            >
-              {offered.map((t) => (
-                <option key={t.key} value={t.key}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </label>
+              onChange={setType}
+            />
+          </div>
         )}
         {account && (
           <label>

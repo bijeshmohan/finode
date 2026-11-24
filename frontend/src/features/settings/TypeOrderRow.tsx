@@ -2,6 +2,7 @@
 // it. Each move saves at once; a refusal shows the server's words and the order stays as it was.
 import { messageOf } from "../../api/messages";
 import { useProfile } from "../../app/currency";
+import { accountTypeIcons, CategoryIcon } from "../../components/CategoryIcon";
 import { Icon } from "../../components/Icon";
 import { useUpdateProfile } from "./queries";
 import { SettingRow } from "./SettingRow";
@@ -41,7 +42,10 @@ export function TypeOrderRow() {
       <ol className={styles.order} aria-label="Order of account types">
         {order.map((key, index) => (
           <li key={key}>
-            <span>{NAMES[key]}</span>
+            <span className={styles.orderName}>
+              <CategoryIcon name={accountTypeIcons[key] ?? "tag"} />
+              {NAMES[key]}
+            </span>
             <span className={styles.orderButtons}>
               {index > 0 && (
                 <button

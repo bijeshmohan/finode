@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 
 import { useGrouping } from "../../app/currency";
+import { CategoryIcon } from "../../components/CategoryIcon";
 import { Icon } from "../../components/Icon";
 import { LoadError } from "../../components/LoadError";
 import { formatMoney } from "../../lib/money";
@@ -48,7 +49,12 @@ export function AccountsPage() {
             .map((k) => (
               <section key={k.type} className={styles.kind}>
                 <div className={styles.kindHead}>
-                  <h2>{k.name}</h2>
+                  <div className={styles.kindTitle}>
+                    <span className={styles.typeIcon}>
+                      <CategoryIcon name={k.icon} />
+                    </span>
+                    <h2>{k.name}</h2>
+                  </div>
                   <p>
                     {formatMoney(k.total, grouping)}
                     {k.owed ? " owed" : ""} · {plural(k.open_count)}

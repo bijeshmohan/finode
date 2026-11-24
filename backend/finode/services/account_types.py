@@ -3,12 +3,21 @@ that cash flow retired in older books (see services/cash_flow.py)."""
 
 from typing import Protocol
 
+from ..category_icons import CARD, CASH
+
 TYPE_KEYS: tuple[str, ...] = ("assets.bank", "assets.cash", "liabilities.cards", "assets.wallet")
 TYPE_NAMES: dict[str, str] = {
     "assets.bank": "Bank Account",
     "assets.cash": "Cash",
     "liabilities.cards": "Credit Card",
     "assets.wallet": "Prepaid Wallet",
+}
+# Each type's icon (drawn from the app's category-icons.json; tests/guards/test_category_icon_set.py checks it is there).
+TYPE_ICONS: dict[str, str] = {
+    "assets.bank": "landmark",
+    "assets.cash": CASH,
+    "liabilities.cards": CARD,
+    "assets.wallet": "wallet",
 }
 # The root each type sits under: what an account of that type holds (Assets) or owes (Liabilities).
 TYPE_ROOTS: dict[str, str] = {
@@ -29,6 +38,12 @@ class _Typed(Protocol):
 def type_key(account: _Typed) -> str | None:
     """The account's type (`TYPE_KEYS`), or None for anything else: a root, Opening Balances, a person's account."""
     return account.type if account.type in TYPE_KEYS else None
+
+
+def type_icon(account: _Typed) -> str | None:
+    """The icon of the account's type, or None when it has none (a root, Opening Balances, a person's account)."""
+    key = type_key(account)
+    return TYPE_ICONS[key] if key else None
 
 
 def in_budget(account: _Typed) -> bool:

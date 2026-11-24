@@ -8,7 +8,7 @@ from uuid import UUID
 
 from ..schemas.category import CategoryRead
 from .account_tree import Node
-from .account_types import TYPE_KEYS, TYPE_NAMES
+from .account_types import TYPE_KEYS, TYPE_NAMES, type_icon
 from .contact import ContactService
 
 
@@ -21,7 +21,7 @@ class PickOption:
     label: str
     budget: bool = False
     balance: Decimal | None = None
-    # A category's icon (an account has none).
+    # A category's icon, or an account's type's (none for an untyped account).
     icon: str | None = None
 
 
@@ -40,7 +40,13 @@ def posting_groups(
         return n.postable and not n.account.contact_account and (n.account.closed_on is None or n.account.id in keep)
 
     def option(n: Node) -> PickOption:
-        return PickOption(n.account.id, n.account.name, budget=n.account.type is not None, balance=n.account.balance)
+        return PickOption(
+            n.account.id,
+            n.account.name,
+            budget=n.account.type is not None,
+            balance=n.account.balance,
+            icon=type_icon(n.account),
+        )
 
     typed = [n for r in roots for n in r.children if n.account.type in TYPE_KEYS and shown(n)]
     for key in order or list(TYPE_KEYS):

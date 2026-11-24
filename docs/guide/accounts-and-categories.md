@@ -28,7 +28,7 @@ Tap **+ Add account**, the dashed card at the end of a kind's row. The form asks
 
 An account page shows its balance (the **+** at the bottom adds an entry for this account), a small **i** beside the name when you wrote a description for the account (tap it to read the note), a **…** menu (Edit, close it), and its transactions (the newest 30, then **Load more**). Entries dated in the future are in one **upcoming** card at the top of that list.
 
-The kinds are headings, not pages: an account sits straight under Assets or Liabilities (as `Assets:HDFC` in an export) and the Accounts page groups it under its kind.
+Each kind has its own icon, shown beside its heading, on its accounts' cards and when you choose a kind for a new account: a bank building for Bank Account, a banknote for Cash, a card for Credit Card and a wallet for Prepaid Wallet. A transfer between your accounts shows the icon of the account the money went into (paying your card bill shows the card). The kinds are headings, not pages: an account sits straight under Assets or Liabilities (as `Assets:HDFC` in an export) and the Accounts page groups it under its kind.
 
 <img src="img/account-page.png" alt="An account page: balance, Add transaction, upcoming card, transactions" width="300">
 

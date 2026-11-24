@@ -156,7 +156,7 @@ function FormBody({ view, accountId }: { view: AccountFormView; accountId: strin
             <span>Kind</span>
             <Chips
               label="Kind of account"
-              options={view.types.map((t) => ({ value: t.key, label: t.name }))}
+              options={view.types.map((t) => ({ value: t.key, label: t.name, icon: t.icon }))}
               value={type ?? ""}
               onChange={(value) => {
                 setType(value as AccountType);

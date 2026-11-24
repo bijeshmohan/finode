@@ -8,6 +8,7 @@ import { messageOf } from "../../api/messages";
 import { useCurrency, useGrouping } from "../../app/currency";
 import { useNewEntryHere } from "../../app/newEntry";
 import { useToast } from "../../app/toast";
+import { CategoryIcon } from "../../components/CategoryIcon";
 import { Figure } from "../../components/Figure";
 import { Icon } from "../../components/Icon";
 import { LoadError } from "../../components/LoadError";
@@ -153,6 +154,11 @@ export function AccountPage() {
         <div className={look.title}>
           <div className={look.names}>
             <div className={look.nameRow}>
+              {view.icon && (
+                <span className={styles.typeIcon}>
+                  <CategoryIcon name={view.icon} />
+                </span>
+              )}
               <h1>
                 {view.name}
                 {view.badge && <span className={look.badge}>{view.badge}</span>}

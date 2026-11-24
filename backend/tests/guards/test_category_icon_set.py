@@ -24,3 +24,21 @@ def test_check_icon():
     for bad in ("rocket", "layers", ""):
         with pytest.raises(ValueError, match=f"'{bad}' is not one of finode's category icons"):
             check_icon(bad)
+
+
+def test_every_account_type_has_a_drawn_icon():
+    from finode.services.account_types import TYPE_ICONS, TYPE_KEYS
+
+    app = json.loads((ROOT / "frontend/src/components/category-icons.json").read_text())
+    assert set(TYPE_ICONS) == set(TYPE_KEYS)
+    assert TYPE_ICONS == {
+        "assets.bank": "landmark",
+        "assets.cash": "banknote",
+        "liabilities.cards": "credit-card",
+        "assets.wallet": "wallet",
+    }
+    assert set(TYPE_ICONS.values()) <= set(app["paths"])
+    # The app's copy, for the one screen that shows a type without a view saying its icon (Settings' type order).
+    assert app["types"] == TYPE_ICONS
+    # A type's icon that is not in the picker is a system mark: never a category's own.
+    assert {"banknote", "credit-card"} <= SYSTEM

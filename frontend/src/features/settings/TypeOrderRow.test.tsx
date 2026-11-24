@@ -32,6 +32,11 @@ describe("the order of the account types", () => {
     open({ "/api/profile/": [200, profile(START)] });
     const list = await screen.findByRole("list", { name: "Order of account types" });
     expect(names(list)).toEqual(["Bank Account", "Cash", "Credit Card", "Prepaid Wallet"]);
+    expect(
+      within(list)
+        .getAllByRole("listitem")
+        .map((li) => li.querySelector("svg[data-icon]")?.getAttribute("data-icon")),
+    ).toEqual(["landmark", "banknote", "credit-card", "wallet"]);
     expect(within(list).queryByRole("button", { name: "Move Bank Account up" })).not.toBeInTheDocument();
     expect(within(list).getByRole("button", { name: "Move Bank Account down" })).toBeInTheDocument();
     expect(within(list).getByRole("button", { name: "Move Prepaid Wallet up" })).toBeInTheDocument();

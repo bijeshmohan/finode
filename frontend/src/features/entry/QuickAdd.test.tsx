@@ -11,10 +11,10 @@ const NEW = "00000000-0000-4000-8000-0000000000n1";
 
 const PARENTS: Partial<EntryFormView> = {
   account_types: [
-    { key: "assets.bank", name: "Bank Account", root: "Assets" },
-    { key: "assets.cash", name: "Cash", root: "Assets" },
-    { key: "liabilities.cards", name: "Credit Card", root: "Liabilities" },
-    { key: "assets.wallet", name: "Prepaid Wallet", root: "Assets" },
+    { key: "assets.bank", name: "Bank Account", icon: "landmark", root: "Assets" },
+    { key: "assets.cash", name: "Cash", icon: "banknote", root: "Assets" },
+    { key: "liabilities.cards", name: "Credit Card", icon: "credit-card", root: "Liabilities" },
+    { key: "assets.wallet", name: "Prepaid Wallet", icon: "wallet", root: "Assets" },
   ],
 };
 
@@ -89,13 +89,18 @@ describe("adding from the picker", () => {
   it("an account of the type chosen, with a balance", async () => {
     const { fetch } = await screenWith(view(PARENTS), { "/api/accounts/": [201, { id: NEW, name: "Pluxee" }] });
     const sheet = await openNew("Paid from", "account");
-    const kind = within(sheet).getByLabelText("Kind");
+    const kind = within(sheet).getByRole("radiogroup", { name: "Kind of account" });
     expect(
       within(kind)
-        .getAllByRole("option")
-        .map((o) => o.textContent),
-    ).toEqual(["Bank Account", "Cash", "Credit Card", "Prepaid Wallet"]);
-    await userEvent.selectOptions(kind, "assets.wallet");
+        .getAllByRole("radio")
+        .map((o) => [o.textContent, o.querySelector("svg")?.getAttribute("data-icon")]),
+    ).toEqual([
+      ["Bank Account", "landmark"],
+      ["Cash", "banknote"],
+      ["Credit Card", "credit-card"],
+      ["Prepaid Wallet", "wallet"],
+    ]);
+    await userEvent.click(within(kind).getByRole("radio", { name: "Prepaid Wallet" }));
     await userEvent.type(within(sheet).getByLabelText("Name"), "Pluxee");
     await userEvent.type(within(sheet).getByLabelText(/Current balance/), "500");
     await userEvent.click(within(sheet).getByRole("button", { name: "Add account" }));
