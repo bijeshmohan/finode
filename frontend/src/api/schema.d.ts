@@ -1914,7 +1914,7 @@ export interface paths {
         /**
          * Account Form View
          * @description Where the account form starts: editing `account_id` (it keeps its type), or a new account, with `type` already
-         *     chosen when the form was opened for one (a type's "+ Add account"). `types` are the four to pick from, in order.
+         *     chosen when the form was opened for one (`/accounts/new?type=…`; the Accounts page's + opens it with none). `types` are the four to pick from, in order.
          */
         get: operations["account_form_view_api_views_account_form_get"];
         put?: never;
@@ -4182,8 +4182,6 @@ export interface components {
          * @description One row of cards on the Accounts page: one of the four types and its accounts.
          */
         KindRow: {
-            /** Add Url */
-            add_url: string;
             /** All Closed */
             all_closed: boolean;
             /** Cards */

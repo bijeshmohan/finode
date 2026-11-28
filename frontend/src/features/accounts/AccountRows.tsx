@@ -1,11 +1,9 @@
 // Accounts as a list: one row each (the shared Row: the name, one quiet line when there is something to say, the
 // balance at the right) in one tile, ending in a line to add another. Which quiet line is the server's (a bill, no
 // entries yet, none for a month); only its wording is here. Nothing scrolls sideways.
-import { Link } from "react-router";
 
 import { useGrouping } from "../../app/currency";
 import { useToday } from "../../app/session";
-import { Icon } from "../../components/Icon";
 import { Row } from "../../components/Row";
 import { shortDate } from "../../lib/dates";
 import { formatMoney } from "../../lib/money";
@@ -47,16 +45,8 @@ function AccountRow({ card, withIcon }: { card: AccountCardData; withIcon: boole
 }
 
 /** `withIcons`: each row leads with its type's icon (where the types are mixed, as in Pinned); under a type's heading
- * the heading carries it once. `add`: the line that adds an account of the type. */
-export function AccountRows({
-  cards,
-  withIcons = false,
-  add,
-}: {
-  cards: AccountCardData[];
-  withIcons?: boolean;
-  add?: { to: string; label: string };
-}) {
+ * the heading carries it once. */
+export function AccountRows({ cards, withIcons = false }: { cards: AccountCardData[]; withIcons?: boolean }) {
   return (
     <ul className={styles.list}>
       {cards.map((c) => (
@@ -64,14 +54,6 @@ export function AccountRows({
           <AccountRow card={c} withIcon={withIcons} />
         </li>
       ))}
-      {add && (
-        <li>
-          <Link className={styles.addLine} to={add.to}>
-            <Icon name="plus" />
-            {add.label}
-          </Link>
-        </li>
-      )}
     </ul>
   );
 }

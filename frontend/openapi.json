@@ -4903,10 +4903,6 @@
       "KindRow": {
         "description": "One row of cards on the Accounts page: one of the four types and its accounts.",
         "properties": {
-          "add_url": {
-            "title": "Add Url",
-            "type": "string"
-          },
           "all_closed": {
             "title": "All Closed",
             "type": "boolean"
@@ -4953,7 +4949,6 @@
           "total",
           "owed",
           "all_closed",
-          "add_url",
           "cards"
         ],
         "title": "KindRow",
@@ -16382,7 +16377,7 @@
     },
     "/api/views/account-form": {
       "get": {
-        "description": "Where the account form starts: editing `account_id` (it keeps its type), or a new account, with `type` already\nchosen when the form was opened for one (a type's \"+ Add account\"). `types` are the four to pick from, in order.",
+        "description": "Where the account form starts: editing `account_id` (it keeps its type), or a new account, with `type` already\nchosen when the form was opened for one (`/accounts/new?type=\u2026`; the Accounts page's + opens it with none). `types` are the four to pick from, in order.",
         "operationId": "account_form_view_api_views_account_form_get",
         "parameters": [
           {

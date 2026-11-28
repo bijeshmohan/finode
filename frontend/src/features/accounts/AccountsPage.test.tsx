@@ -24,7 +24,7 @@ describe("the Accounts page", () => {
     expect(screen.queryByText("in the budget")).not.toBeInTheDocument();
   });
 
-  it("each type is a list under its heading, in the order given, with its total and an add line", async () => {
+  it("each type is a list under its heading, in the order given, with its total", async () => {
     renderApp("/accounts", { ...SIGNED_IN, "/api/views/accounts": [200, accounts()] });
     const banks = sectionOf(await screen.findByRole("heading", { name: "Bank Account" }));
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
@@ -35,13 +35,9 @@ describe("the Accounts page", () => {
     expect(within(banks).getAllByText("5,000.00")).toHaveLength(2); // the total, and HDFC's row
     expect(within(banks).queryByRole("link", { name: "Bank Account" })).not.toBeInTheDocument(); // no type pages
     expect(within(banks).getByRole("link", { name: /HDFC/ })).toHaveAttribute("href", `/accounts/${ids.hdfc}`);
-    expect(within(banks).getByRole("link", { name: "Add bank account" })).toHaveAttribute(
-      "href",
-      "/accounts/new?type=assets.bank",
-    );
+    expect(within(banks).queryByRole("link", { name: /^Add/ })).not.toBeInTheDocument();
     const cards = sectionOf(screen.getByRole("heading", { name: "Credit Card" }));
     expect(within(cards).getByText("owed")).toBeInTheDocument();
-    expect(within(cards).getByRole("link", { name: "Add credit card" })).toBeInTheDocument();
     expect(within(cards).getByText("Bill due 20 Nov")).toBeInTheDocument();
   });
 
@@ -87,6 +83,16 @@ describe("the Accounts page", () => {
     expect(within(pinned).queryByText(/\d accounts?$/)).not.toBeInTheDocument();
     expect(within(pinned).queryByRole("link", { name: /^Add/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "New group" })).not.toBeInTheDocument();
+  });
+
+  it("has one add button, beside the title, that opens the form with no type chosen", async () => {
+    renderApp("/accounts", { ...SIGNED_IN, "/api/views/accounts": [200, accounts()] });
+    await screen.findByRole("heading", { name: "Bank Account" });
+    const adds = screen.getAllByRole("link", { name: /^Add/ });
+    expect(adds).toHaveLength(1);
+    expect(adds[0]).toHaveAccessibleName("Add account");
+    expect(adds[0]).toHaveAttribute("href", "/accounts/new");
+    expect(screen.getByRole("heading", { level: 1, name: "Accounts" }).parentElement).toContainElement(adds[0] ?? null);
   });
 
   it("leads with a hero card: what the accounts hold, and what is owed on the cards apart", async () => {

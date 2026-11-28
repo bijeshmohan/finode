@@ -503,7 +503,6 @@ def accounts_view(accounts: Accounts):
                 total=k.total,
                 owed=k.owed,
                 all_closed=k.all_closed,
-                add_url=k.add_url,
                 cards=[_card(n, page.notes) for n in k.items],
             )
             for k in page.kinds
@@ -626,7 +625,7 @@ def category_view(category_id: UUID, categories: Categories, reports: Reports, m
 @router.get("/account-form", response_model=AccountFormView)
 def account_form_view(accounts: Accounts, account_id: UUID | None = None, type: str | None = None):
     """Where the account form starts: editing `account_id` (it keeps its type), or a new account, with `type` already
-    chosen when the form was opened for one (a type's "+ Add account"). `types` are the four to pick from, in order."""
+    chosen when the form was opened for one (`/accounts/new?type=…`; the Accounts page's + opens it with none). `types` are the four to pick from, in order."""
     try:
         form: AccountForm = (
             edit_account_form(accounts, account_id) if account_id is not None else new_account_form(accounts, type)
