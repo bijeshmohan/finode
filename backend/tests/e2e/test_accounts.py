@@ -36,7 +36,7 @@ def test_every_kind_is_a_list_under_its_heading(signed_in_page: Page, api: Api, 
     page = signed_in_page
     nested(api, books)
     page.goto("/accounts")
-    expect(kind(page, "Prepaid Wallet")).to_contain_text("2 accounts")
+    expect(kind(page, "Prepaid Wallet")).not_to_contain_text("accounts")  # the list shows how many
     assert {"HDFC", "SBI", "Rainy", "Checking", "Cash"} <= set(cards(page))
     assert "Opening Balances" not in cards(page), "Equity is not listed"
     assert page.locator("main details").count() == 0, "nothing folds"
@@ -53,7 +53,6 @@ def test_nothing_scrolls_sideways_however_many_accounts_a_kind_holds(signed_in_p
         page.set_viewport_size({"width": width, "height": 800})
         page.goto("/accounts")
         wallets = kind(page, "Prepaid Wallet")
-        expect(wallets).to_contain_text("8 accounts")
         for number in range(8):
             expect(wallets.get_by_role("link", name=re.compile(f"^Wallet {number}"))).to_be_visible()
         assert not page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth")

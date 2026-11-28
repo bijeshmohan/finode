@@ -13,15 +13,13 @@
 .kindHead {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
+  align-items: center;
   gap: 0.75rem;
   padding: 0 0.25rem 0.75rem;
 }
-.kindHead > div {
-  min-width: 0;
-}
 .kindTitle {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 0.45rem;
 }
@@ -41,15 +39,10 @@
   letter-spacing: -0.005em;
   color: var(--text);
 }
-.kindHead p {
-  margin: 0.1rem 0 0;
-  font-size: 0.8125rem;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
 /* A type's total, at the right of its heading; "owed" under it for what you owe. */
 .kindTotal {
   flex: none;
+  margin: 0;
   text-align: right;
   font-family: var(--font-figure);
   font-size: 1rem;

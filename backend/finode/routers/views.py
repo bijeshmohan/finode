@@ -502,7 +502,6 @@ def accounts_view(accounts: Accounts):
                 icon=TYPE_ICONS[k.type],
                 total=k.total,
                 owed=k.owed,
-                open_count=k.open_count,
                 all_closed=k.all_closed,
                 add_url=k.add_url,
                 cards=[_card(n, page.notes) for n in k.items],

@@ -31,7 +31,7 @@ describe("the Accounts page", () => {
       "Bank Account",
       "Credit Card",
     ]);
-    expect(within(banks).getByText("1 account")).toBeInTheDocument();
+    expect(within(banks).queryByText(/\d accounts?$/)).not.toBeInTheDocument(); // the list shows how many
     expect(within(banks).getAllByText("5,000.00")).toHaveLength(2); // the total, and HDFC's row
     expect(within(banks).queryByRole("link", { name: "Bank Account" })).not.toBeInTheDocument(); // no type pages
     expect(within(banks).getByRole("link", { name: /HDFC/ })).toHaveAttribute("href", `/accounts/${ids.hdfc}`);
@@ -84,7 +84,7 @@ describe("the Accounts page", () => {
       "/api/views/accounts": [200, accounts({ pinned: [card({ pinned: true })] })],
     });
     const pinned = sectionOf(await screen.findByRole("heading", { name: "Pinned" }));
-    expect(within(pinned).getByText("1 account")).toBeInTheDocument();
+    expect(within(pinned).queryByText(/\d accounts?$/)).not.toBeInTheDocument();
     expect(within(pinned).queryByRole("link", { name: /^Add/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "New group" })).not.toBeInTheDocument();
   });

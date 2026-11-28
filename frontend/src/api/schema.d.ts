@@ -4192,8 +4192,6 @@ export interface components {
             icon: string;
             /** Name */
             name: string;
-            /** Open Count */
-            open_count: number;
             /** Owed */
             owed: boolean;
             /** Total */
