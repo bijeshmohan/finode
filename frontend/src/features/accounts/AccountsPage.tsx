@@ -5,9 +5,11 @@ import { useState } from "react";
 
 import { useGrouping } from "../../app/currency";
 import { CategoryIcon } from "../../components/CategoryIcon";
+import { Figure } from "../../components/Figure";
 import { Icon } from "../../components/Icon";
 import { LoadError } from "../../components/LoadError";
 import { formatMoney } from "../../lib/money";
+import { sameAmount } from "../../lib/split";
 import { AccountRows } from "./AccountRows";
 import look from "../../components/Page.module.css";
 import styles from "./Accounts.module.css";
@@ -38,6 +40,19 @@ export function AccountsPage() {
       {page && (
         <>
           <p className={look.sub}>{page.account_count ? plural(page.account_count) : "No accounts yet"}</p>
+          <section className={`${look.hero} ${styles.hero}`} data-testid="accounts-hero">
+            <div className={look.heroTop}>
+              <span>In your accounts</span>
+            </div>
+            <span className={look.figure}>
+              <Figure value={page.in_accounts} />
+            </span>
+            {!sameAmount(page.owed_on_cards, "0") && (
+              <span className={look.heroNote}>
+                <span>{formatMoney(page.owed_on_cards, grouping)} owed on cards</span>
+              </span>
+            )}
+          </section>
 
           {page.pinned.length > 0 && (
             <section className={styles.kind}>

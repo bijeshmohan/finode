@@ -79,6 +79,8 @@ def test_the_settings_sheet_has_two_cells_a_done_button_and_a_red_remove_below_i
     expect(sheet.get_by_label("Amount", exact=True)).to_have_value("1,250.00")
     assert sheet.get_by_label("Date").get_attribute("type") == "date", "the device's own date picker"
     expect(sheet.get_by_label("Date")).to_have_value(str(local_today()))
+    # Measured once the sheet has finished rising: mid-rise the two readings came from different frames, 234px apart.
+    expect(sheet.get_by_role("button", name="Done")).to_be_in_viewport(ratio=1)
     amount_box, date_box = (
         sheet.get_by_label("Amount", exact=True).bounding_box(),
         sheet.get_by_label("Date").bounding_box(),

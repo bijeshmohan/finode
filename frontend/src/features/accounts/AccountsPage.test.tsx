@@ -88,4 +88,17 @@ describe("the Accounts page", () => {
     expect(within(pinned).queryByRole("link", { name: /^Add/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "New group" })).not.toBeInTheDocument();
   });
+
+  it("leads with a hero card: what the accounts hold, and what is owed on the cards apart", async () => {
+    renderApp("/accounts", { ...SIGNED_IN, "/api/views/accounts": [200, accounts()] });
+    const hero = await screen.findByTestId("accounts-hero");
+    expect(hero).toHaveTextContent("In your accounts");
+    expect(hero).toHaveTextContent("5,000.00");
+    expect(hero).toHaveTextContent("300.00 owed on cards");
+  });
+
+  it("says nothing of cards when nothing is owed on them", async () => {
+    renderApp("/accounts", { ...SIGNED_IN, "/api/views/accounts": [200, accounts({ owed_on_cards: "0.00" })] });
+    expect(await screen.findByTestId("accounts-hero")).not.toHaveTextContent("owed on cards");
+  });
 });

@@ -276,3 +276,17 @@ def test_a_card_with_nothing_to_pay_says_no_bill(client, tree):
     assert transfer(client, made["id"], tree["hdfc"], "10", local_today()).status_code == 201
     note = cards_of(view(client))["Visa"]["note"]
     assert note is None or note["kind"] not in ("due", "overdue")
+
+
+def test_the_accounts_page_hero_says_what_is_in_the_accounts_and_owed_on_cards(client, tree):
+    """The hero card (2026-11-24): what the Bank, Cash and Prepaid Wallet accounts hold, and what is owed on the
+    cards, apart: never one net figure."""
+    page = client.get("/api/views/accounts").json()
+    assert Decimal(page["in_accounts"]) == Decimal("5000")
+    assert Decimal(page["owed_on_cards"]) == Decimal("300")
+    assert "net_worth" not in page
+
+
+def test_an_empty_accounts_page_hero_says_nothing_held_or_owed(client, root_accounts):
+    page = client.get("/api/views/accounts").json()
+    assert Decimal(page["in_accounts"]) == 0 and Decimal(page["owed_on_cards"]) == 0

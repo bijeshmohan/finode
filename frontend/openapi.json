@@ -792,12 +792,22 @@
             "title": "Has Closed",
             "type": "boolean"
           },
+          "in_accounts": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "In Accounts",
+            "type": "string"
+          },
           "kinds": {
             "items": {
               "$ref": "#/components/schemas/KindRow"
             },
             "title": "Kinds",
             "type": "array"
+          },
+          "owed_on_cards": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Owed On Cards",
+            "type": "string"
           },
           "pinned": {
             "items": {
@@ -809,6 +819,8 @@
         },
         "required": [
           "account_count",
+          "in_accounts",
+          "owed_on_cards",
           "pinned",
           "kinds",
           "has_closed"

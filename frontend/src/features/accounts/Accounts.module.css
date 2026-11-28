@@ -1,5 +1,9 @@
 /* The Accounts page's lists under their type headings and an account's own page (the pin button, a card's bill); the
    parts every page shares are in components/Page.module.css. */
+/* The page's hero card: what the accounts hold, and what is owed on the cards, apart. */
+.hero {
+  margin-top: 1rem;
+}
 .kind {
   margin-top: 2.75rem;
 }
@@ -60,18 +64,14 @@
   letter-spacing: 0;
   color: var(--muted);
 }
-/* A list of accounts: the shared rows in one tile, the add line last. */
+/* A list of accounts: the shared rows, plain on the page (look A, 2026-11-24), the add line last. */
 .list {
   margin: 0;
-  padding: 0 1rem;
+  padding: 0;
   list-style: none;
-  background: var(--surface);
-  border: 1px solid var(--tile-border);
-  border-radius: var(--radius);
-  overflow: hidden;
 }
 .list > li + li {
-  border-top: 1px solid var(--surface-2);
+  border-top: 1px solid var(--border);
 }
 .list > li > a {
   padding-inline: 0;
@@ -124,12 +124,11 @@
   color: var(--muted);
 }
 /* A card's bill */
+/* Inside the hero card, under the balance, past a hairline. */
 .bill {
-  margin: 1rem 0 0.5rem;
-  padding: 0.85rem 1rem;
-  background: var(--surface);
-  border: 1px solid var(--tile-border);
-  border-radius: var(--radius);
+  margin: 0.9rem 0 0;
+  padding: 0.85rem 0 0;
+  border-top: 1px solid var(--border);
 }
 .billTop {
   display: flex;

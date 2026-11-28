@@ -210,20 +210,22 @@ export function AccountPage() {
             Closed on {longDay(view.closed_on)}. Its history stays; nothing can be added to it until you reopen it.
           </p>
         )}
-        <p className={look.heroBalance}>
-          <Figure value={view.balance} />
-        </p>
-        {view.balance_after !== null && view.upcoming.length > 0 && (
-          <p className={look.balanceAfter}>
-            {withCurrency(formatMoney(view.balance_after, grouping), code)} after the {view.upcoming.length} coming up
+        <div className={look.heroCard}>
+          <p className={look.heroBalance}>
+            <Figure value={view.balance} />
           </p>
-        )}
-        {view.direct !== null && !sameAmount(view.direct, "0") && (
-          <p className={look.muted}>
-            {formatMoney(view.direct, grouping)} posted directly to {view.name}; the rest is in its sub-accounts.
-          </p>
-        )}
-        <CardBill view={view} />
+          {view.balance_after !== null && view.upcoming.length > 0 && (
+            <p className={look.balanceAfter}>
+              {withCurrency(formatMoney(view.balance_after, grouping), code)} after the {view.upcoming.length} coming up
+            </p>
+          )}
+          {view.direct !== null && !sameAmount(view.direct, "0") && (
+            <p className={look.muted}>
+              {formatMoney(view.direct, grouping)} posted directly to {view.name}; the rest is in its sub-accounts.
+            </p>
+          )}
+          <CardBill view={view} />
+        </div>
         {error && (
           <p className={look.error} role="alert">
             {error}

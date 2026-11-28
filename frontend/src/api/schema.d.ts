@@ -2643,8 +2643,12 @@ export interface components {
             account_count: number;
             /** Has Closed */
             has_closed: boolean;
+            /** In Accounts */
+            in_accounts: string;
             /** Kinds */
             kinds: components["schemas"]["KindRow"][];
+            /** Owed On Cards */
+            owed_on_cards: string;
             /** Pinned */
             pinned: components["schemas"]["AccountCard"][];
         };

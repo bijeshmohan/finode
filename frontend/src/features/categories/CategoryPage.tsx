@@ -185,9 +185,11 @@ export function CategoryPage() {
             Closed on {longDay(view.closed_on)}. Its history stays; nothing can be added to it until you restore it.
           </p>
         )}
-        <p className={look.heroBalance}>
-          <Figure value={view.total} />
-        </p>
+        <div className={look.heroCard}>
+          <p className={look.heroBalance}>
+            <Figure value={view.total} />
+          </p>
+        </div>
         {error && (
           <p className={look.error} role="alert">
             {error}

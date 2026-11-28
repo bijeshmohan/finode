@@ -27,8 +27,14 @@
   font-weight: 500;
   color: var(--muted);
 }
+/* The month at a glance: Home's hero, its one card (look A, the owner's choice, 2026-11-24). */
 .glance {
-  padding: 0 0 0.5rem;
+  /* Raised by its border and top padding, so its month pill sits on the line every other page's pill sits on. */
+  margin: calc(-0.5rem - 1px) 0 1.25rem;
+  padding: 0.5rem 1.125rem 1.125rem;
+  background: var(--surface);
+  border: 1px solid var(--tile-border);
+  border-radius: var(--radius);
 }
 .boxTop {
   display: flex;
@@ -123,11 +129,8 @@
   display: flex;
   flex-direction: column;
   margin: 0;
-  padding: 0 1rem;
+  padding: 0;
   list-style: none;
-  background: var(--surface);
-  border: 1px solid var(--tile-border);
-  border-radius: var(--radius);
 }
 .steps li {
   display: flex;
@@ -136,7 +139,7 @@
   min-height: 3.25rem;
 }
 .steps li + li {
-  border-top: 1px solid var(--surface-2);
+  border-top: 1px solid var(--border);
 }
 .stepLink {
   display: flex;

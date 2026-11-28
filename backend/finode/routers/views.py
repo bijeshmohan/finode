@@ -492,6 +492,8 @@ def accounts_view(accounts: Accounts):
     page = accounts_page(accounts, local_today())
     return AccountsView(
         account_count=page.account_count,
+        in_accounts=page.in_accounts,
+        owed_on_cards=page.owed_on_cards,
         pinned=[_card(n, page.notes) for n in page.pinned],
         kinds=[
             KindRow(
