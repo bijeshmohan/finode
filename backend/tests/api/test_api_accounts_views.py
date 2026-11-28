@@ -84,12 +84,8 @@ def test_the_accounts_page_view(client, session, tree):
         ("Prepaid Wallet", "assets.wallet"),
     ], "the four types in their starting order"
     banks = seen["kinds"][0]
-    assert (banks["total"], banks["owed"], banks["open_count"], banks["add_url"]) == (
-        "4890.00",
-        False,
-        2,
-        "/accounts/new?type=assets.bank",
-    )
+    assert (banks["total"], banks["owed"], banks["add_url"]) == ("4890.00", False, "/accounts/new?type=assets.bank")
+    assert "open_count" not in banks, "the list shows how many accounts a type holds"
     assert seen["kinds"][2]["owed"] is True
     assert "net_worth" not in seen and "has_budget_accounts" not in seen
     cards = cards_of(seen)
@@ -120,7 +116,7 @@ def test_a_kind_whose_accounts_are_all_closed_says_so(client, tree):
     for name in ("groceries", "snacks"):
         assert client.post(f"/api/accounts/{tree[name]}/close").status_code == 200
     wallets = next(k for k in view(client)["kinds"] if k["name"] == "Prepaid Wallet")
-    assert wallets["all_closed"] is True and wallets["open_count"] == 0
+    assert wallets["all_closed"] is True
 
 
 def test_an_accounts_page_view(client, tree):

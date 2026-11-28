@@ -40,10 +40,6 @@ class Kind:
         return f"/accounts/new?type={self.type}"
 
     @property
-    def open_count(self) -> int:
-        return sum(1 for n in self.items if not n.closed)
-
-    @property
     def all_closed(self) -> bool:
         """A kind whose accounts are all closed hides whole until closed ones are shown."""
         return bool(self.items) and all(n.closed for n in self.items)

@@ -57,14 +57,11 @@ export function AccountsPage() {
           {page.pinned.length > 0 && (
             <section className={styles.kind}>
               <div className={styles.kindHead}>
-                <div>
-                  <div className={styles.kindTitle}>
-                    <span className={styles.typeIcon}>
-                      <Icon name="pin" />
-                    </span>
-                    <h2>Pinned</h2>
-                  </div>
-                  <p>{plural(page.pinned.length)}</p>
+                <div className={styles.kindTitle}>
+                  <span className={styles.typeIcon}>
+                    <Icon name="pin" />
+                  </span>
+                  <h2>Pinned</h2>
                 </div>
               </div>
               <AccountRows cards={page.pinned} withIcons />
@@ -75,14 +72,11 @@ export function AccountsPage() {
             .map((k) => (
               <section key={k.type} className={styles.kind}>
                 <div className={styles.kindHead}>
-                  <div>
-                    <div className={styles.kindTitle}>
-                      <span className={styles.typeIcon}>
-                        <CategoryIcon name={k.icon} />
-                      </span>
-                      <h2>{k.name}</h2>
-                    </div>
-                    <p>{plural(k.open_count)}</p>
+                  <div className={styles.kindTitle}>
+                    <span className={styles.typeIcon}>
+                      <CategoryIcon name={k.icon} />
+                    </span>
+                    <h2>{k.name}</h2>
                   </div>
                   <p className={styles.kindTotal}>
                     <span>{formatMoney(k.total, grouping)}</span>

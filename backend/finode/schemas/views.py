@@ -281,7 +281,6 @@ class KindRow(BaseModel):
     total: Decimal
     # A liability's total reads "owed".
     owed: bool
-    open_count: int
     # Every account in it is closed: the row shows only with the closed accounts.
     all_closed: bool
     add_url: str

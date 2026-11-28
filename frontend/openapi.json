@@ -4926,10 +4926,6 @@
             "title": "Name",
             "type": "string"
           },
-          "open_count": {
-            "title": "Open Count",
-            "type": "integer"
-          },
           "owed": {
             "title": "Owed",
             "type": "boolean"
@@ -4956,7 +4952,6 @@
           "icon",
           "total",
           "owed",
-          "open_count",
           "all_closed",
           "add_url",
           "cards"
