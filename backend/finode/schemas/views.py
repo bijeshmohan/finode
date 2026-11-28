@@ -287,7 +287,6 @@ class KindRow(BaseModel):
 
 
 class AccountsView(BaseModel):
-    account_count: int
     # The hero card: what the Bank, Cash and Prepaid Wallet accounts hold, and what is owed on the cards, apart.
     in_accounts: Decimal
     owed_on_cards: Decimal

@@ -268,17 +268,19 @@ def test_the_month_pill_sits_on_the_same_line_on_home_and_the_other_pages(signed
 def test_the_head_is_the_same_on_accounts_categories_and_budgets(signed_in_page: Page, books):
     page = signed_in_page
     spots = {}
-    accounts = re.compile(r"^\d+ accounts?$")
-    for path, label in (("/accounts", accounts), ("/categories", "Spent so far"), ("/budget", "Ready to assign")):
+    for path, label in (
+        ("/accounts", "In your accounts"),
+        ("/categories", "Spent so far"),
+        ("/budget", "Ready to assign"),
+    ):
         page.goto(path)
         title = page.locator("main h1").first.bounding_box()
-        top = (
-            page.get_by_text(label).first if isinstance(label, re.Pattern) else page.get_by_text(label, exact=True)
-        ).bounding_box()  # each type also says how many accounts it holds: the page's own line comes first
+        top = page.get_by_text(label, exact=True).bounding_box()
         assert title and top
         spots[path] = (round(title["y"]), round(top["y"]))
     assert len({s[0] for s in spots.values()}) == 1, f"the titles line up: {spots}"
-    assert spots["/accounts"][1] <= spots["/budget"][1], f"the quiet line sits under the title: {spots}"
+    # Accounts has no count under its title any more (the owner's choice, 2026-11-28): its hero sits where Budgets' does.
+    assert spots["/accounts"][1] == spots["/budget"][1], f"the heroes line up: {spots}"
 
 
 def test_move_money_picks_in_our_sheet_with_what_each_has_left(signed_in_page: Page, api: Api, books):

@@ -81,7 +81,7 @@ describe("an account's page", () => {
       [`/api/accounts/${ids.hdfc}/close`]: [200, {}],
       "/api/views/accounts": [
         200,
-        { net_worth: "0", account_count: 0, has_budget_accounts: false, pinned: [], kinds: [], has_closed: false },
+        { net_worth: "0", has_budget_accounts: false, pinned: [], kinds: [], has_closed: false },
       ],
     });
     await userEvent.click(await screen.findByLabelText("More actions"));

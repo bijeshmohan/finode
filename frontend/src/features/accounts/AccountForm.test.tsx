@@ -131,7 +131,7 @@ describe("editing an account", () => {
     const { router } = open(path, {
       [FORM]: [200, editing],
       [`/api/accounts/${ids.hdfc}`]: [204, null],
-      "/api/views/accounts": [200, { account_count: 0, pinned: [], kinds: [], has_closed: false }],
+      "/api/views/accounts": [200, { pinned: [], kinds: [], has_closed: false }],
     });
     await userEvent.click(await screen.findByRole("button", { name: "Delete account" }));
     expect(confirm).toHaveBeenCalledWith("Delete account 'HDFC'?");

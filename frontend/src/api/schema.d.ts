@@ -2639,8 +2639,6 @@ export interface components {
         };
         /** AccountsView */
         AccountsView: {
-            /** Account Count */
-            account_count: number;
             /** Has Closed */
             has_closed: boolean;
             /** In Accounts */

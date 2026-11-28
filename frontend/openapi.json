@@ -784,10 +784,6 @@
       },
       "AccountsView": {
         "properties": {
-          "account_count": {
-            "title": "Account Count",
-            "type": "integer"
-          },
           "has_closed": {
             "title": "Has Closed",
             "type": "boolean"
@@ -818,7 +814,6 @@
           }
         },
         "required": [
-          "account_count",
           "in_accounts",
           "owed_on_cards",
           "pinned",

@@ -94,7 +94,8 @@ def test_the_accounts_page_view(client, session, tree):
     assert cards["Groceries"]["note"]["kind"] == "stale"
     assert cards["HDFC"]["note"] is None and cards["Rent"]["note"] is None
     assert "on_budget" not in cards["HDFC"], "every account is in the budget: no dot to draw"
-    assert seen["account_count"] == 6 and seen["has_closed"] is False
+    assert seen["has_closed"] is False
+    assert "account_count" not in seen, "the page shows no count: its lists show how many"
 
 
 def test_a_cards_bill_is_its_note(client, tree):
