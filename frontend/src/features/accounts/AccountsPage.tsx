@@ -17,8 +17,6 @@ import look from "../../components/Page.module.css";
 import styles from "./Accounts.module.css";
 import { useAccounts } from "./queries";
 
-const plural = (n: number) => `${String(n)} account${n === 1 ? "" : "s"}`;
-
 export function AccountsPage() {
   const grouping = useGrouping();
   const view = useAccounts();
@@ -36,7 +34,6 @@ export function AccountsPage() {
       </div>
       {page && (
         <>
-          <p className={look.sub}>{page.account_count ? plural(page.account_count) : "No accounts yet"}</p>
           <section className={`${look.hero} ${styles.hero}`} data-testid="accounts-hero">
             <div className={look.heroTop}>
               <span>In your accounts</span>

@@ -25,7 +25,6 @@ export function card(over: Partial<AccountCardData> = {}): AccountCardData {
 
 export function accounts(over: Partial<AccountsView> = {}): AccountsView {
   return {
-    account_count: 3,
     in_accounts: "5000.00",
     owed_on_cards: "300.00",
     pinned: [],

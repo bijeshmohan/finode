@@ -16,10 +16,11 @@ function sectionOf(heading: HTMLElement): HTMLElement {
 const INR = { "/api/profile/": [200, { default_currency: "INR" }] as [number, unknown] };
 
 describe("the Accounts page", () => {
-  it("says how many accounts there are, with no net worth and no budget key", async () => {
+  it("says no count of accounts, no net worth and no budget key", async () => {
     renderApp("/accounts", { ...SIGNED_IN, ...INR, "/api/views/accounts": [200, accounts()] });
     expect(await screen.findByRole("heading", { level: 1, name: "Accounts" })).toBeInTheDocument();
-    expect(await screen.findByText("3 accounts")).toBeInTheDocument();
+    await screen.findByRole("heading", { name: "Bank Account" });
+    expect(screen.queryByText(/\d accounts?$|No accounts yet/)).not.toBeInTheDocument(); // the lists show it
     expect(screen.queryByText("Net worth")).not.toBeInTheDocument();
     expect(screen.queryByText("in the budget")).not.toBeInTheDocument();
   });
@@ -68,7 +69,7 @@ describe("the Accounts page", () => {
       cards: [card({ name: "Paytm", closed: true })],
     };
     renderApp("/accounts", { ...SIGNED_IN, "/api/views/accounts": [200, { ...view, kinds: [closedOnly] }] });
-    await screen.findByText("3 accounts");
+    await screen.findByRole("button", { name: "Load more" });
     expect(screen.queryByRole("heading", { name: "Prepaid Wallet" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Load more" }));
     expect(screen.getByRole("heading", { name: "Prepaid Wallet" })).toBeInTheDocument();
