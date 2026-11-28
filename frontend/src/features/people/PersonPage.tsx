@@ -156,12 +156,14 @@ export function PersonPage() {
             {error}
           </p>
         )}
-        <p className={look.muted}>
-          {settled ? "All settled up" : owesYou ? `${view.name} owes you` : `You owe ${view.name}`}
-        </p>
-        <p className={look.heroBalance} data-testid="person-figure">
-          <Figure value={view.net.replace("-", "")} />
-        </p>
+        <div className={look.heroCard}>
+          <p className={look.muted}>
+            {settled ? "All settled up" : owesYou ? `${view.name} owes you` : `You owe ${view.name}`}
+          </p>
+          <p className={look.heroBalance} data-testid="person-figure">
+            <Figure value={view.net.replace("-", "")} />
+          </p>
+        </div>
       </header>
 
       {!view.archived && (

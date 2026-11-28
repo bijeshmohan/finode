@@ -131,6 +131,10 @@ class AccountsPage:
     has_closed: bool
     # What the quiet line under the title counts: the open accounts.
     account_count: int
+    # The hero card: what the Bank, Cash and Prepaid Wallet accounts hold, and what is owed on the cards, apart (never
+    # one net figure: finode counts cash flow, not worth).
+    in_accounts: Decimal
+    owed_on_cards: Decimal
 
 
 def accounts_page(accounts: AccountService, today: date) -> AccountsPage:
@@ -146,6 +150,8 @@ def accounts_page(accounts: AccountService, today: date) -> AccountsPage:
         notes=card_notes([n for k in rows for n in k.items], last, bills, today),
         has_closed=any(n.closed for n in leaves),
         account_count=sum(1 for n in leaves if not n.closed),
+        in_accounts=sum((k.total for k in rows if not k.owed), Decimal("0.00")),
+        owed_on_cards=sum((k.total for k in rows if k.owed), Decimal("0.00")),
     )
 
 

@@ -1,13 +1,10 @@
 /* The Budgets pages (.budget-list, .crow.has-bar, .bar, .crow-of, form.copy-last, .quiet-link, .intro, .ready-warn,
    .hero-warn, .coming-note, .group-title, a.tappable, .hero-chev, .unused-toggle, the sheet's .sheet-title,
    .sheet-amount, .sheet-facts and .sheet-actions). */
+/* Plain on the page (look A, 2026-11-24): only the hero is a card; the rows part with a hairline. */
 .list {
   display: block;
-  padding: 0 1rem;
-  overflow: hidden;
-  background: var(--surface);
-  border: 1px solid var(--tile-border);
-  border-radius: var(--radius);
+  padding: 0;
 }
 .row {
   display: grid;
@@ -28,7 +25,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 .row + .row {
-  border-top: 1px solid var(--surface-2);
+  border-top: 1px solid var(--border);
 }
 /* A line led by its category's icon: the icon has its own column; the bar runs under the name and the figure. */
 .withIcon {

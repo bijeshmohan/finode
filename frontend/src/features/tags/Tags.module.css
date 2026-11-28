@@ -1,9 +1,7 @@
 /* The Tags page and a tag's sheet. */
+/* Plain on the page (look A, 2026-11-24): only the hero is a card; the rows part with a hairline. */
 .tile {
-  padding: 0 1rem;
-  background: var(--surface);
-  border: 1px solid var(--tile-border);
-  border-radius: var(--radius);
+  padding: 0;
 }
 .row {
   display: flex;
@@ -21,7 +19,7 @@
   cursor: pointer;
 }
 .row + .row {
-  border-top: 1px solid var(--surface-2);
+  border-top: 1px solid var(--border);
 }
 .name {
   color: var(--auto);

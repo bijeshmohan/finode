@@ -12,11 +12,28 @@
 .pageHead h1 {
   margin: 0;
 }
-.hero {
+/* The hero: the page's one card (look A, the owner's choice, 2026-11-24), its figure and what explains it; the lists
+   under it stay plain. `.heroCard` is the same card around an account's, a category's or a person's balance. */
+.hero,
+.heroCard {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  padding: 0.25rem 0 1.25rem;
+  margin: 0 0 1.25rem;
+  padding: 0.875rem 1.125rem 1.125rem;
+  background: var(--surface);
+  border: 1px solid var(--tile-border);
+  border-radius: var(--radius);
+}
+.heroCard {
+  gap: 0;
+  margin: 0.75rem 0 0;
+}
+.heroCard > :first-child {
+  margin-top: 0;
+}
+.heroCard > :last-child {
+  margin-bottom: 0;
 }
 .heroTop {
   display: flex;
@@ -78,17 +95,17 @@
   font: inherit;
   cursor: pointer;
 }
+/* The line that adds one more, at the end of a plain list. */
 .addRow {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
+  justify-content: flex-start;
+  gap: 0.5rem;
   min-height: var(--tap);
-  margin: 0.9rem 0 0;
-  border: 1px dashed var(--field-border);
-  border-radius: var(--radius);
-  color: var(--accent);
-  font-weight: 600;
+  margin: 0;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-weight: 500;
   text-decoration: none;
 }
 .back {
@@ -216,10 +233,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 0.75rem;
-  padding: 1rem;
-  background: var(--surface);
-  border: 1px solid var(--tile-border);
-  border-radius: var(--radius);
+  padding: 0.5rem 0;
 }
 .empty p {
   margin: 0;
