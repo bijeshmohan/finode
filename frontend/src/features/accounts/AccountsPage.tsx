@@ -1,7 +1,9 @@
 // The Accounts page: the pinned accounts, then a list per type (Bank Account, Cash, Credit Card, Prepaid Wallet, in
 // the person's order), each under its heading with its total. Every account is part of the budget. Closed accounts wait
-// behind "Load more". Nothing scrolls sideways (the owner's choice, 2026-11-24).
+// behind "Load more". Nothing scrolls sideways (the owner's choice, 2026-11-24). One + beside the title adds an account;
+// the form asks for its type (the owner's choice, 2026-11-28: an add line under every list was tapped by accident).
 import { useState } from "react";
+import { Link } from "react-router";
 
 import { useGrouping } from "../../app/currency";
 import { CategoryIcon } from "../../components/CategoryIcon";
@@ -17,14 +19,6 @@ import { useAccounts } from "./queries";
 
 const plural = (n: number) => `${String(n)} account${n === 1 ? "" : "s"}`;
 
-/** The line that ends each type's list. */
-const ADD: Record<string, string> = {
-  "assets.bank": "Add bank account",
-  "assets.cash": "Add cash account",
-  "liabilities.cards": "Add credit card",
-  "assets.wallet": "Add prepaid wallet",
-};
-
 export function AccountsPage() {
   const grouping = useGrouping();
   const view = useAccounts();
@@ -36,6 +30,9 @@ export function AccountsPage() {
     <>
       <div className={look.pageHead}>
         <h1>Accounts</h1>
+        <Link className={styles.addButton} to="/accounts/new" aria-label="Add account">
+          <Icon name="plus" />
+        </Link>
       </div>
       {page && (
         <>
@@ -83,10 +80,7 @@ export function AccountsPage() {
                     {k.owed && <small>owed</small>}
                   </p>
                 </div>
-                <AccountRows
-                  cards={k.cards.filter((c) => showClosed || !c.closed)}
-                  add={{ to: k.add_url, label: ADD[k.type] ?? "Add account" }}
-                />
+                <AccountRows cards={k.cards.filter((c) => showClosed || !c.closed)} />
               </section>
             ))}
 

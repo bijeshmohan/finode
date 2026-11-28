@@ -36,10 +36,6 @@ class Kind:
         return self.root == "Liabilities"
 
     @property
-    def add_url(self) -> str:
-        return f"/accounts/new?type={self.type}"
-
-    @property
     def all_closed(self) -> bool:
         """A kind whose accounts are all closed hides whole until closed ones are shown."""
         return bool(self.items) and all(n.closed for n in self.items)

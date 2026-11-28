@@ -72,24 +72,22 @@
 .due {
   color: var(--negative);
 }
-.addLine {
-  display: flex;
+/* The one + beside the page's title: away from the rows, a full tap target. */
+.addButton {
+  display: inline-flex;
+  flex: none;
   align-items: center;
-  gap: 0.5rem;
-  min-height: var(--tap);
-  padding: 0.25rem 0;
-  color: var(--muted);
-  font-weight: 500;
-  text-decoration: none;
+  justify-content: center;
+  width: var(--tap);
+  height: var(--tap);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
 }
-@media (hover: hover) {
-  .addLine:hover {
-    color: var(--text);
-  }
-}
-.addLine :global(.icon) {
-  width: 1.1rem;
-  height: 1.1rem;
+.addButton :global(.icon) {
+  width: 1.25rem;
+  height: 1.25rem;
 }
 .pinButton {
   display: inline-flex;

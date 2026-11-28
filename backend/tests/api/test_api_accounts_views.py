@@ -84,7 +84,8 @@ def test_the_accounts_page_view(client, session, tree):
         ("Prepaid Wallet", "assets.wallet"),
     ], "the four types in their starting order"
     banks = seen["kinds"][0]
-    assert (banks["total"], banks["owed"], banks["add_url"]) == ("4890.00", False, "/accounts/new?type=assets.bank")
+    assert (banks["total"], banks["owed"]) == ("4890.00", False)
+    assert "add_url" not in banks, "one add button by the page's title, the same for every type"
     assert "open_count" not in banks, "the list shows how many accounts a type holds"
     assert seen["kinds"][2]["owed"] is True
     assert "net_worth" not in seen and "has_budget_accounts" not in seen

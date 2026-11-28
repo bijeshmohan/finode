@@ -37,7 +37,6 @@ export function accounts(over: Partial<AccountsView> = {}): AccountsView {
         total: "5000.00",
         owed: false,
         all_closed: false,
-        add_url: "/accounts/new?type=assets.bank",
         cards: [card(), card({ id: ids.old, name: "Old Savings", balance: "0.00", closed: true })],
       },
       {
@@ -47,7 +46,6 @@ export function accounts(over: Partial<AccountsView> = {}): AccountsView {
         total: "300.00",
         owed: true,
         all_closed: false,
-        add_url: "/accounts/new?type=liabilities.cards",
         cards: [
           card({
             id: ids.visa,

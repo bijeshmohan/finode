@@ -283,7 +283,6 @@ class KindRow(BaseModel):
     owed: bool
     # Every account in it is closed: the row shows only with the closed accounts.
     all_closed: bool
-    add_url: str
     cards: list[AccountCard]
 
 

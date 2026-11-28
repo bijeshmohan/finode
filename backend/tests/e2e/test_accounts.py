@@ -81,13 +81,10 @@ def test_the_kinds_have_room_between_them_and_a_heading_larger_than_an_accounts_
     assert gaps and min(gaps) >= 36, f"space between kinds: {gaps}"
 
 
-def test_a_row_opens_the_account_and_the_add_line_opens_the_form_on_that_kind(signed_in_page: Page, api: Api, books):
+def test_a_row_opens_the_account(signed_in_page: Page, api: Api, books):
     page = signed_in_page
     nested(api, books)
     page.goto("/accounts")
-    expect(kind(page, "Prepaid Wallet").get_by_role("link", name="Add prepaid wallet")).to_have_attribute(
-        "href", "/accounts/new?type=assets.wallet"
-    )
     kind(page, "Prepaid Wallet").get_by_role("link", name=re.compile("HDFC")).click()
     page.wait_for_url(re.compile(r"/accounts/[0-9a-f-]{36}$"))
     expect(page.get_by_role("heading", level=1, name="HDFC")).to_be_visible()
@@ -273,16 +270,32 @@ def test_pay_bill_opens_the_form_with_the_card_and_the_amount(signed_in_page: Pa
     expect(page.get_by_role("button", name=re.compile("^To(?! do)"))).to_contain_text("Amex")
 
 
-def test_an_empty_page_shows_the_four_types_and_each_adds_an_account_of_its_type(signed_in_page: Page):
+def test_an_empty_page_shows_the_four_types(signed_in_page: Page):
     page = signed_in_page
     page.goto("/accounts")
     expect(page.locator("main h2")).to_have_text(["Bank Account", "Cash", "Credit Card", "Prepaid Wallet"])
-    expect(kind(page, "Prepaid Wallet").get_by_role("link", name="Add prepaid wallet")).to_have_attribute(
-        "href", "/accounts/new?type=assets.wallet"
+
+
+def test_one_add_button_by_the_title_and_none_in_the_lists(signed_in_page: Page, api: Api, books):
+    """The owner's choice (2026-11-28, option C): an add line under every list was tapped by accident, so one + sits
+    beside the title, away from the rows, and the form asks for the type."""
+    page = signed_in_page
+    nested(api, books)
+    page.goto("/accounts")
+    expect(page.locator("main h2").first).to_be_visible()
+    assert page.locator("main section").get_by_role("link", name=re.compile("^Add")).count() == 0
+    add = page.locator("main").get_by_role("link", name="Add account")
+    expect(add).to_have_count(1)
+    head = page.get_by_role("heading", level=1, name="Accounts").bounding_box()
+    box = add.bounding_box()
+    assert head and box and abs((box["y"] + box["height"] / 2) - (head["y"] + head["height"] / 2)) < 8, (
+        "beside the title"
     )
-    kind(page, "Prepaid Wallet").get_by_role("link", name="Add prepaid wallet").click()
-    page.wait_for_url(re.compile(r"/accounts/new\?type=assets.wallet$"))
-    expect(page.get_by_role("radio", name="Prepaid Wallet")).to_have_attribute("aria-checked", "true")
+    assert box["width"] >= 44 and box["height"] >= 44, f"a full tap target: {box}"
+    add.click()
+    page.wait_for_url(re.compile(r"/accounts/new$"))
+    for name in ("Bank Account", "Cash", "Credit Card", "Prepaid Wallet"):
+        expect(page.get_by_role("radio", name=name)).to_have_attribute("aria-checked", "false")
 
 
 # ---- the account form ----------------------------------------------------------------------------------
