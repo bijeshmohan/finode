@@ -1,7 +1,8 @@
 """Look A (the owner's choice, 2026-11-24): a page's hero, its figure and what explains it, is the page's one card; the
 lists under it are plain, on the page itself. A page with no hero has no card at all."""
 
-from datetime import timedelta
+from calendar import monthrange
+from datetime import date, timedelta
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -40,7 +41,7 @@ def filled(api: Api, books):
     )
     api.post(
         "/transactions/",
-        date=(today + timedelta(days=3)).isoformat(),
+        date=ahead(today).isoformat(),
         payee="Landlord",
         postings=[leg(books["rent"], "debit", "900"), leg(books["checking"], "credit", "900")],
     )
@@ -55,11 +56,23 @@ def filled(api: Api, books):
     return {**books, "alice": who}
 
 
+def month_end(today: date) -> date:
+    return today.replace(day=monthrange(today.year, today.month)[1])
+
+
+def ahead(today: date) -> date:
+    """A day dated ahead that Coming up shows: it looks from tomorrow to the end of this month."""
+    return min(today + timedelta(days=3), max(month_end(today), today + timedelta(days=1)))
+
+
 def hero_pages(filled: dict) -> list[str]:
+    today = local_today()
+    # On a month's last day Coming up has nothing to show (it looks no further than today), so it has no hero.
+    coming_up = ["/budget/coming-up"] if today < month_end(today) else []
     return [
         "/",
         "/budget",
-        "/budget/coming-up",
+        *coming_up,
         "/categories",
         f"/categories/{filled['food']['id']}",
         "/accounts",
